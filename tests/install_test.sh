@@ -1,11 +1,13 @@
 #!/bin/sh
 # Tests for install.sh.
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 EXPECTED_FILES="softwary .softwary/VERSION .softwary/.gitignore .softwary/bin/softwary
-.softwary/lib/config.sh .softwary/lib/verify.sh .softwary/lib/doctor.sh .softwary/config/commands.conf"
+.softwary/lib/config.sh .softwary/lib/verify.sh .softwary/lib/doctor.sh .softwary/config/commands.conf
+.softwary/lib/sync.sh .softwary/lib/target.sh .softwary/rules/core.md .softwary/targets/claude-code.sh
+.softwary/targets/codex.sh .softwary/targets/cursor.sh .softwary/config/tools.conf"
 
 # AC-M0-01: the files to be written are listed before any of them is written.
 # Writing is made to fail on purpose; the full list must still be printed.
@@ -81,6 +83,27 @@ test_ac_m0_01_refuses_missing_target() {
 	RC=0
 	sh "$PKG_ROOT/install.sh" >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 2 "exit code without argument"
+}
+
+# AC-M1-01: rules, targets and a tools.conf with every tool UNSET are installed.
+test_ac_m1_01_installs_rules_targets_tools_conf() {
+	mkdir "$T/repo"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >"$OUT" 2>&1 || fail "install failed"
+	[ -s "$T/repo/.softwary/rules/core.md" ] || fail "core.md missing"
+	for t in $TOOLS; do
+		[ -f "$T/repo/.softwary/targets/$t.sh" ] || fail "target $t missing"
+		assert_match "$T/repo/.softwary/config/tools.conf" "^$t = UNSET$"
+	done
+}
+
+# AC-M1-01: an existing (project-owned) tools.conf is never overwritten.
+test_ac_m1_01_keeps_existing_tools_conf() {
+	mkdir "$T/repo"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >/dev/null 2>&1 || fail "first install failed"
+	printf 'cursor = on\n' >"$T/repo/.softwary/config/tools.conf"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >"$OUT" 2>&1 || fail "second install failed"
+	assert_eq "$(cat "$T/repo/.softwary/config/tools.conf")" "cursor = on" "tools.conf"
+	assert_match "$OUT" "^  \.softwary/config/tools\.conf \(exists, kept\)$"
 }
 
 run_tests "$0"

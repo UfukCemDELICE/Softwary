@@ -1,13 +1,13 @@
 #!/bin/sh
 # AC-M0-10: one command runs every test, and every script passes shellcheck.
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 # AC-M0-10: every shell script in the package is shellcheck-clean.
 test_ac_m0_10_shellcheck_clean() {
 	command -v shellcheck >/dev/null || fail "shellcheck is required (it is not optional)"
-	(cd "$PKG_ROOT" && shellcheck -s sh -x install.sh src/bin/softwary src/lib/*.sh src/templates/softwary tests/*.sh) \
+	(cd "$PKG_ROOT" && shellcheck -s sh -x install.sh src/bin/softwary src/lib/*.sh src/targets/*.sh src/templates/softwary tests/*.sh) \
 		>"$OUT" 2>&1 || fail "shellcheck reported problems"
 }
 

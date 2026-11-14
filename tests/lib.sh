@@ -41,14 +41,29 @@ assert_contains() {
 	grep -F -e "$2" "$1" >/dev/null || fail "${1##*/} does not contain [$2]"
 }
 
-# setup_repo [--no-git]: creates $T/repo, initialises git and installs softwary.
+# setup_repo [--no-git] [--no-sync]: creates $T/repo, initialises git and
+# installs softwary. Unless --no-sync is given, every tool is set to off and
+# ./softwary sync runs, so the repo starts in a synced state.
 setup_repo() {
+	_git=1
+	_sync=1
+	for _a in "$@"; do
+		case $_a in
+		--no-git) _git=0 ;;
+		--no-sync) _sync=0 ;;
+		*) fail "setup_repo: unknown option $_a" ;;
+		esac
+	done
 	REPO=$T/repo
 	mkdir -p "$REPO"
-	if [ "${1:-}" != --no-git ]; then
+	if [ "$_git" -eq 1 ]; then
 		git -C "$REPO" init -q || fail "git init failed"
 	fi
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
+	if [ "$_sync" -eq 1 ]; then
+		tools_all off
+		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
+	fi
 }
 
 # write_conf: replaces the repo's commands.conf with stdin.
@@ -63,19 +78,64 @@ conf_all() {
 	done | write_conf
 }
 
-# conf_set KEY VALUE: replaces KEY's line in commands.conf, or appends it.
-conf_set() {
-	_c=$REPO/.softwary/config/commands.conf
-	awk -v k="$1" -v v="$2" '
+# file_set FILE KEY VALUE: replaces KEY's line in FILE, or appends it.
+file_set() {
+	awk -v k="$2" -v v="$3" '
 		$1 == k && $2 == "=" { print k " = " v; done = 1; next }
 		{ print }
-		END { if (!done) print k " = " v }' "$_c" >"$_c.tmp" && mv "$_c.tmp" "$_c"
+		END { if (!done) print k " = " v }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+}
+
+# conf_set KEY VALUE: sets KEY in commands.conf.
+conf_set() {
+	file_set "$REPO/.softwary/config/commands.conf" "$1" "$2"
 }
 
 # conf_del KEY: removes KEY's line from commands.conf.
 conf_del() {
 	_c=$REPO/.softwary/config/commands.conf
 	awk -v k="$1" '!($1 == k && $2 == "=")' "$_c" >"$_c.tmp" && mv "$_c.tmp" "$_c"
+}
+
+TOOLS="claude-code codex cursor"
+
+# tools_set TOOL VALUE: sets TOOL in tools.conf.
+tools_set() {
+	file_set "$REPO/.softwary/config/tools.conf" "$1" "$2"
+}
+
+# tools_all VALUE: sets every tool to VALUE.
+tools_all() {
+	for _t in $TOOLS; do
+		tools_set "$_t" "$1"
+	done
+}
+
+# add_sources: copies the sample skills and agents into the repo's .softwary/.
+add_sources() {
+	cp -R "$PKG_ROOT/tests/fixtures/sources/skills" "$PKG_ROOT/tests/fixtures/sources/agents" "$REPO/.softwary/"
+}
+
+# snapshot: prints "cksum size path" for every file in the repo except .git.
+snapshot() {
+	(cd "$REPO" && find . -path ./.git -prune -o -type f -print | sort | while IFS= read -r _f; do
+		printf '%s %s\n' "$(cksum <"$_f")" "$_f"
+	done)
+}
+
+# changed_paths BEFORE AFTER: paths whose snapshot lines differ.
+changed_paths() {
+	diff "$1" "$2" | sed -n 's/^[<>] [0-9]* [0-9]* \.\///p' | sort -u
+}
+
+# block_of FILE: prints the lines between the softwary markers.
+block_of() {
+	awk '/^<!-- softwary:end -->$/ { on = 0 } on { print } /^<!-- softwary:begin/ { on = 1 }' "$1"
+}
+
+# outside_block FILE: prints the lines outside the softwary block.
+outside_block() {
+	awk '/^<!-- softwary:begin/ { on = 1 } !on { print } /^<!-- softwary:end -->$/ { on = 0 }' "$1"
 }
 
 # sw ARGS...: runs ./softwary ARGS in the repo, capturing output and exit code.

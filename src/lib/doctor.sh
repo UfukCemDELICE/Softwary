@@ -63,6 +63,30 @@ EOF
 		done
 	fi
 
+	SW_PROBLEMS=
+	sw_tools_load
+	if [ -n "$SW_PROBLEMS" ]; then
+		while IFS= read -r _err; do
+			[ -n "$_err" ] && sw_doctor_fail "tools.conf" "$_err"
+		done <<EOF
+$SW_PROBLEMS
+EOF
+	else
+		sw_line "tools.conf" PASS
+		_rc=0
+		_sync_out=$(sw_sync --check) || _rc=$?
+		if [ "$_rc" -eq 0 ]; then
+			sw_line "generated" PASS
+		else
+			while IFS= read -r _err; do
+				case $_err in '' | sync*) continue ;; esac
+				sw_doctor_fail "generated" "$(printf '%s' "$_err" | tr -s ' ')"
+			done <<EOF
+$_sync_out
+EOF
+		fi
+	fi
+
 	if [ "$_problems" -eq 0 ]; then
 		printf 'doctor: no problems found\n'
 		return 0

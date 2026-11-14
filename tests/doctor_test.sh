@@ -1,8 +1,8 @@
 #!/bin/sh
 # Tests for ./softwary doctor.
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 # AC-M0-07: a complete setup reports no problem and exits 0.
 test_ac_m0_07_clean_setup_passes() {

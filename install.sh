@@ -18,17 +18,22 @@ if [ ! -d "$1" ]; then
 fi
 target=$(cd "$1" && pwd -P)
 version=$(cat "$pkg/VERSION")
-conf=.softwary/config/commands.conf
+# Project-owned files: written once, never overwritten.
+owned="commands.conf tools.conf"
 
 # Pairs of "source destination", destination relative to the target.
 plan="src/templates/softwary softwary
 VERSION .softwary/VERSION
 src/templates/gitignore .softwary/.gitignore
 src/bin/softwary .softwary/bin/softwary"
-for lib in "$pkg"/src/lib/*.sh; do
-	name=${lib##*/}
-	plan="$plan
-src/lib/$name .softwary/lib/$name"
+# Managed trees: every file under these src/ directories is installed.
+for dir in lib rules targets skills agents; do
+	[ -d "$pkg/src/$dir" ] || continue
+	files=$(cd "$pkg/src" && find "$dir" -type f | sort)
+	for f in $files; do
+		plan="$plan
+src/$f .softwary/$f"
+	done
 done
 
 printf 'softwary %s: installing into %s\n' "$version" "$target"
@@ -36,11 +41,13 @@ printf 'Files to write:\n'
 printf '%s\n' "$plan" | while read -r _src dest; do
 	printf '  %s\n' "$dest"
 done
-if [ -e "$target/$conf" ]; then
-	printf '  %s (exists, kept)\n' "$conf"
-else
-	printf '  %s\n' "$conf"
-fi
+for c in $owned; do
+	if [ -e "$target/.softwary/config/$c" ]; then
+		printf '  .softwary/config/%s (exists, kept)\n' "$c"
+	else
+		printf '  .softwary/config/%s\n' "$c"
+	fi
+done
 
 printf 'Writing...\n'
 printf '%s\n' "$plan" | while read -r src dest; do
@@ -48,9 +55,11 @@ printf '%s\n' "$plan" | while read -r src dest; do
 	cp "$pkg/$src" "$target/$dest"
 done
 chmod +x "$target/softwary" "$target/.softwary/bin/softwary"
-if [ ! -e "$target/$conf" ]; then
-	mkdir -p "$target/.softwary/config"
-	cp "$pkg/src/templates/commands.conf" "$target/$conf"
-fi
+for c in $owned; do
+	if [ ! -e "$target/.softwary/config/$c" ]; then
+		mkdir -p "$target/.softwary/config"
+		cp "$pkg/src/templates/$c" "$target/.softwary/config/$c"
+	fi
+done
 
-printf 'Done. Next: set the commands in %s, then run ./softwary doctor\n' "$conf"
+printf 'Done. Next: set .softwary/config/commands.conf and tools.conf, run ./softwary sync, then ./softwary doctor\n'
