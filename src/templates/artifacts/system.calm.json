@@ -1,0 +1,17 @@
+{
+  "$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
+  "nodes": [
+    {
+      "unique-id": "UNSET",
+      "node-type": "service",
+      "name": "UNSET",
+      "description": "UNSET",
+      "metadata": {
+        "paths": ["UNSET"],
+        "risk": "UNSET",
+        "status": "planned"
+      }
+    }
+  ],
+  "relationships": []
+}

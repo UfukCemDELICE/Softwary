@@ -87,6 +87,23 @@ EOF
 		fi
 	fi
 
+	sw_risk_load
+	if [ -n "$SW_RISK_ERRORS" ]; then
+		while IFS= read -r _err; do
+			[ -n "$_err" ] && sw_doctor_fail "risk.conf" "$_err"
+		done <<EOF
+$SW_RISK_ERRORS
+EOF
+	else
+		sw_line "risk.conf" PASS
+	fi
+
+	if [ -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
+		sw_line "model" PASS
+	else
+		sw_doctor_fail "model" "$SW_MODEL_MISSING"
+	fi
+
 	if [ "$_problems" -eq 0 ]; then
 		printf 'doctor: no problems found\n'
 		return 0

@@ -94,4 +94,27 @@ test_missing_conf_reported() {
 	assert_match "$OUT" "^commands\.conf +FAIL "
 }
 
+# AC-M2-10: risk.conf problems are reported on separate lines.
+test_ac_m2_10_doctor_reports_risk_conf() {
+	setup_repo
+	conf_all true
+	sw doctor
+	assert_match "$OUT" "^risk\.conf +PASS$"
+	risk_set default UNSET
+	printf 'garbage\n' >>"$REPO/.softwary/config/risk.conf"
+	sw doctor
+	assert_eq "$RC" 2 "exit code"
+	assert_match "$OUT" "^risk\.conf +FAIL \(.*risk\.conf:[0-9]+: 'default' is UNSET"
+	assert_match "$OUT" "^risk\.conf +FAIL \(.*risk\.conf:[0-9]+: malformed line"
+}
+
+# AC-M2-10: a missing model is reported.
+test_ac_m2_10_doctor_reports_missing_model() {
+	setup_repo --no-model
+	conf_all true
+	sw doctor
+	assert_eq "$RC" 2 "exit code"
+	assert_match "$OUT" "^model +FAIL \(architecture/model/system\.calm\.json not found"
+}
+
 run_tests "$0"

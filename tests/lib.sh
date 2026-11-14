@@ -41,16 +41,19 @@ assert_contains() {
 	grep -F -e "$2" "$1" >/dev/null || fail "${1##*/} does not contain [$2]"
 }
 
-# setup_repo [--no-git] [--no-sync]: creates $T/repo, initialises git and
-# installs softwary. Unless --no-sync is given, every tool is set to off and
-# ./softwary sync runs, so the repo starts in a synced state.
+# setup_repo [--no-git] [--no-sync] [--no-model]: creates $T/repo, initialises
+# git and installs softwary. Unless --no-sync is given, every tool is set to
+# off, ./softwary sync runs, risk.conf gets a default and, unless --no-model is
+# given, the sample model and its view are added: the repo starts complete.
 setup_repo() {
 	_git=1
 	_sync=1
+	_model=1
 	for _a in "$@"; do
 		case $_a in
 		--no-git) _git=0 ;;
 		--no-sync) _sync=0 ;;
+		--no-model) _model=0 ;;
 		*) fail "setup_repo: unknown option $_a" ;;
 		esac
 	done
@@ -63,7 +66,46 @@ setup_repo() {
 	if [ "$_sync" -eq 1 ]; then
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
+		risk_set default R1
+		[ "$_model" -eq 0 ] || add_model
 	fi
+}
+
+FIXTURES=$PKG_ROOT/tests/fixtures/artifacts
+MODEL_REL=architecture/model/system.calm.json
+
+# add_model: copies the sample model into the repo and generates its view.
+add_model() {
+	mkdir -p "$REPO/architecture/model"
+	cp "$FIXTURES/system.calm.json" "$REPO/$MODEL_REL"
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
+# add_specs: copies the sample specs and tests into the repo and points
+# test_paths at the tests. Call it after conf_all, which rewrites commands.conf.
+add_specs() {
+	cp -R "$FIXTURES/specs" "$FIXTURES/tests" "$REPO/"
+	conf_set test_paths tests
+}
+
+# risk_set PATTERN TIER: sets PATTERN in risk.conf.
+risk_set() {
+	file_set "$REPO/.softwary/config/risk.conf" "$1" "$2"
+}
+
+# fm_set FILE KEY VALUE: sets KEY in FILE's front matter (an empty VALUE
+# keeps the key with no value). fm_del FILE KEY removes it.
+fm_set() {
+	awk -v k="$2" -v v="$3" '
+		NR == 1 { print; next }
+		!closed && $0 == "---" { if (!done) print k ": " v; closed = 1; print; next }
+		!closed && index($0, k ":") == 1 { print k ": " v; done = 1; next }
+		{ print }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+	sed 's/: $/:/' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+}
+
+fm_del() {
+	awk -v k="$2" 'NR == 1 || closed || index($0, k ":") != 1 { print } NR > 1 && $0 == "---" { closed = 1 }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
 
 # write_conf: replaces the repo's commands.conf with stdin.
