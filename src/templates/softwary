@@ -1,0 +1,6 @@
+#!/bin/sh
+# softwary wrapper. Managed by softwary: install.sh overwrites this file.
+root=$(cd "$(dirname "$0")" && pwd -P) || exit 2
+SOFTWARY_ROOT=$root
+export SOFTWARY_ROOT
+exec sh "$root/.softwary/bin/softwary" "$@"

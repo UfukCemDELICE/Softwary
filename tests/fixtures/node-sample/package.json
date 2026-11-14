@@ -1,0 +1,7 @@
+{
+  "name": "softwary-node-sample",
+  "private": true,
+  "scripts": {
+    "test": "node --test calc.test.js"
+  }
+}
