@@ -45,6 +45,14 @@ design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okun
 | --- | --- | --- |
 | CALM metadata'sı `paths`, `risk`, `status` alanlarına izin verir | Doğru. Güncel sürüm 1.3. Düğümün `metadata`'sı ya `additionalProperties: true` olan bir nesne ya da nesne dizisidir. Düğümde zorunlu alanlar `unique-id`, `node-type`, `name`, `description`; ilişkide `unique-id`, `relationship-type` ve `interacts`, `connects`, `deployed-in`, `composed-of`, `options` türlerinden tam biri. `connects` uçları `node` ve isteğe bağlı `interfaces` taşır. | github.com/finos/calm-schema `schema/core.json`, `schema/interface.json` |
 
+## M3 öncesi varsayım doğrulaması (2026-11-14)
+
+`git-scm.com` bu ortamdan erişilemedi; belge git'in kendi reposundan (`github.com/git/git`, `Documentation/`) doğrudan okundu ve yerelde git 2.43 ile denendi.
+
+| Varsayım | Sonuç | Kaynak |
+| --- | --- | --- |
+| Git hook yolu repodaki bir klasöre yönlendirilebilir | Doğru: `core.hooksPath` (git 2.9'dan beri). Göreli yol, hook'un çalıştığı dizine, yani çıplak olmayan repoda çalışma ağacının köküne göre çözülür; çalıştırma izni olmayan hook yok sayılır. Ayar yerel yapılandırmadır, klonla gelmez: her klonda ayrıca yapılmalı ve `doctor` denetlemelidir. Ayarlanınca `.git/hooks` artık okunmaz. Denemede `core.hooksPath=.softwary/hooks` ile `pre-commit` alt dizinden yapılan commit'te de çalıştı ve commit'i durdurdu. | `Documentation/config/core.adoc`, `Documentation/githooks.adoc`, `Documentation/RelNotes/2.9.0.adoc` |
+
 ## M1
 
 | No | Konu | Karar | Dayanak |

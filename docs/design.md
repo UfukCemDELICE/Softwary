@@ -37,7 +37,7 @@ Kurulum dosya kopyalamaktır. Scriptler POSIX `sh` ile yazılır; ek bağımlıl
   AGENTS.md  CLAUDE.md  üretilir (yönetilen blok)
   CONTEXT.md            alan sözlüğü
   .softwary/
-    bin/ lib/ rules/ skills/ agents/ templates/ targets/   yönetilen
+    bin/ lib/ rules/ skills/ agents/ templates/ targets/ hooks/   yönetilen
     config/             commands.conf, risk.conf, tools.conf
     local/              projeye özel ekler
     state/              kayıtlar, git'e eklenmez
@@ -156,11 +156,7 @@ Verilmiş kararlar:
 - Her değişikliğin, küçük de olsa, bir spec'i vardır.
 - CI şablonu GitHub Actions içindir.
 
-Araç yolları, subagent biçimleri ve `CLAUDE.md`'nin `AGENTS.md`'yi `@AGENTS.md` ile içe aktarabilmesi M1 öncesinde, CALM metadata'sının `paths`, `risk`, `status` alanlarına izin vermesi M2 öncesinde doğrulandı (`docs/decisions.md`). Yapıcının ilgili kilometre taşından önce güncel belgelerden doğrulayacağı varsayımlar:
-
-| Varsayım | Yanlışsa |
-| --- | --- |
-| Git hook yolu repodaki bir klasöre yönlendirilebilir | Hook'lar kopyalanır |
+Araç yolları, subagent biçimleri ve `CLAUDE.md`'nin `AGENTS.md`'yi `@AGENTS.md` ile içe aktarabilmesi M1 öncesinde, CALM metadata'sının `paths`, `risk`, `status` alanlarına izin vermesi M2 öncesinde, git hook yolunun repodaki bir klasöre yönlendirilebilmesi M3 öncesinde doğrulandı (`docs/decisions.md`). Doğrulanmayı bekleyen varsayım kalmadı.
 
 ## 10. Yapım biçimi
 
