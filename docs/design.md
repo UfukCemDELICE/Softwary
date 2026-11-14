@@ -156,11 +156,10 @@ Verilmiş kararlar:
 - Her değişikliğin, küçük de olsa, bir spec'i vardır.
 - CI şablonu GitHub Actions içindir.
 
-Araç yolları, subagent biçimleri ve `CLAUDE.md`'nin `AGENTS.md`'yi `@AGENTS.md` ile içe aktarabilmesi M1 öncesinde doğrulandı (`docs/decisions.md`). Yapıcının ilgili kilometre taşından önce güncel belgelerden doğrulayacağı varsayımlar:
+Araç yolları, subagent biçimleri ve `CLAUDE.md`'nin `AGENTS.md`'yi `@AGENTS.md` ile içe aktarabilmesi M1 öncesinde, CALM metadata'sının `paths`, `risk`, `status` alanlarına izin vermesi M2 öncesinde doğrulandı (`docs/decisions.md`). Yapıcının ilgili kilometre taşından önce güncel belgelerden doğrulayacağı varsayımlar:
 
 | Varsayım | Yanlışsa |
 | --- | --- |
-| CALM metadata'sı `paths`, `risk`, `status` alanlarına izin verir | Yan dosyaya taşınır |
 | Git hook yolu repodaki bir klasöre yönlendirilebilir | Hook'lar kopyalanır |
 
 ## 10. Yapım biçimi

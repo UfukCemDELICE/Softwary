@@ -37,6 +37,14 @@ design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okun
 | Codex `AGENTS.md` okur | Doğru; kökten çalışma dizinine kadar birleştirir, varsayılan sınır 32 KiB. | learn.chatgpt.com/docs/agent-configuration/agents-md |
 | CALM metadata, git hook yolu | M1'i etkilemiyor; M2 ve M3 öncesi doğrulanacak. | — |
 
+## M2 öncesi varsayım doğrulaması (2026-11-14)
+
+Şema `github.com/finos/calm-schema` reposundan (`schema/core.json`, `$id` `https://calm.finos.org/release/1.3/meta/core.json`) doğrudan okundu; `calm.finos.org` bu ortamdan erişilemedi. Şema kaynağı `finos/architecture-as-code`'dan bu repoya taşınmış.
+
+| Varsayım | Sonuç | Kaynak |
+| --- | --- | --- |
+| CALM metadata'sı `paths`, `risk`, `status` alanlarına izin verir | Doğru. Güncel sürüm 1.3. Düğümün `metadata`'sı ya `additionalProperties: true` olan bir nesne ya da nesne dizisidir. Düğümde zorunlu alanlar `unique-id`, `node-type`, `name`, `description`; ilişkide `unique-id`, `relationship-type` ve `interacts`, `connects`, `deployed-in`, `composed-of`, `options` türlerinden tam biri. `connects` uçları `node` ve isteğe bağlı `interfaces` taşır. | github.com/finos/calm-schema `schema/core.json`, `schema/interface.json` |
+
 ## M1
 
 | No | Konu | Karar | Dayanak |
