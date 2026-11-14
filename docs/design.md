@@ -140,7 +140,7 @@ Kaynak bir kez yazılır, `sync` her araç için bir hedef scriptiyle çevirir. 
 | --- | --- | --- | --- |
 | Kuralların girişi | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` |
 | Skill'ler | `.claude/skills/` | `.cursor/skills/` | `.agents/skills/` |
-| Subagent'lar | `.claude/agents/` | Doğrulanacak | Doğrulanacak |
+| Subagent'lar | `.claude/agents/*.md` | `.cursor/agents/*.md` | `.codex/agents/*.toml` |
 
 Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı desteklemeyen araçta rol skill olarak üretilir ve temiz bir oturumda çalıştırılır.
 
@@ -156,13 +156,10 @@ Verilmiş kararlar:
 - Her değişikliğin, küçük de olsa, bir spec'i vardır.
 - CI şablonu GitHub Actions içindir.
 
-Yapıcının ilgili kilometre taşından önce güncel belgelerden doğrulayacağı varsayımlar:
+Araç yolları, subagent biçimleri ve `CLAUDE.md`'nin `AGENTS.md`'yi `@AGENTS.md` ile içe aktarabilmesi M1 öncesinde doğrulandı (`docs/decisions.md`). Yapıcının ilgili kilometre taşından önce güncel belgelerden doğrulayacağı varsayımlar:
 
 | Varsayım | Yanlışsa |
 | --- | --- |
-| Üç araç skill'leri belirtilen klasörlerden yükler | Hedef scripti doğru yola yazar |
-| Cursor ve Codex subagent yolları ve biçimleri | Rol skill olarak üretilir |
-| `CLAUDE.md`, `AGENTS.md`'yi içe aktarabilir | Blok iki dosyaya da yazılır |
 | CALM metadata'sı `paths`, `risk`, `status` alanlarına izin verir | Yan dosyaya taşınır |
 | Git hook yolu repodaki bir klasöre yönlendirilebilir | Hook'lar kopyalanır |
 
