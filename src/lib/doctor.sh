@@ -9,6 +9,36 @@ sw_doctor_fail() {
 	_problems=$((_problems + 1))
 }
 
+# sw_doctor_hooks: core.hooksPath must point at the managed hooks.
+sw_doctor_hooks() {
+	_cur=$(git -C "$SOFTWARY_ROOT" config --get core.hooksPath 2>/dev/null) || _cur=
+	if [ "$_cur" = .softwary/hooks ]; then
+		for _h in pre-commit pre-push; do
+			if [ ! -x "$SOFTWARY_ROOT/.softwary/hooks/$_h" ]; then
+				sw_doctor_fail hooks ".softwary/hooks/$_h is missing or not executable; rerun install.sh"
+				return 0
+			fi
+		done
+		sw_line hooks PASS
+	elif [ -n "$_cur" ]; then
+		sw_doctor_fail hooks "core.hooksPath is '$_cur', not .softwary/hooks"
+	else
+		_shown=$(cd "$SOFTWARY_ROOT" && git rev-parse --git-path hooks 2>/dev/null)
+		case $_shown in
+		/*) _hdir=$_shown ;;
+		*) _hdir=$SOFTWARY_ROOT/$_shown ;;
+		esac
+		_custom=
+		for _f in "$_hdir"/*; do
+			[ -f "$_f" ] || continue
+			case ${_f##*/} in *.sample) ;; *) _custom="$_custom $_shown/${_f##*/}" ;; esac
+		done
+		_why=
+		[ -z "$_custom" ] || _why=" ($_custom is not a sample, so install.sh left it)"
+		sw_doctor_fail hooks "core.hooksPath is not set; run: git config core.hooksPath .softwary/hooks$_why"
+	fi
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -28,6 +58,7 @@ sw_doctor() {
 		sw_doctor_fail "git repository" "cannot check without git"
 	elif git -C "$SOFTWARY_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		sw_line "git repository" PASS
+		sw_doctor_hooks
 	else
 		sw_doctor_fail "git repository" "not a git repository"
 	fi

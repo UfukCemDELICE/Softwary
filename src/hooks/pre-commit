@@ -1,0 +1,12 @@
+#!/bin/sh
+# softwary pre-commit hook. Managed by softwary: install.sh and upgrade overwrite it.
+# To replace it, add an executable .softwary/local/hooks/pre-commit.
+root=$(cd "$(dirname "$0")/../.." && pwd -P) || exit 2
+if [ -x "$root/.softwary/local/hooks/pre-commit" ]; then
+	exec "$root/.softwary/local/hooks/pre-commit" "$@"
+fi
+if [ ! -x "$root/softwary" ]; then
+	printf 'softwary: ./softwary is missing; rerun install.sh\n' >&2
+	exit 2
+fi
+exec "$root/softwary" verify --fast
