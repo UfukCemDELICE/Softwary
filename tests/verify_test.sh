@@ -1,8 +1,8 @@
 #!/bin/sh
 # Tests for ./softwary verify.
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 # AC-M0-02: a fresh install has every required key UNSET: exit 2, keys listed by name.
 test_ac_m0_02_unset_keys_exit_2_and_listed() {

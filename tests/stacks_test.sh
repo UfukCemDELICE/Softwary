@@ -1,9 +1,9 @@
 #!/bin/sh
 # AC-M0-09: the same behaviour in two sample repos on different stacks, and
 # no stack-specific code under src/.
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 STACKS="python node"
 
@@ -25,6 +25,8 @@ run_scenarios() {
 	cp -R "$PKG_ROOT/tests/fixtures/$_stack-sample" "$REPO"
 	git -C "$REPO" init -q || fail "git init failed"
 	sh "$PKG_ROOT/install.sh" "$REPO" >/dev/null 2>&1 || fail "$_stack: install failed"
+	tools_all on
+	(cd "$REPO" && ./softwary sync) >/dev/null 2>&1 || fail "$_stack: sync failed"
 	: >"$_tr"
 
 	sw verify
@@ -54,6 +56,7 @@ test_ac_m0_09_python_sample() {
 	assert_match "$tr" "^== configured: 0$"
 	assert_match "$tr" "^== fast: 0$"
 	assert_match "$tr" "^== broken: 1$"
+	assert_match "$tr" "^sync +PASS \(Ns\)$"
 	assert_match "$tr" "^test +FAIL \(Ns\)$"
 	assert_match "$tr" "^build +PASS \(Ns\)$"
 	assert_match "$tr" "^security +SKIP \(sample has no dependencies\)$"

@@ -23,17 +23,18 @@ Belgelerde karara bağlanmamış konularda `docs/design.md` ilkelerine göre ver
 
 ## M1 öncesi varsayım doğrulaması (2026-11-14)
 
-design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okundu. Cursor ve Codex sayfalarına bu oturumun ağından erişilemedi; sonuçlar resmî sayfaları kaynak gösteren arama özetlerinden alındı ve M1 başında doğrudan teyit edilecek.
+design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okundu. Cursor ve Codex önce arama özetlerinden alındı, M1 başında (Hazırlık 2) resmî sayfalardan doğrudan teyit edildi; Codex belgeleri `learn.chatgpt.com/docs/` adresine taşınmış.
 
 | Varsayım | Sonuç | Kaynak |
 | --- | --- | --- |
 | Claude Code skill'leri `.claude/skills/<ad>/SKILL.md`'den yükler | Doğru. Hiçbir alan zorunlu değil; Agent Skills standardı dışında `name`, `description` taşınabilir. | code.claude.com/docs/en/skills |
-| Cursor skill'leri `.cursor/skills/`'ten yükler | Doğru. Ayrıca `.claude/skills/`, `.codex/skills/` ve (forum) `.agents/skills/`'i de okur: aynı skill birden çok kez yüklenebilir. | cursor.com/docs/skills (arama) |
-| Codex skill'leri `.agents/skills/`'ten yükler | Doğru. | developers.openai.com/codex/skills (arama) |
-| Cursor subagent yolu ve biçimi | `.cursor/agents/<ad>.md`, Claude Code ile aynı biçim (`name`, `description` zorunlu, gövde sistem istemi). `.claude/agents/`'ı da okur; aynı adda `.cursor/` önceliklidir. | cursor.com/docs/subagents (arama) |
-| Codex subagent yolu ve biçimi | `.codex/agents/<ad>.toml`; zorunlu alanlar `name`, `description`, `developer_instructions`. | developers.openai.com/codex/subagents (arama) |
+| Cursor skill'leri `.cursor/skills/`'ten yükler | Doğru. Proje düzeyinde `.agents/skills/`'i de resmî olarak okur; uyumluluk için `.claude/skills/`, `.codex/skills/`'i de. `name` zorunlu, `[a-z0-9-]` ve klasör adıyla aynı olmalı; `description` zorunlu. | cursor.com/docs/skills |
+| Codex skill'leri `.agents/skills/`'ten yükler | Doğru; çalışma dizininden repo köküne kadar her `.agents/skills`. `name` ve `description` zorunlu. Aynı adlı iki skill birleştirilmez, ikisi de görünür. | learn.chatgpt.com/docs/build-skills |
+| Cursor subagent yolu ve biçimi | `.cursor/agents/<ad>.md`, YAML üst bilgi ve gövde. `name` ve `description` isteğe bağlı (arama özeti zorunlu demişti, yanlış). `.claude/agents/` ve `.codex/agents/`'ı da okur; aynı adda `.cursor/` önceliklidir. | cursor.com/docs/subagents |
+| Codex subagent yolu ve biçimi | `.codex/agents/<ad>.toml`, dosya başına bir agent; zorunlu alanlar `name`, `description`, `developer_instructions`. | learn.chatgpt.com/docs/agent-configuration/subagents |
 | `CLAUDE.md`, `AGENTS.md`'yi içe aktarabilir | Doğru: `@AGENTS.md` (en fazla 4 düzey). Ayrıca Claude Code ≥ 2.1.277, `CLAUDE.md` yoksa `AGENTS.md`'yi doğrudan okur; `CLAUDE.md` varsa okumaz. Bu yüzden `CLAUDE.md` bloğu gerekli kalır. | code.claude.com/docs/en/memory |
-| Cursor `AGENTS.md` okur | Doğru (kökte). `CLAUDE.md`'yi de okur; blokta yalnızca `@AGENTS.md` satırı olduğu için kurallar iki kez yüklenmez. | cursor.com/docs/rules (arama) |
+| Cursor `AGENTS.md` okur | Doğru; kökte ve alt dizinlerde. | cursor.com/docs/rules |
+| Codex `AGENTS.md` okur | Doğru; kökten çalışma dizinine kadar birleştirir, varsayılan sınır 32 KiB. | learn.chatgpt.com/docs/agent-configuration/agents-md |
 | CALM metadata, git hook yolu | M1'i etkilemiyor; M2 ve M3 öncesi doğrulanacak. | — |
 
 ## M1
@@ -42,3 +43,10 @@ design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okun
 | --- | --- | --- | --- |
 | D-15 | Cursor'da skill tekrarı | Her hedef yalnızca kendi klasörüne yazar (design §8 tablosu). Cursor `.claude/skills/` ve `.agents/skills/`'i de okuduğu için aynı skill birden çok kez görünebilir; bu bilerek kabul edildi. Hedefler birbirinden bağımsız kalır, yeni araç tek bir hedef scriptiyle eklenir. | İnsan kararı (2026-11-14), design §8 |
 | D-16 | `tools.conf` varsayılanı | `install.sh` her aracı `UNSET` yazar; `sync` her araç açıkça seçilene kadar 2 ile durur. | İlke 4 |
+| D-17 | `tools.conf` biçimi | M0 ayrıştırıcısı (`sw_kv_load`) ortak. Anahtar `[a-z][a-z0-9-]*` (hedef scriptinin adı), değer `on`, `off` ya da `UNSET`. Tanınan araçlar `targets/` ve `local/targets/` altındaki scriptlerdir. Eksik araç, tanınmayan araç, geçersiz değer ve `UNSET` ayrı ayrı ve satır numarasıyla 2 koduyla bildirilir. | İlke 4, AC-M1-09, AC-M1-10 |
+| D-18 | `AGENTS.md` bloğu | Hangi araçlar açık olursa olsun `sync` çekirdeği yazar: `CLAUDE.md` onu içe aktarır, Cursor ve Codex onu okur. Hedefler bu yolu üretemez (iki kaynak aynı yolu üretirse 2). | design §8, İlke 2 |
+| D-19 | Hedef scripti sözleşmesi | `sh <hedef>.sh SRC FILES BLOCKS`; `SRC` doğrulanmış kaynaklar, hedef yalnızca `FILES` (tam dosyalar) ve `BLOCKS` (blok içerikleri) altına repo yoluyla yazar. Yardımcılar `lib/target.sh`'dedir. Aynı yolu iki hedef üretirse 2. | AC-M1-10, design §8 |
+| D-20 | Üretilen dosyaların izlenmesi | `.softwary/generated` (commit'lenir) her dosya ve blok için `cksum` ve yolu tutar. Silme yalnızca buradaki yollara uygulanır; manifestte olmayan bir dosyanın üzerine yazılmaz (2). `cksum` ile "elle değiştirilmiş" ve "kaynak değişti" ayrılır. Önce her şey geçici dizinde üretilir, sonra karşılaştırılır; `sync` ve `sync --check` aynı planı kullanır. | AC-M1-07, AC-M1-08, İlke 2 |
+| D-21 | Bloklar | İşaretçiler `<!-- softwary:begin: … -->` ve `<!-- softwary:end -->`. Blok yoksa bir boş satırla sona eklenir; varsa yerinde değişir. Bozuk ya da birden fazla işaretçi 2 ile reddedilir ve dosyaya dokunulmaz. Blok kaldırılınca önündeki boş satır da gider; geriye bir şey kalmazsa dosya silinir. | AC-M1-02, AC-M1-07 |
+| D-22 | Kaynak üst bilgisi | Yalnızca tek satırlık `name` ve `description`; `name` klasör ya da dosya adına eşit, `[a-z0-9-]`. Skill adı `softwary-<ad>` olur; agent adı değişmez. Üretilen Markdown'a üst bilginin altında, TOML'a ilk satırda "do not edit" notu eklenir. YAML tırnakları TOML'a geçerken açılır. Agent gövdesi boş olamaz. | design §8, Cursor ad kuralı, İlke 7 |
+| D-23 | `verify` ve `--fast` | `verify`'ın ilk kontrolü `sync` (`sync --check`); `tools.conf` sorunları diğer yapılandırma eksikleriyle birlikte 2 ile bildirilir. `--fast` bu kontrolü çalıştırmaz ve `tools.conf`'u istemez (D-06). | design §4, AC-M0-06 |

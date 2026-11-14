@@ -1,8 +1,8 @@
 #!/bin/sh
 # Tests for commands.conf parsing (shared by verify and doctor).
+# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
-# shellcheck disable=SC2329 # test functions are called by run_tests
 
 # Writes a valid conf whose 8th line is $1 (line 1 is a comment, 2-7 the keys).
 conf_with_bad_line_8() {
