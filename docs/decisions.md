@@ -35,3 +35,10 @@ design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okun
 | `CLAUDE.md`, `AGENTS.md`'yi içe aktarabilir | Doğru: `@AGENTS.md` (en fazla 4 düzey). Ayrıca Claude Code ≥ 2.1.277, `CLAUDE.md` yoksa `AGENTS.md`'yi doğrudan okur; `CLAUDE.md` varsa okumaz. Bu yüzden `CLAUDE.md` bloğu gerekli kalır. | code.claude.com/docs/en/memory |
 | Cursor `AGENTS.md` okur | Doğru (kökte). `CLAUDE.md`'yi de okur; blokta yalnızca `@AGENTS.md` satırı olduğu için kurallar iki kez yüklenmez. | cursor.com/docs/rules (arama) |
 | CALM metadata, git hook yolu | M1'i etkilemiyor; M2 ve M3 öncesi doğrulanacak. | — |
+
+## M1
+
+| No | Konu | Karar | Dayanak |
+| --- | --- | --- | --- |
+| D-15 | Cursor'da skill tekrarı | Her hedef yalnızca kendi klasörüne yazar (design §8 tablosu). Cursor `.claude/skills/` ve `.agents/skills/`'i de okuduğu için aynı skill birden çok kez görünebilir; bu bilerek kabul edildi. Hedefler birbirinden bağımsız kalır, yeni araç tek bir hedef scriptiyle eklenir. | İnsan kararı (2026-11-14), design §8 |
+| D-16 | `tools.conf` varsayılanı | `install.sh` her aracı `UNSET` yazar; `sync` her araç açıkça seçilene kadar 2 ile durur. | İlke 4 |
