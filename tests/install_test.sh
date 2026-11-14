@@ -10,7 +10,8 @@ EXPECTED_FILES="softwary .softwary/VERSION .softwary/.gitignore .softwary/bin/so
 .softwary/lib/config.sh .softwary/lib/verify.sh .softwary/lib/doctor.sh .softwary/config/commands.conf
 .softwary/lib/sync.sh .softwary/lib/target.sh .softwary/rules/core.md .softwary/targets/claude-code.sh
 .softwary/targets/codex.sh .softwary/targets/cursor.sh .softwary/config/tools.conf
-.softwary/config/risk.conf .softwary/hooks/pre-commit .softwary/hooks/pre-push $TEMPLATE_FILES"
+.softwary/config/risk.conf .softwary/hooks/pre-commit .softwary/hooks/pre-push
+.softwary/templates/softwary.yml .softwary/templates/CODEOWNERS $TEMPLATE_FILES"
 
 # AC-M0-01: the files to be written are listed before any of them is written.
 # Writing is made to fail on purpose; the full list must still be printed.

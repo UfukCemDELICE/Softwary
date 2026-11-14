@@ -28,6 +28,7 @@ run_scenarios() {
 	tools_all on
 	(cd "$REPO" && ./softwary sync) >/dev/null 2>&1 || fail "$_stack: sync failed"
 	risk_set default R1
+	add_ci
 	add_model
 	: >"$_tr"
 

@@ -39,6 +39,40 @@ sw_doctor_hooks() {
 	fi
 }
 
+# sw_doctor_ci: the CI workflow and CODEOWNERS must be placed and filled in.
+# Comment lines (#) are ignored.
+sw_doctor_ci() {
+	_wf=.github/workflows/softwary.yml
+	if [ ! -f "$SOFTWARY_ROOT/$_wf" ]; then
+		sw_doctor_fail workflow "$_wf not found; copy .softwary/templates/softwary.yml"
+	else
+		_ln=$(awk '/^[ \t]*#/ { next } /UNSET/ { print NR; exit }' "$SOFTWARY_ROOT/$_wf")
+		if [ -n "$_ln" ]; then
+			sw_doctor_fail workflow "$_wf still contains UNSET (line $_ln)"
+		else
+			sw_line workflow PASS
+		fi
+	fi
+	_co=.github/CODEOWNERS
+	if [ ! -f "$SOFTWARY_ROOT/$_co" ]; then
+		sw_doctor_fail CODEOWNERS "$_co not found; copy .softwary/templates/CODEOWNERS"
+		return 0
+	fi
+	_cn=$_problems
+	for _p in specs architecture .softwary/config .github; do
+		awk -v p="$_p" '
+			/^[ \t]*#/ || NF < 2 { next }
+			{ pat = $1; sub(/^\//, "", pat); sub(/\/\*\*$/, "", pat); sub(/\/$/, "", pat)
+			  if (pat == p || pat == "*" || pat == "**") found = 1 }
+			END { exit !found }' "$SOFTWARY_ROOT/$_co" || sw_doctor_fail CODEOWNERS "does not cover $_p/"
+	done
+	# shellcheck disable=SC2013 # the words are line numbers, without whitespace
+	for _ln in $(awk '/^[ \t]*#/ { next } { for (i = 2; i <= NF; i++) if ($i == "UNSET") { print NR; break } }' "$SOFTWARY_ROOT/$_co"); do
+		sw_doctor_fail CODEOWNERS "owner is UNSET (line $_ln)"
+	done
+	[ "$_problems" -ne "$_cn" ] || sw_line CODEOWNERS PASS
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -128,6 +162,8 @@ EOF
 	else
 		sw_line "risk.conf" PASS
 	fi
+
+	sw_doctor_ci
 
 	if [ -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
 		sw_line "model" PASS

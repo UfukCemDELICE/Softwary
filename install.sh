@@ -42,6 +42,14 @@ for f in $(cd "$pkg/src/templates/artifacts" && find . -type f | sort); do
 src/templates/artifacts/$f .softwary/templates/$f"
 done
 
+# CI and code-owner templates: src/templates/github/X -> .softwary/templates/X.
+# They are only offered here; the setup skill places them under .github/.
+for f in $(cd "$pkg/src/templates/github" && find . -type f | sort); do
+	f=${f#./}
+	plan="$plan
+src/templates/github/$f .softwary/templates/$f"
+done
+
 printf 'softwary %s: installing into %s\n' "$version" "$target"
 printf 'Files to write:\n'
 printf '%s\n' "$plan" | while read -r _src dest; do

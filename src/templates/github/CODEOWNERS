@@ -1,0 +1,8 @@
+# softwary: approvals are protected by code owners. Copy this file to
+# .github/CODEOWNERS and replace every UNSET with a GitHub user or team
+# (@name or @org/team). ./softwary doctor reports it until then.
+# Also turn on "Require review from Code Owners" in the branch protection of main.
+/specs/ UNSET
+/architecture/ UNSET
+/.softwary/config/ UNSET
+/.github/ UNSET

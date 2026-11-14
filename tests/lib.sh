@@ -67,6 +67,7 @@ setup_repo() {
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
 		risk_set default R1
+		add_ci
 		[ "$_model" -eq 0 ] || add_model
 	fi
 }
@@ -86,6 +87,13 @@ add_model() {
 add_specs() {
 	cp -R "$FIXTURES/specs" "$FIXTURES/tests" "$REPO/"
 	conf_set test_paths tests
+}
+
+# add_ci: fills in the CI workflow and CODEOWNERS templates under .github/.
+add_ci() {
+	mkdir -p "$REPO/.github/workflows"
+	sed 's/^\( *run: \)UNSET.*$/\1true/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
+	sed 's/UNSET/@owner/' "$REPO/.softwary/templates/CODEOWNERS" >"$REPO/.github/CODEOWNERS"
 }
 
 # risk_set PATTERN TIER: sets PATTERN in risk.conf.
