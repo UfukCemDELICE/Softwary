@@ -20,3 +20,18 @@ Belgelerde karara bağlanmamış konularda `docs/design.md` ilkelerine göre ver
 | D-12 | Örnek repolar | Python (`py_compile`, `unittest`) ve Node (`node --check`, `npm test`). Araç yoksa testler atlanmaz, başarısız olur. İki stack'in çıkış kodları ve durum satırları birebir karşılaştırılır. | İlke 4 |
 | D-13 | Test düzeneği | Saf POSIX `sh`, ek bağımlılık yok. Tek komut: `sh tests/run.sh`. Test fonksiyonları `test_` ile başlar ve üstlerindeki yorum kabul kriteri kimliğini taşır. `shellcheck` yoksa test başarısız olur. | design §3, §5 izlenebilirlik, İlke 4 |
 | D-14 | Shellcheck istisnaları | Yalnızca gerekçeli ve yerel `disable` direktifleri: dosyalar arası paylaşılan değişkenler (SC2034), `run_tests` tarafından çağrılan test fonksiyonları (SC2329) ve kasıtlı sözcük bölme/tek tırnak. | AC-M0-10 |
+
+## M1 öncesi varsayım doğrulaması (2026-11-14)
+
+design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okundu. Cursor ve Codex sayfalarına bu oturumun ağından erişilemedi; sonuçlar resmî sayfaları kaynak gösteren arama özetlerinden alındı ve M1 başında doğrudan teyit edilecek.
+
+| Varsayım | Sonuç | Kaynak |
+| --- | --- | --- |
+| Claude Code skill'leri `.claude/skills/<ad>/SKILL.md`'den yükler | Doğru. Hiçbir alan zorunlu değil; Agent Skills standardı dışında `name`, `description` taşınabilir. | code.claude.com/docs/en/skills |
+| Cursor skill'leri `.cursor/skills/`'ten yükler | Doğru. Ayrıca `.claude/skills/`, `.codex/skills/` ve (forum) `.agents/skills/`'i de okur: aynı skill birden çok kez yüklenebilir. | cursor.com/docs/skills (arama) |
+| Codex skill'leri `.agents/skills/`'ten yükler | Doğru. | developers.openai.com/codex/skills (arama) |
+| Cursor subagent yolu ve biçimi | `.cursor/agents/<ad>.md`, Claude Code ile aynı biçim (`name`, `description` zorunlu, gövde sistem istemi). `.claude/agents/`'ı da okur; aynı adda `.cursor/` önceliklidir. | cursor.com/docs/subagents (arama) |
+| Codex subagent yolu ve biçimi | `.codex/agents/<ad>.toml`; zorunlu alanlar `name`, `description`, `developer_instructions`. | developers.openai.com/codex/subagents (arama) |
+| `CLAUDE.md`, `AGENTS.md`'yi içe aktarabilir | Doğru: `@AGENTS.md` (en fazla 4 düzey). Ayrıca Claude Code ≥ 2.1.277, `CLAUDE.md` yoksa `AGENTS.md`'yi doğrudan okur; `CLAUDE.md` varsa okumaz. Bu yüzden `CLAUDE.md` bloğu gerekli kalır. | code.claude.com/docs/en/memory |
+| Cursor `AGENTS.md` okur | Doğru (kökte). `CLAUDE.md`'yi de okur; blokta yalnızca `@AGENTS.md` satırı olduğu için kurallar iki kez yüklenmez. | cursor.com/docs/rules (arama) |
+| CALM metadata, git hook yolu | M1'i etkilemiyor; M2 ve M3 öncesi doğrulanacak. | — |
