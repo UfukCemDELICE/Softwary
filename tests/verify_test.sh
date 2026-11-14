@@ -200,4 +200,47 @@ test_usage_errors_exit_2() {
 	assert_eq "$RC" 2 "exit code for unknown command"
 }
 
+# AC-M2-10: the package checks run first, in order sync, model, views, trace.
+test_ac_m2_10_package_checks_in_order() {
+	setup_repo
+	conf_all true
+	add_specs
+	sw verify
+	assert_eq "$RC" 0 "exit code"
+	order=$(grep -E '^[a-z_]+ +(PASS|FAIL|SKIP)' "$OUT" | awk '{ print $1 }' | head -n 5 | tr '\n' ' ')
+	assert_eq "$order" "sync model views trace format_check " "order"
+}
+
+# AC-M2-10: without a model verify stops with 2, names the template and runs nothing.
+test_ac_m2_10_missing_model_exits_2() {
+	setup_repo --no-model
+	conf_all 'touch ran-%k'
+	sw verify
+	assert_eq "$RC" 2 "exit code"
+	assert_contains "$OUT" "architecture/model/system.calm.json not found"
+	assert_contains "$OUT" ".softwary/templates/system.calm.json"
+	[ -z "$(find "$REPO" -name 'ran-*')" ] || fail "a command ran without a model"
+	sw verify --fast
+	assert_eq "$RC" 0 "--fast does not need the model"
+}
+
+# AC-M2-10: an invalid model, a stale view and a trace problem each fail their check.
+test_ac_m2_10_package_check_failures() {
+	setup_repo
+	conf_all true
+	add_specs
+	jq '.nodes[0].name = "Customer"' "$REPO/$MODEL_REL" >"$T/m" && mv "$T/m" "$REPO/$MODEL_REL"
+	fm_set "$REPO/specs/001-login/slices/S2.md" depends_on S9
+	sw verify
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^model +PASS "
+	assert_match "$OUT" "^views +FAIL "
+	assert_match "$OUT" "^trace +FAIL "
+	assert_match "$OUT" "unknown slice 'S9'"
+	printf '{"nodes": []}\n' >"$REPO/$MODEL_REL"
+	sw verify
+	assert_eq "$RC" 1 "exit code for an invalid model"
+	assert_match "$OUT" "^model +FAIL "
+}
+
 run_tests "$0"

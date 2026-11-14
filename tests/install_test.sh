@@ -4,10 +4,13 @@
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
+TEMPLATES="spec.md slice.md review.md adr.md CONTEXT.md system.calm.json"
+TEMPLATE_FILES=$(for t in $TEMPLATES; do printf '.softwary/templates/%s ' "$t"; done)
 EXPECTED_FILES="softwary .softwary/VERSION .softwary/.gitignore .softwary/bin/softwary
 .softwary/lib/config.sh .softwary/lib/verify.sh .softwary/lib/doctor.sh .softwary/config/commands.conf
 .softwary/lib/sync.sh .softwary/lib/target.sh .softwary/rules/core.md .softwary/targets/claude-code.sh
-.softwary/targets/codex.sh .softwary/targets/cursor.sh .softwary/config/tools.conf"
+.softwary/targets/codex.sh .softwary/targets/cursor.sh .softwary/config/tools.conf
+.softwary/config/risk.conf $TEMPLATE_FILES"
 
 # AC-M0-01: the files to be written are listed before any of them is written.
 # Writing is made to fail on purpose; the full list must still be printed.
@@ -104,6 +107,73 @@ test_ac_m1_01_keeps_existing_tools_conf() {
 	sh "$PKG_ROOT/install.sh" "$T/repo" >"$OUT" 2>&1 || fail "second install failed"
 	assert_eq "$(cat "$T/repo/.softwary/config/tools.conf")" "cursor = on" "tools.conf"
 	assert_match "$OUT" "^  \.softwary/config/tools\.conf \(exists, kept\)$"
+}
+
+# AC-M2-01: templates and a risk.conf with an UNSET default are installed;
+# no project artifact is created.
+test_ac_m2_01_installs_templates_and_risk_conf() {
+	mkdir "$T/repo"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >"$OUT" 2>&1 || fail "install failed"
+	for t in $TEMPLATES; do
+		[ -s "$T/repo/.softwary/templates/$t" ] || fail "template $t missing"
+	done
+	assert_match "$T/repo/.softwary/config/risk.conf" "^default = UNSET$"
+	for p in architecture specs CONTEXT.md; do
+		[ ! -e "$T/repo/$p" ] || fail "install created project artifact $p"
+	done
+}
+
+# AC-M2-01: an existing (project-owned) risk.conf is never overwritten.
+test_ac_m2_01_keeps_existing_risk_conf() {
+	mkdir "$T/repo"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >/dev/null 2>&1 || fail "first install failed"
+	printf 'default = R2\n' >"$T/repo/.softwary/config/risk.conf"
+	sh "$PKG_ROOT/install.sh" "$T/repo" >"$OUT" 2>&1 || fail "second install failed"
+	assert_eq "$(cat "$T/repo/.softwary/config/risk.conf")" "default = R2" "risk.conf"
+	assert_match "$OUT" "^  \.softwary/config/risk\.conf \(exists, kept\)$"
+}
+
+# AC-M2-01: the model template fails until it is filled in, then passes.
+test_ac_m2_01_model_template() {
+	setup_repo --no-model
+	mkdir -p "$REPO/architecture/model"
+	cp "$REPO/.softwary/templates/system.calm.json" "$REPO/$MODEL_REL"
+	sw model validate
+	assert_eq "$RC" 1 "exit code for the unfilled template"
+	assert_match "$OUT" "is UNSET$"
+	jq 'walk(if . == "UNSET" then "x" else . end) | .nodes[0].metadata.risk = "R2"' \
+		"$REPO/$MODEL_REL" >"$T/m" && mv "$T/m" "$REPO/$MODEL_REL"
+	sw model validate
+	assert_eq "$RC" 0 "exit code for the filled template"
+}
+
+# AC-M2-01: the spec and slice templates fail until filled in, then pass trace.
+test_ac_m2_01_spec_and_slice_templates() {
+	setup_repo
+	conf_all true
+	conf_set test_paths tests
+	mkdir -p "$REPO/specs/001-login/slices" "$REPO/tests"
+	cp "$REPO/.softwary/templates/spec.md" "$REPO/specs/001-login/spec.md"
+	cp "$REPO/.softwary/templates/slice.md" "$REPO/specs/001-login/slices/S1.md"
+	sw trace
+	assert_eq "$RC" 1 "exit code for unfilled templates"
+	sed -e 's/NNN/001/g' -e 's/^title: UNSET$/title: Login/' -e 's/^risk: UNSET$/risk: R1/' \
+		-e 's/^status: draft$/status: approved/' -e '/^- <question/d' \
+		"$REPO/.softwary/templates/spec.md" >"$REPO/specs/001-login/spec.md"
+	sed -e 's/NNN/001/g' -e 's/^goal: UNSET$/goal: Sign in/' \
+		"$REPO/.softwary/templates/slice.md" >"$REPO/specs/001-login/slices/S1.md"
+	sw trace
+	assert_eq "$RC" 0 "exit code for filled templates"
+}
+
+# AC-M2-01: the ADR template is read by status once filled in.
+test_ac_m2_01_adr_template() {
+	setup_repo
+	mkdir -p "$REPO/architecture/decisions"
+	sed -e 's/NNNN/0001/g' -e 's/^title: UNSET$/title: Use CALM/' \
+		"$REPO/.softwary/templates/adr.md" >"$REPO/architecture/decisions/0001-use-calm.md"
+	sw status
+	assert_match "$OUT" "^ADR 0001 +proposed +Use CALM$"
 }
 
 run_tests "$0"

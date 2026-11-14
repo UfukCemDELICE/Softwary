@@ -49,9 +49,13 @@ sw_verify() {
 			printf '%s' "$SW_PROBLEMS"
 			_bad=1
 		fi
+		if [ ! -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
+			printf 'model: %s\n' "$SW_MODEL_MISSING"
+			_bad=1
+		fi
 	fi
 	if [ "$_bad" -ne 0 ]; then
-		printf 'verify: configuration incomplete; fix the lines above in %s and %s\n' "$SW_CONF_REL" "$SW_TOOLS_REL"
+		printf 'verify: configuration incomplete; fix the lines above\n'
 		return 2
 	fi
 
@@ -59,9 +63,16 @@ sw_verify() {
 	mkdir -p "$_logdir" || return 2
 	_pass=0 _failc=0 _skip=0
 	if [ "$_fast" -eq 0 ]; then
-		# The package's own check comes first: generated files are up to date.
+		# The package's own checks come first: generated files are up to date,
+		# the model is valid, its view is current and specs trace to tests.
 		# shellcheck disable=SC2016 # expanded by the check's shell
 		sw_verify_run sync 'sh "$SOFTWARY_HOME/bin/softwary" sync --check'
+		# shellcheck disable=SC2016
+		sw_verify_run model 'sh "$SOFTWARY_HOME/bin/softwary" model validate'
+		# shellcheck disable=SC2016
+		sw_verify_run views 'sh "$SOFTWARY_HOME/bin/softwary" views --check'
+		# shellcheck disable=SC2016
+		sw_verify_run trace 'sh "$SOFTWARY_HOME/bin/softwary" trace'
 	fi
 	for _k in $_checks; do
 		if sw_conf_is_unset "$_k"; then

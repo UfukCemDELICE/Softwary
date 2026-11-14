@@ -3,7 +3,7 @@
 # Usage: sh install.sh <repo>
 #
 # Lists every file it will write, then writes them, only inside <repo>.
-# Managed files are overwritten; an existing commands.conf is kept.
+# Managed files are overwritten; existing project-owned config files are kept.
 set -eu
 
 pkg=$(cd "$(dirname "$0")" && pwd -P)
@@ -19,7 +19,7 @@ fi
 target=$(cd "$1" && pwd -P)
 version=$(cat "$pkg/VERSION")
 # Project-owned files: written once, never overwritten.
-owned="commands.conf tools.conf"
+owned="commands.conf tools.conf risk.conf"
 
 # Pairs of "source destination", destination relative to the target.
 plan="src/templates/softwary softwary
@@ -34,6 +34,12 @@ for dir in lib rules targets skills agents; do
 		plan="$plan
 src/$f .softwary/$f"
 	done
+done
+# Artifact templates: src/templates/artifacts/X -> .softwary/templates/X.
+for f in $(cd "$pkg/src/templates/artifacts" && find . -type f | sort); do
+	f=${f#./}
+	plan="$plan
+src/templates/artifacts/$f .softwary/templates/$f"
 done
 
 printf 'softwary %s: installing into %s\n' "$version" "$target"
@@ -62,4 +68,4 @@ for c in $owned; do
 	fi
 done
 
-printf 'Done. Next: set .softwary/config/commands.conf and tools.conf, run ./softwary sync, then ./softwary doctor\n'
+printf 'Done. Next: set .softwary/config/commands.conf, tools.conf and risk.conf, write architecture/model/system.calm.json (start from .softwary/templates/), run ./softwary sync, then ./softwary doctor\n'

@@ -16,6 +16,12 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/doctor.sh"
 # shellcheck source=src/lib/sync.sh
 . "$SOFTWARY_HOME/lib/sync.sh"
+# shellcheck source=src/lib/model.sh
+. "$SOFTWARY_HOME/lib/model.sh"
+# shellcheck source=src/lib/trace.sh
+. "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/risk.sh
+. "$SOFTWARY_HOME/lib/risk.sh"
 
 sw_usage() {
 	cat <<'EOF'
@@ -26,6 +32,13 @@ commands:
                    (--fast: format_check, lint and typecheck only)
   sync [--check]   generate tool files from .softwary/ sources
                    (--check: report out-of-date files, write nothing)
+  model validate   check architecture/model/system.calm.json
+  views [--check]  generate architecture/views/system.mmd from the model
+                   (--check: report a missing or stale view, write nothing)
+  trace            check that specs, slices and tests trace to each other
+  risk <spec> [--base <ref>]
+                   the review tier of a change (default base: main)
+  status           summarise specs, slices and proposed ADRs
   doctor           report installation and configuration problems
 EOF
 }
@@ -42,6 +55,26 @@ doctor)
 sync)
 	shift
 	sw_sync "$@"
+	;;
+model)
+	shift
+	sw_model "$@"
+	;;
+views)
+	shift
+	sw_views "$@"
+	;;
+trace)
+	shift
+	sw_trace "$@"
+	;;
+risk)
+	shift
+	sw_risk "$@"
+	;;
+status)
+	shift
+	sw_status "$@"
 	;;
 help | -h | --help)
 	sw_usage
