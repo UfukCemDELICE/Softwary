@@ -4,12 +4,6 @@
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
-# commit_all MESSAGE: commits every file in the repo.
-commit_all() {
-	git -C "$REPO" add -A || fail "git add failed"
-	git -C "$REPO" -c user.name=t -c user.email=t@example.com commit -qm "$1" || fail "commit failed"
-}
-
 # setup_risk: a repo with the sample model and spec committed on main, and a
 # feature branch checked out.
 setup_risk() {

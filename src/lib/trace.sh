@@ -278,7 +278,7 @@ sw_trace() {
 		printf 'usage: ./softwary trace\n' >&2
 		return 2
 	fi
-	_tr_probs='' _tr_n=0 _tr_specs=0 _tr_slices=0 _tr_criteria=0 _tr_need='' _cfg_err=''
+	_tr_probs='' _tr_n=0 _tr_specs=0 _tr_slices=0 _tr_criteria=0 _tr_adrs=0 _tr_need='' _cfg_err=''
 	_tr_ids=$(sw_model_ids)
 	for _dir in "$SOFTWARY_ROOT"/specs/*/; do
 		[ -d "$_dir" ] || continue
@@ -289,6 +289,7 @@ sw_trace() {
 			sw_tr_problem "specs/${_dir##*/}" "directory name must be NNN-name"
 		fi
 	done
+	sw_trace_adrs
 	[ -z "$_tr_need" ] || sw_trace_tests
 
 	printf '%s' "$_tr_probs"
@@ -300,7 +301,7 @@ sw_trace() {
 		printf 'trace: %s problem(s)\n' "$_tr_n"
 		return 1
 	fi
-	printf 'trace: %s spec(s), %s slice(s), %s criteria\n' "$_tr_specs" "$_tr_slices" "$_tr_criteria"
+	printf 'trace: %s spec(s), %s slice(s), %s criteria, %s ADR(s)\n' "$_tr_specs" "$_tr_slices" "$_tr_criteria" "$_tr_adrs"
 }
 
 # sw_slice_counts DIR: "1 done, 2 planned" for the slices of a spec directory.

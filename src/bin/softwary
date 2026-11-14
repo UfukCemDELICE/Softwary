@@ -22,6 +22,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/trace.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
+# shellcheck source=src/lib/adr.sh
+. "$SOFTWARY_HOME/lib/adr.sh"
 
 sw_usage() {
 	cat <<'EOF'

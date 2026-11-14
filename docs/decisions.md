@@ -81,3 +81,9 @@ design §9'daki araç varsayımları. Claude Code resmî belgeden doğrudan okun
 | D-31 | Stack denetimi ve `node` | M0'ın stack'e özel sözcük denetiminde yalın `node` sözcüğü, CALM'ın model öğesi adı olduğu için `node.js` ile değiştirildi; `nodejs`, `npm`, `npx` ve diğerleri yasak kalır. | AC-M0-09'un amacı (Node.js'e bağımlılık yok), CALM terimi |
 | D-32 | `verify` ve `doctor` | `verify`'ın paket denetimleri `sync`, `model`, `views` (`--check`), `trace` sırasıyla çalışır. Model dosyası yoksa yapılandırma eksiği sayılır: hiçbir şey çalışmadan 2. `--fast` modeli istemez (D-06). `doctor` `risk.conf` sorunlarını ve modelin varlığını ayrı satırlarda raporlar. | İlke 4 ve 5, AC-M2-10 |
 | D-33 | `status` | Spec başına `id durum risk başlık slices: <sayılar>`; sayılar `done, review, in-progress, planned` sırasıyla. Okunamayan alan `?` olarak gösterilir ve satıra `(run ./softwary trace)` eklenir. ADR'lerden yalnızca `proposed` olanlar listelenir. Her zaman 0 ile çıkar (kullanım hatası 2). | İlke 7 |
+
+## M3
+
+| No | Konu | Karar | Dayanak |
+| --- | --- | --- | --- |
+| D-34 | ADR üst bilgisi | Alanlar `id title status affects`; dördü de boş olamaz ve `UNSET` olamaz. Dosya adı `NNNN-ad.md`, `id` ilk dört hane. Durumlar `proposed accepted superseded rejected`. `affects` virgülle ayrılmış repo yollarıdır (bileşen kimliği değil): `architecture/` altında olmalı (`architecture/` + en az bir karakter; `..`, `.`, boş parça ve baştaki `/` yok) ve var olmalı. Dizin girdisi altındaki her yolu kapsar. `trace` bunları denetler ve özet satırına `N ADR(s)` ekler. ADR şablonunun `affects` yorumu buna göre güncellendi. | AC-M3-03, İlke 4 |

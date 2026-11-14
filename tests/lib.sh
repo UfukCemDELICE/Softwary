@@ -180,6 +180,20 @@ outside_block() {
 	awk '/^<!-- softwary:begin/ { on = 1 } !on { print } /^<!-- softwary:end -->$/ { on = 0 }' "$1"
 }
 
+# commit_all MESSAGE: commits every file in the repo. --no-verify: the repo's
+# git hooks are installed and would run verify; only hooks_test.sh wants that.
+commit_all() {
+	git -C "$REPO" add -A || fail "git add failed"
+	git -C "$REPO" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "$1" || fail "commit failed"
+}
+
+# write_adr ID STATUS AFFECTS: writes architecture/decisions/ID-x.md.
+write_adr() {
+	mkdir -p "$REPO/architecture/decisions"
+	printf -- '---\nid: %s\ntitle: Decision %s\nstatus: %s\naffects: %s\n---\n\n# %s\n' "$1" "$1" "$2" "$3" "$1" \
+		>"$REPO/architecture/decisions/$1-x.md"
+}
+
 # sw ARGS...: runs ./softwary ARGS in the repo, capturing output and exit code.
 sw() {
 	RC=0
