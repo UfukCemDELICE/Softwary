@@ -79,11 +79,11 @@ sw_base_commit() {
 
 # sw_changed_since COMMIT: the paths changed since COMMIT (committed,
 # uncommitted and untracked), sorted and unique. Renames are not collapsed:
-# both the old and the new path are listed.
+# both the old and the new path are listed. Non-ASCII names stay unquoted.
 sw_changed_since() {
 	(cd "$SOFTWARY_ROOT" && {
-		git diff --no-renames --name-only "$1" --
-		git ls-files --others --exclude-standard
+		git -c core.quotePath=false diff --no-renames --name-only "$1" --
+		git -c core.quotePath=false ls-files --others --exclude-standard
 	} | sort -u)
 }
 
@@ -122,6 +122,10 @@ sw_adr() {
 	while IFS= read -r _p; do
 		case $_p in
 		"$SW_MODEL_REL" | "$SW_CONTRACTS_REL"/?*) _gated="$_gated$_p
+" ;;
+		# git still quotes names with tabs, newlines or quotes: gate them too
+		# (no ADR entry can cover such a name, so they fail closed).
+		\"*"$SW_CONTRACTS_REL"/*) _gated="$_gated$_p
 " ;;
 		"$SW_ADR_REL"/*.md)
 			[ -f "$SOFTWARY_ROOT/$_p" ] || continue

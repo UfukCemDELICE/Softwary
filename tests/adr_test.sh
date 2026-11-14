@@ -168,6 +168,18 @@ test_ac_m3_04_renamed_or_deleted_contract() {
 	assert_match "$OUT" "^architecture/contracts/old\.yaml: no accepted ADR"
 }
 
+# AC-M3-04: git quotes unusual file names; a contract with such a name is still gated.
+test_ac_m3_04_unusual_contract_file_names() {
+	setup_adr
+	printf 'x\n' >"$REPO/architecture/contracts/$(printf '\303\247').yaml"
+	sw adr
+	assert_eq "$RC" 1 "non-ASCII contract name"
+	rm "$REPO/architecture/contracts/$(printf '\303\247').yaml"
+	printf 'x\n' >"$REPO/architecture/contracts/$(printf 'a\tb').yaml"
+	sw adr
+	assert_eq "$RC" 1 "contract name with a tab"
+}
+
 # AC-M3-04: a base that cannot be found is a configuration problem (2).
 test_ac_m3_04_base_not_found_exits_2() {
 	setup_adr
