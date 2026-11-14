@@ -301,7 +301,8 @@ sw_trace() {
 		printf 'trace: %s problem(s)\n' "$_tr_n"
 		return 1
 	fi
-	printf 'trace: %s spec(s), %s slice(s), %s criteria, %s ADR(s)\n' "$_tr_specs" "$_tr_slices" "$_tr_criteria" "$_tr_adrs"
+	printf 'trace: %s spec(s), %s slice(s), %s criteria\n' "$_tr_specs" "$_tr_slices" "$_tr_criteria"
+	[ "$_tr_adrs" -eq 0 ] || printf 'trace: %s ADR(s)\n' "$_tr_adrs"
 }
 
 # sw_slice_counts DIR: "1 done, 2 planned" for the slices of a spec directory.
