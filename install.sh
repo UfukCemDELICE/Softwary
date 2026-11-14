@@ -1,15 +1,22 @@
 #!/bin/sh
 # Installs softwary into a repository.
-# Usage: sh install.sh <repo>
+# Usage: sh install.sh <repo> [--upgrade]
 #
 # Lists every file it will write, then writes them, only inside <repo>.
 # Managed files are overwritten; existing project-owned config files are kept.
+# --upgrade (used by `./softwary upgrade`) also removes managed files that
+# this version no longer has.
 set -eu
 
 pkg=$(cd "$(dirname "$0")" && pwd -P)
 
+upgrade=0
+if [ $# -eq 2 ] && [ "$2" = --upgrade ]; then
+	upgrade=1
+	set -- "$1"
+fi
 if [ $# -ne 1 ]; then
-	printf 'usage: sh install.sh <repo>\n' >&2
+	printf 'usage: sh install.sh <repo> [--upgrade]\n' >&2
 	exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -81,6 +88,22 @@ for c in $owned; do
 	fi
 done
 
+# Upgrade: remove managed files the new version does not have. Only the
+# managed trees are looked at; config/, local/, state/ and the project's own
+# files are never touched.
+if [ "$upgrade" -eq 1 ]; then
+	wanted=$(printf '%s\n' "$plan" | while read -r _src dest; do printf '%s\n' "$dest"; done)
+	for root in bin lib rules targets skills agents hooks templates; do
+		[ -d "$target/.softwary/$root" ] || continue
+		(cd "$target" && find ".softwary/$root" -type f) | sort | while IFS= read -r f; do
+			printf '%s\n' "$wanted" | grep -Fqx -e "$f" && continue
+			rm "$target/$f" || exit 1
+			printf '  removed %s\n' "$f"
+		done
+		find "$target/.softwary/$root" -depth -type d -exec rmdir {} \; 2>/dev/null || true
+	done
+fi
+
 # Git hooks: point core.hooksPath at the managed hooks, unless that would
 # displace another hook setup (then `doctor` reports it).
 hooks_path=.softwary/hooks
@@ -119,4 +142,8 @@ set_hooks_path() {
 }
 set_hooks_path
 
+if [ "$upgrade" -eq 1 ]; then
+	printf 'Done.\n'
+	exit 0
+fi
 printf 'Done. Next: set .softwary/config/commands.conf, tools.conf and risk.conf, write architecture/model/system.calm.json (start from .softwary/templates/), run ./softwary sync, then ./softwary doctor\n'

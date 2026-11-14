@@ -24,6 +24,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/adr.sh
 . "$SOFTWARY_HOME/lib/adr.sh"
+# shellcheck source=src/lib/upgrade.sh
+. "$SOFTWARY_HOME/lib/upgrade.sh"
 
 sw_usage() {
 	cat <<'EOF'
@@ -47,6 +49,9 @@ commands:
                    the review tier of a change (default base: main)
   status           summarise specs, slices and proposed ADRs
   doctor           report installation and configuration problems
+  upgrade <package-path>
+                   replace the managed files with those of a newer package,
+                   then run sync
 EOF
 }
 
@@ -86,6 +91,10 @@ status)
 adr)
 	shift
 	sw_adr "$@"
+	;;
+upgrade)
+	shift
+	sw_upgrade "$@"
 	;;
 help | -h | --help)
 	sw_usage
