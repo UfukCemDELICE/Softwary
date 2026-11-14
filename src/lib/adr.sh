@@ -52,3 +52,129 @@ $_aff
 AFFECTS
 	done
 }
+
+# --- the `adr` gate ---------------------------------------------------------
+
+SW_CONTRACTS_REL=architecture/contracts
+
+# sw_base_commit REF: sets SW_BASE_COMMIT to the merge-base of REF and HEAD.
+# Prints the reason and returns 2 when REF cannot be used.
+sw_base_commit() {
+	SW_BASE_COMMIT=
+	case $1 in
+	-*)
+		printf "adr: base '%s' not found (use --base <ref>)\n" "$1"
+		return 2
+		;;
+	esac
+	if ! git -C "$SOFTWARY_ROOT" rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1; then
+		printf "adr: base '%s' not found (use --base <ref>)\n" "$1"
+		return 2
+	fi
+	if ! SW_BASE_COMMIT=$(git -C "$SOFTWARY_ROOT" merge-base "$1" HEAD 2>/dev/null); then
+		printf "adr: no common commit between '%s' and HEAD\n" "$1"
+		return 2
+	fi
+}
+
+# sw_changed_since COMMIT: the paths changed since COMMIT (committed,
+# uncommitted and untracked), sorted and unique. Renames are not collapsed:
+# both the old and the new path are listed.
+sw_changed_since() {
+	(cd "$SOFTWARY_ROOT" && {
+		git diff --no-renames --name-only "$1" --
+		git ls-files --others --exclude-standard
+	} | sort -u)
+}
+
+# sw_adr_covers ENTRY PATH: true if PATH is ENTRY or below the directory ENTRY.
+sw_adr_covers() {
+	_cv=${1%/}
+	[ "$2" = "$_cv" ] && return 0
+	case $2 in "$_cv"/*) return 0 ;; esac
+	return 1
+}
+
+sw_adr_usage() {
+	printf 'usage: ./softwary adr [--base <ref>]\n' >&2
+}
+
+# sw_adr [--base REF]: every model or contract file changed since REF
+# (default main) needs an accepted ADR in the change whose affects covers it.
+# Exit: 0 covered, 1 not covered, 2 base missing or usage.
+sw_adr() {
+	_adr_base=main
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--base)
+			[ $# -ge 2 ] || { sw_adr_usage; return 2; }
+			_adr_base=$2
+			shift 2
+			;;
+		*) sw_adr_usage; return 2 ;;
+		esac
+	done
+	sw_base_commit "$_adr_base" || return 2
+	_changed=$(sw_changed_since "$SW_BASE_COMMIT")
+
+	_gated=
+	_cands=
+	while IFS= read -r _p; do
+		case $_p in
+		"$SW_MODEL_REL" | "$SW_CONTRACTS_REL"/?*) _gated="$_gated$_p
+" ;;
+		"$SW_ADR_REL"/*.md)
+			[ -f "$SOFTWARY_ROOT/$_p" ] || continue
+			sw_fm_read "$SOFTWARY_ROOT/$_p"
+			_cs=$(sw_fm_get status)
+			_ci=$(sw_fm_get id)
+			[ -n "$_ci" ] || _ci=${_p##*/}
+			while IFS= read -r _ce; do
+				sw_adr_entry_scope "$_ce" || continue
+				_cands="$_cands$_cs	$_ci	$_ce
+"
+			done <<AFFECTS
+$(sw_list "$(sw_fm_get affects)")
+AFFECTS
+			;;
+		esac
+	done <<CHANGED
+$_changed
+CHANGED
+
+	if [ -z "$_gated" ]; then
+		printf 'adr: no model or contract changes\n'
+		return 0
+	fi
+	_miss=0
+	while IFS= read -r _p; do
+		[ -n "$_p" ] || continue
+		_acc='' _prop=''
+		while IFS='	' read -r _cs _ci _ce; do
+			[ -n "$_ce" ] || continue
+			sw_adr_covers "$_ce" "$_p" || continue
+			case $_cs in
+			accepted) [ -n "$_acc" ] || _acc=$_ci ;;
+			proposed) [ -n "$_prop" ] || _prop=$_ci ;;
+			esac
+		done <<CANDS
+$_cands
+CANDS
+		if [ -n "$_acc" ]; then
+			printf '%s: covered by ADR %s\n' "$_p" "$_acc"
+		elif [ -n "$_prop" ]; then
+			printf '%s: awaiting human acceptance (ADR %s is proposed)\n' "$_p" "$_prop"
+			_miss=$((_miss + 1))
+		else
+			printf '%s: no accepted ADR in this change covers it\n' "$_p"
+			_miss=$((_miss + 1))
+		fi
+	done <<GATED
+$_gated
+GATED
+	if [ "$_miss" -gt 0 ]; then
+		printf 'adr: %s path(s) need an accepted ADR\n' "$_miss"
+		return 1
+	fi
+	printf 'adr: ok\n'
+}

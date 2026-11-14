@@ -65,7 +65,7 @@ Skill'ler, hook'lar ve CI yalnızca sözleşme isimlerini kullanır. Gerçek kom
 
 Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNSET` (zorunlu anahtarda hata) ya da `NONE: <gerekçe>` (atlanır, gerekçe raporda görünür). `test_paths` ve `src_paths` komut değil ayardır.
 
-Paketin kendi komutları: `verify`, `verify --fast`, `trace`, `model validate`, `views`, `drift`, `risk`, `status`, `sync`, `doctor`, `upgrade`. Her biri ilgili kilometre taşında eklenir.
+Paketin kendi komutları: `verify`, `verify --fast`, `verify --base`, `trace`, `adr`, `model validate`, `views`, `drift`, `risk`, `status`, `sync`, `doctor`, `upgrade`. Her biri ilgili kilometre taşında eklenir.
 
 `verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri, biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. Çıktı ajanın okuması içindir:
 
