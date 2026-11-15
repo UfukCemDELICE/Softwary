@@ -47,7 +47,7 @@ Hedef dışı: kendi sunucusu ya da daemon'u olan bir çalışma zamanı, stack 
 
 İnsanın devredilemez kararları: **ürün tanımı onayı, blueprint onayı, escalate edilen işler, entegrasyon dalının üretim dalına alınması, drift kararı, üretime dağıtım.**
 
-**Dallar.** İki dal vardır, adları yapılandırılır: entegrasyon dalı (varsayılan `main`) ve üretim dalı (varsayılan `master`). Döngü her işi kendi worktree'sinde ve dalında yürütür, entegrasyon dalına bir PR açar ve birleştirir. Üretim dalına alma `ship` adımıdır ve insan onayıyla yapılır.
+**Dallar.** İki dal vardır; adları `commands.conf`'ta `integration_branch` ve `production_branch` ile ayarlanır (örneğin `main` ve `master`). Varsayılan ad yoktur: şablon ikisini `UNSET` taşır ve `setup` sorar (D-52). `verify`, `adr`, `changes` ve `risk` `--base` verilmezse entegrasyon dalına karşı çalışır. Döngü her işi kendi worktree'sinde ve dalında yürütür, entegrasyon dalına bir PR açar ve birleştirir. Üretim dalına alma `ship` adımıdır ve insan onayıyla yapılır.
 
 **GitHub PR ve CI zorunludur.** Her iş bir PR'dır; entegrasyon dalının koruması CI'ın yeşil olmasını şart koşar ve birleştirme `gh pr merge` ile yapılır. Ajanlar insanın git ve GitHub kimliğiyle çalıştığı için dal koruması insan incelemesi şart koşamaz (kişi kendi PR'ını onaylayamaz); zorunlu koşul CI'dır.
 
@@ -187,12 +187,13 @@ Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNS
 
 Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`. Her biri ilgili kilometre taşında eklenir.
 
-`verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri, biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. Çıktı ajanın okuması içindir:
+`verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri (`sync`, `model`, `views`, `trace`, sonra entegrasyon dalına ya da `--base`'e karşı `adr` ve `changes`; henüz commit yoksa bu ikisi `SKIP (no commits yet)`), biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. `--fast` yalnızca biçim, lint ve tip denetimlerini çalıştırır. Çıktı ajanın okuması içindir:
 
 - Kontrol başına tek satır: `PASS`, `FAIL` ya da `SKIP (gerekçe)`.
 - Hatada çıktının yalnızca son satırları basılır, tam kayıt `.softwary/state/logs/` altına yazılır.
 - Çıkış kodları: `0` geçti, `1` başarısız, `2` yapılandırma eksik.
-- Süresi dolmamış bir muafiyeti olan başarısız kontrol `WAIVED (<gerekçe>, <tarih>'e kadar)` satırıyla görünür ve sonucu kırmızı yapmaz (§3 ilke 4).
+- Süresi dolmamış bir muafiyeti olan başarısız kontrol `WAIVED (<gerekçe>, until <tarih>)` satırıyla görünür ve sonucu kırmızı yapmaz (§3 ilke 4). Süresi dolmuş muafiyet `FAIL`'i değiştirmez, satıra `waiver expired <tarih>` ekler; geçen bir kontrolün muafiyeti `PASS (waiver no longer needed)` gösterir. Muafiyet yalnızca proje denetimlerine verilir, paket denetimlerine verilemez.
+- `doctor` proje komutlarını çalıştırmaz: yapılandırılmış anahtar `PASS (configured, not run)` yazar.
 
 ## 12. Araç dağıtımı
 

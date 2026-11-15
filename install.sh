@@ -146,4 +146,4 @@ if [ "$upgrade" -eq 1 ]; then
 	printf 'Done.\n'
 	exit 0
 fi
-printf 'Done. Next: set .softwary/config/commands.conf, tools.conf and risk.conf, write architecture/model/system.calm.json (start from .softwary/templates/), run ./softwary sync, then ./softwary doctor\n'
+printf 'Done. Next: run the setup skill (it fills .softwary/config/, the branches and the CI workflow), or set commands.conf (with integration_branch and production_branch), tools.conf and risk.conf yourself, run ./softwary sync, then ./softwary doctor\n'
