@@ -120,6 +120,12 @@ add_blueprint() {
 	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
 }
 
+# add_plan: copies the sample plan (an approved spec 001 with two slices and a
+# draft spec 002 whose slice depends on 001-S2) into the repo.
+add_plan() {
+	cp -R "$V2FIX/specs" "$REPO/"
+}
+
 # add_specs: copies the sample specs and tests into the repo and points
 # test_paths at the tests. Call it after conf_all, which rewrites commands.conf.
 add_specs() {

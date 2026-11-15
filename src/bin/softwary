@@ -24,6 +24,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/model.sh"
 # shellcheck source=src/lib/trace.sh
 . "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/plan.sh
+. "$SOFTWARY_HOME/lib/plan.sh"
 # shellcheck source=src/lib/product.sh
 . "$SOFTWARY_HOME/lib/product.sh"
 # shellcheck source=src/lib/risk.sh
@@ -56,6 +58,11 @@ commands:
   approve product|blueprint
                    record the human's approval of the product definition or
                    the blueprint (a digest of the files they bind)
+  plan check       check approvals, criterion-to-example links and the order
+                   of slices; includes trace
+  plan approve <spec>
+                   approve a draft spec when plan check is clean and the
+                   spec-analyst's analysis.md passes for this version of it
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -101,6 +108,10 @@ trace)
 approve)
 	shift
 	sw_approve "$@"
+	;;
+plan)
+	shift
+	sw_plan "$@"
 	;;
 product)
 	shift
