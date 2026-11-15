@@ -134,7 +134,7 @@ test_ac_m2_05_model_and_contracts_exist() {
 # AC-M2-05: a spec without slices is not checked for coverage.
 test_ac_m2_05_spec_without_slices() {
 	setup_trace
-	rm -r "$REPO/specs/001-login/slices"
+	rm -r "$REPO/specs/001-login/slices" "$REPO/specs/001-login/reviews"
 	sw trace
 	assert_eq "$RC" 0 "exit code"
 	assert_match "$OUT" "^trace: 1 spec\(s\), 0 slice\(s\), 3 criteria$"
@@ -193,7 +193,7 @@ test_ac_m2_07_no_open_questions() {
 	setup_trace
 	printf -- '- Which hash function?\n' >>"$REPO/$SPEC"
 	expect_problem "^$SPEC: open questions: an approved spec must have none$"
-	rm -r "$REPO/specs/001-login/slices"
+	rm -r "$REPO/specs/001-login/slices" "$REPO/specs/001-login/reviews"
 	fm_set "$REPO/$SPEC" status draft
 	sw trace
 	assert_eq "$RC" 0 "exit code for a draft spec"
@@ -210,10 +210,47 @@ test_ac_m2_07_word_limit() {
 	awk -v f="$T/words" '/^## Open questions/ { while ((getline l < f) > 0) print l; print "" } { print }' \
 		"$REPO/$SPEC" >"$T/spec" && mv "$T/spec" "$REPO/$SPEC"
 	expect_problem "^$SPEC: [0-9]+ words; an approved spec must be at most 600$"
-	rm -r "$REPO/specs/001-login/slices"
+	rm -r "$REPO/specs/001-login/slices" "$REPO/specs/001-login/reviews"
 	fm_set "$REPO/$SPEC" status draft
 	sw trace
 	assert_eq "$RC" 0 "exit code for a draft spec"
+}
+
+R1=specs/001-login/reviews/S1.md
+
+# AC-M4-05: a done slice needs a review whose decision is approve.
+test_ac_m4_05_done_slice_needs_approving_review() {
+	setup_trace
+	rm "$REPO/$R1"
+	expect_problem "^$S1: done without a review that approves it \\(specs/001-login/reviews/S1\\.md\\)$"
+	add_specs
+	fm_set "$REPO/$R1" decision changes
+	expect_problem "^$S1: done without a review that approves it"
+	# A slice that is not done needs no review.
+	fm_set "$REPO/$S1" status review
+	sw trace
+	assert_eq "$RC" 0 "exit code for a slice in review"
+}
+
+# AC-M4-05: missing and invalid review fields, a slice that does not match the
+# file name and a review of a slice that does not exist are reported.
+test_ac_m4_05_review_fields() {
+	setup_trace
+	fm_set "$REPO/$R1" decision maybe
+	expect_problem "^$R1: decision: 'maybe' must be one of approve, changes$"
+	add_specs
+	fm_del "$REPO/$R1" slice
+	expect_problem "^$R1: slice: missing$"
+	add_specs
+	fm_set "$REPO/$R1" slice S2
+	expect_problem "^$R1: slice: 'S2' does not match the file name S1\\.md$"
+	add_specs
+	cp "$REPO/$R1" "$REPO/specs/001-login/reviews/S9.md"
+	fm_set "$REPO/specs/001-login/reviews/S9.md" slice S9
+	expect_problem "^specs/001-login/reviews/S9\\.md: no slice S9 in specs/001-login/slices/$"
+	rm "$REPO/specs/001-login/reviews/S9.md"
+	printf 'x\n' >"$REPO/specs/001-login/reviews/notes.md"
+	expect_problem "^specs/001-login/reviews/notes\\.md: file name must be S<n>\\.md$"
 }
 
 run_tests "$0"

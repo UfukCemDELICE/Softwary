@@ -11,6 +11,8 @@ SW_SPEC_STATUSES="draft approved done"
 SW_SLICE_FIELDS="id spec goal acs depends_on touches status"
 SW_SLICE_NONEMPTY="id spec goal acs status"
 SW_SLICE_STATUSES="planned in-progress review done"
+SW_REVIEW_FIELDS="slice decision"
+SW_REVIEW_DECISIONS="approve changes"
 SW_TIERS="R1 R2 R3"
 SW_SPEC_MAX_WORDS=600
 
@@ -177,6 +179,38 @@ sw_trace_slice() {
 			sw_tr_problem "$_lrel" "depends_on: unknown slice '$_d'"
 		fi
 	done
+	# The writer does not review: a done slice has a clean-context review
+	# that approves it (this reads the review, so it comes last).
+	if [ "$_lstatus" = "done" ]; then
+		_rv=
+		if [ -f "$1/reviews/$2" ]; then
+			sw_fm_read "$1/reviews/$2"
+			_rv=$(sw_fm_get decision)
+		fi
+		[ "$_rv" = approve ] ||
+			sw_tr_problem "$_lrel" "done without a review that approves it ($_drel/reviews/$2)"
+	fi
+}
+
+# sw_trace_reviews SPECDIR: checks the review records of the spec in SPECDIR.
+# Uses _drel of the spec.
+sw_trace_reviews() {
+	for _rf in "$1"/reviews/*.md; do
+		[ -f "$_rf" ] || continue
+		_rb=${_rf##*/}
+		_rn=${_rb%.md}
+		_rrel=$_drel/reviews/$_rb
+		if ! printf '%s\n' "$_rn" | grep -Eq '^S[1-9][0-9]*$'; then
+			sw_tr_problem "$_rrel" "file name must be S<n>.md"
+			continue
+		fi
+		sw_fm_read "$_rf"
+		sw_tr_fields "$_rrel" "$SW_REVIEW_FIELDS" "$SW_REVIEW_FIELDS"
+		_v=$(sw_fm_get slice)
+		case $_v in '' | UNSET | "$_rn") ;; *) sw_tr_problem "$_rrel" "slice: '$_v' does not match the file name $_rb" ;; esac
+		sw_tr_enum "$_rrel" decision "$SW_REVIEW_DECISIONS"
+		[ -f "$1/slices/$_rb" ] || sw_tr_problem "$_rrel" "no slice $_rn in $_drel/slices/"
+	done
 }
 
 # sw_trace_spec DIR: checks one spec directory (absolute path, no trailing /).
@@ -226,6 +260,7 @@ CONTRACTS
 
 	_acs=$(sw_spec_criteria "$1/spec.md" "$_sid")
 	_tr_criteria=$((_tr_criteria + $(sw_count "$_acs")))
+	sw_trace_reviews "$1"
 	_slices=
 	[ ! -d "$1/slices" ] || _slices=$(cd "$1/slices" && find . -type f -name '*.md' | sed 's|^\./||' | sort)
 	[ -n "$_slices" ] || return 0

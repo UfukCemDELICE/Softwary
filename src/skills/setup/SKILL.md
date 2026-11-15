@@ -13,7 +13,8 @@ a command, an owner or a risk tier you do not know: ask the human.
    repository's manifests and scripts and propose a command. Ask the human to
    confirm it, and ask outright for any you cannot find. Use `NONE: <reason>`
    only with a reason the human gave you. Set `test_paths` to the test
-   directories.
+   directories and `src_paths` to the source directories (every change under
+   them needs a spec).
 3. `.softwary/config/tools.conf`: ask which of the tools listed there the
    team uses; set each to `on` or `off`.
 4. `.softwary/config/risk.conf`: ask for the `default` tier (R1, R2 or R3) and

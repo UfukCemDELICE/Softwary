@@ -24,6 +24,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/adr.sh
 . "$SOFTWARY_HOME/lib/adr.sh"
+# shellcheck source=src/lib/changes.sh
+. "$SOFTWARY_HOME/lib/changes.sh"
 # shellcheck source=src/lib/upgrade.sh
 . "$SOFTWARY_HOME/lib/upgrade.sh"
 
@@ -35,7 +37,7 @@ commands:
   verify [--fast] [--base <ref>]
                    run the project's checks from .softwary/config/commands.conf
                    (--fast: format_check, lint and typecheck only;
-                   --base: also run adr against <ref>)
+                   --base: also run adr and changes against <ref>)
   sync [--check]   generate tool files from .softwary/ sources
                    (--check: report out-of-date files, write nothing)
   model validate   check architecture/model/system.calm.json
@@ -45,6 +47,9 @@ commands:
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
                    change (default base: main)
+  changes [--base <ref>]
+                   a change under src_paths needs an active slice of an
+                   approved spec in the change (default base: main)
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: main)
   status           summarise specs, slices and proposed ADRs
@@ -91,6 +96,10 @@ status)
 adr)
 	shift
 	sw_adr "$@"
+	;;
+changes)
+	shift
+	sw_changes "$@"
 	;;
 upgrade)
 	shift

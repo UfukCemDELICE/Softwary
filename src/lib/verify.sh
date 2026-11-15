@@ -35,7 +35,7 @@ sw_verify() {
 		return 2
 	fi
 	if [ -n "$_base" ]; then
-		sw_base_commit "$_base" || return 2
+		sw_base_commit "$_base" verify || return 2
 		SW_VERIFY_BASE=$_base
 		export SW_VERIFY_BASE
 	fi
@@ -74,6 +74,13 @@ sw_verify() {
 			printf 'model: %s\n' "$SW_MODEL_MISSING"
 			_bad=1
 		fi
+		if [ -n "$_base" ]; then
+			_spp=$(sw_src_paths_problems)
+			if [ -n "$_spp" ]; then
+				printf '%s\n' "$_spp" | sed 's/^/changes: /'
+				_bad=1
+			fi
+		fi
 	fi
 	if [ "$_bad" -ne 0 ]; then
 		printf 'verify: configuration incomplete; fix the lines above\n'
@@ -97,6 +104,8 @@ sw_verify() {
 		if [ -n "$_base" ]; then
 			# shellcheck disable=SC2016
 			sw_verify_run adr 'sh "$SOFTWARY_HOME/bin/softwary" adr --base "$SW_VERIFY_BASE"'
+			# shellcheck disable=SC2016
+			sw_verify_run changes 'sh "$SOFTWARY_HOME/bin/softwary" changes --base "$SW_VERIFY_BASE"'
 		fi
 	fi
 	for _k in $_checks; do
