@@ -14,7 +14,10 @@ One slice per session. Where the tool has subagents, give the slice to the
    (`AC-NNN-NN`) and fails for the right reason before any code exists.
 3. Write the least code that makes the tests pass, inside the slice's
    `touches` where possible.
-4. Run `./softwary verify` and fix what it reports. Show its output.
+4. While iterating, run `./softwary verify --fast` (format, lint, types).
+   Once, before review, run the full `./softwary verify` and fix what it
+   reports; it also checks the change against the integration branch. Show
+   its output.
 5. Add short notes to the slice: what changed, what was surprising.
 6. Set the slice to `status: review` and continue with `review`.
 

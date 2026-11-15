@@ -27,7 +27,8 @@ test_ac_m3_05_doctor_reports_missing_files() {
 	setup_repo --no-sync
 	sw doctor
 	assert_match "$OUT" "^workflow +FAIL \($WORKFLOW not found; copy \.softwary/templates/softwary\.yml\)$"
-	assert_match "$OUT" "^CODEOWNERS +FAIL \($OWNERS not found; copy \.softwary/templates/CODEOWNERS\)$"
+	# V1: CODEOWNERS is optional (AC-V1-06).
+	assert_match "$OUT" "^CODEOWNERS +SKIP \(optional\)$"
 }
 
 # AC-M3-05: the templates as installed still contain UNSET and fail on separate lines.
@@ -107,13 +108,63 @@ test_ac_m3_06_workflow_triggers_and_checkout() {
 	f=$PKG_ROOT/src/templates/github/softwary.yml
 	assert_match "$f" "^  pull_request:"
 	assert_match "$f" "^  push:"
-	assert_match "$f" "branches: \[main\]"
+	# V1: the branches are UNSET until setup fills them in (AC-V1-07).
+	assert_match "$f" "branches: \[UNSET\]"
 	assert_contains "$f" "fetch-depth: 0"
 	# shellcheck disable=SC2016 # literal workflow text, nothing to expand
 	assert_contains "$f" 'BASE_REF: ${{ github.base_ref }}'
 	# shellcheck disable=SC2016
 	assert_contains "$f" './softwary verify --base "origin/$BASE_REF"'
 	assert_contains "$f" "run: UNSET"
+}
+
+# AC-V1-06: without CODEOWNERS doctor says it is optional and still passes.
+test_ac_v1_06_codeowners_optional() {
+	setup_repo
+	conf_all true
+	rm "$REPO/$OWNERS"
+	sw doctor
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^CODEOWNERS +SKIP \(optional\)$"
+}
+
+# AC-V1-06: a CODEOWNERS that exists is still checked for coverage and UNSET.
+test_ac_v1_06_codeowners_checked_when_present() {
+	setup_repo
+	conf_all true
+	printf '* UNSET\n' | write_owners
+	sw doctor
+	assert_eq "$RC" 2 "exit code"
+	assert_match "$OUT" "^CODEOWNERS +FAIL \(owner is UNSET \(line 1\)\)$"
+	printf '/specs/ @a\n' | write_owners
+	sw doctor
+	assert_eq "$RC" 2 "exit code with partial coverage"
+	assert_match "$OUT" "^CODEOWNERS +FAIL \(does not cover architecture/\)$"
+}
+
+# AC-V1-07: the template leaves both trigger branches UNSET; a pull request is
+# verified against its base, a push with the plain verify.
+test_ac_v1_07_template_branches_unset() {
+	f=$PKG_ROOT/src/templates/github/softwary.yml
+	assert_eq "$(awk '/^  pull_request:/ { getline; print; exit }' "$f")" "    branches: [UNSET]" "pull_request branches"
+	assert_eq "$(awk '/^  push:/ { getline; print; exit }' "$f")" "    branches: [UNSET]" "push branches"
+	# shellcheck disable=SC2016 # literal workflow text, nothing to expand
+	assert_contains "$f" 'run: ./softwary verify --base "origin/$BASE_REF"'
+	assert_match "$f" "^        run: \./softwary verify$"
+}
+
+# AC-V1-07: doctor reports every UNSET line of the workflow on its own line.
+test_ac_v1_07_doctor_reports_each_unset_line() {
+	setup_repo
+	conf_all true
+	cp "$REPO/.softwary/templates/softwary.yml" "$REPO/$WORKFLOW"
+	sw doctor
+	assert_eq "$RC" 2 "exit code"
+	_n=$(grep -cE "^workflow +FAIL \($WORKFLOW still contains UNSET \(line [0-9]+\)\)$" "$OUT")
+	assert_eq "$_n" 3 "UNSET lines reported"
+	sed 's/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/$WORKFLOW"
+	sw doctor
+	assert_eq "$(grep -cE "^workflow +FAIL" "$OUT")" 1 "only the install step left"
 }
 
 run_tests "$0"

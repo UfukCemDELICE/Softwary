@@ -16,6 +16,25 @@ test_ac_m0_07_clean_setup_passes() {
 	assert_match "$OUT" "^git repository +PASS"
 }
 
+# AC-V1-05: doctor does not run the project's commands and says so; a NONE
+# key is skipped with its reason; an UNSET key is still a problem.
+test_ac_v1_05_configured_not_run() {
+	setup_repo
+	conf_all 'touch ran-%k'
+	conf_set security 'NONE: no dependencies'
+	sw doctor
+	assert_eq "$RC" 0 "exit code"
+	for k in format_check lint typecheck test build; do
+		assert_match "$OUT" "^$k +PASS \\(configured, not run\\)$"
+	done
+	assert_match "$OUT" "^security +SKIP \\(no dependencies\\)$"
+	[ -z "$(find "$REPO" -name 'ran-*')" ] || fail "doctor ran a project command"
+	conf_set lint UNSET
+	sw doctor
+	assert_eq "$RC" 2 "exit code with an UNSET key"
+	assert_match "$OUT" "^lint +FAIL \\(UNSET\\)$"
+}
+
 # AC-M0-07: missing git is reported on its own line.
 test_ac_m0_07_missing_git() {
 	setup_repo
@@ -66,8 +85,8 @@ test_ac_m0_07_unknown_keys() {
 	printf 'lnit = true\nformat = true\n' >>"$REPO/.softwary/config/commands.conf"
 	sw doctor
 	assert_eq "$RC" 2 "exit code"
-	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 8\)$"
-	assert_match "$OUT" "^format +FAIL \(unknown key, line 9\)$"
+	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 10\)$"
+	assert_match "$OUT" "^format +FAIL \(unknown key, line 11\)$"
 }
 
 # AC-M0-07: several problems at once are each reported separately.

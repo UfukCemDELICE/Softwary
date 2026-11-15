@@ -45,4 +45,46 @@ test_ac_m3_07_names_doctor_adr_template_and_proposed() {
 	assert_contains "$SKILL" "proposed"
 }
 
+SKILLS=$PKG_ROOT/src/skills
+AGENTS=$PKG_ROOT/src/agents
+
+# AC-V1-08: setup asks for both branches and for the CI install step.
+test_ac_v1_08_setup_asks_branches_and_ci_toolchain() {
+	assert_contains "$SKILL" "integration_branch"
+	assert_contains "$SKILL" "production_branch"
+	assert_contains "$SKILL" "Install tools"
+	assert_contains "$SKILL" "branches: [UNSET]"
+}
+
+# AC-V1-08: branch protection requires the CI check, not a human review.
+test_ac_v1_08_setup_branch_protection() {
+	assert_contains "$SKILL" "require the \`softwary\` status check"
+	assert_contains "$SKILL" "do not require a human review"
+	! grep -F "Require review from Code Owners" "$SKILL" >/dev/null || fail "setup still asks for Code Owners review"
+}
+
+# AC-V1-08: an empty repository gets no model and is pointed at discover and
+# architect; in an existing one the baseline ADR lists each component's paths.
+test_ac_v1_08_setup_empty_and_existing_repo() {
+	assert_contains "$SKILL" "empty repository"
+	assert_contains "$SKILL" "do not draft a model"
+	assert_contains "$SKILL" "\`discover\`"
+	assert_contains "$SKILL" "\`architect\`"
+	assert_contains "$SKILL" ".gitkeep"
+	assert_contains "$SKILL" "the paths each component is drawn from"
+}
+
+# AC-V1-08: while iterating, implement runs verify --fast; before review the
+# full verify. Review no longer assumes main as the base.
+test_ac_v1_08_implement_fast_then_full_verify() {
+	for f in "$SKILLS/implement/SKILL.md" "$AGENTS/implementer.md"; do
+		assert_contains "$f" "./softwary verify --fast"
+		assert_contains "$f" "before review"
+	done
+	for f in "$SKILLS/review/SKILL.md" "$AGENTS/reviewer.md" "$SKILLS/implement/SKILL.md"; do
+		! grep -F -e "--base main" -e "(\`main\`" "$f" >/dev/null || fail "${f#"$PKG_ROOT"/} still assumes main"
+	done
+	assert_contains "$SKILLS/review/SKILL.md" "integration branch"
+}
+
 run_tests "$0"

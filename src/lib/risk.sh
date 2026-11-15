@@ -93,7 +93,7 @@ RULES
 
 # sw_risk SPEC [--base REF]: the review tier of a change.
 sw_risk() {
-	_spec='' _base=main
+	_spec='' _base=
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--base)
@@ -110,6 +110,10 @@ sw_risk() {
 		esac
 	done
 	[ -n "$_spec" ] || { sw_risk_usage; return 2; }
+	if [ -z "$_base" ]; then
+		sw_default_base risk || return 2
+		_base=$SW_DEFAULT_BASE
+	fi
 
 	sw_risk_load
 	if [ -n "$SW_RISK_ERRORS" ]; then

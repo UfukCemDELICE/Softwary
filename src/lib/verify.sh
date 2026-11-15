@@ -34,11 +34,6 @@ sw_verify() {
 		printf 'softwary verify: --fast cannot be combined with --base\n' >&2
 		return 2
 	fi
-	if [ -n "$_base" ]; then
-		sw_base_commit "$_base" verify || return 2
-		SW_VERIFY_BASE=$_base
-		export SW_VERIFY_BASE
-	fi
 	if [ "$_fast" -eq 1 ]; then _checks=$SW_FAST_KEYS; else _checks=$SW_VERIFY_KEYS; fi
 
 	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
@@ -49,6 +44,13 @@ sw_verify() {
 	if [ -n "$SW_CONF_ERRORS" ]; then
 		printf '%s' "$SW_CONF_ERRORS"
 		printf 'verify: fix the lines above in %s\n' "$SW_CONF_REL"
+		return 2
+	fi
+
+	sw_waivers_load
+	if [ -n "$SW_WAIVERS_ERRORS" ]; then
+		printf '%s' "$SW_WAIVERS_ERRORS"
+		printf 'verify: fix the lines above in %s\n' "$SW_WAIVERS_REL"
 		return 2
 	fi
 
@@ -74,22 +76,38 @@ sw_verify() {
 			printf 'model: %s\n' "$SW_MODEL_MISSING"
 			_bad=1
 		fi
-		if [ -n "$_base" ]; then
-			_spp=$(sw_src_paths_problems)
-			if [ -n "$_spp" ]; then
-				printf '%s\n' "$_spp" | sed 's/^/changes: /'
-				_bad=1
-			fi
+		_spp=$(sw_src_paths_problems)
+		if [ -n "$_spp" ]; then
+			printf '%s\n' "$_spp" | sed 's/^/changes: /'
+			_bad=1
+		fi
+		if [ -z "$_base" ] && sw_conf_is_unset integration_branch; then
+			printf 'verify: integration_branch is not set in %s (set it, or use --base <ref>)\n' "$SW_CONF_REL"
+			_bad=1
 		fi
 	fi
 	if [ "$_bad" -ne 0 ]; then
 		printf 'verify: configuration incomplete; fix the lines above\n'
 		return 2
 	fi
+	# adr and changes run against --base, else the integration branch; before
+	# the first commit there is nothing to compare (an explicit --base still
+	# needs a commit).
+	_nocommits=0
+	if [ "$_fast" -eq 0 ]; then
+		if [ -z "$_base" ] && ! sw_has_commits; then
+			_nocommits=1
+		else
+			[ -n "$_base" ] || _base=$(sw_conf_get integration_branch)
+			sw_base_commit "$_base" verify || return 2
+			SW_VERIFY_BASE=$_base
+			export SW_VERIFY_BASE
+		fi
+	fi
 
 	_logdir=$SOFTWARY_ROOT/.softwary/state/logs
 	mkdir -p "$_logdir" || return 2
-	_pass=0 _failc=0 _skip=0
+	_pass=0 _failc=0 _skip=0 _waived=0
 	if [ "$_fast" -eq 0 ]; then
 		# The package's own checks come first: generated files are up to date,
 		# the model is valid, its view is current and specs trace to tests.
@@ -101,7 +119,12 @@ sw_verify() {
 		sw_verify_run views 'sh "$SOFTWARY_HOME/bin/softwary" views --check'
 		# shellcheck disable=SC2016
 		sw_verify_run trace 'sh "$SOFTWARY_HOME/bin/softwary" trace'
-		if [ -n "$_base" ]; then
+		if [ "$_nocommits" -eq 1 ]; then
+			for _k in adr changes; do
+				sw_line "$_k" "SKIP (no commits yet)"
+				_skip=$((_skip + 1))
+			done
+		else
 			# shellcheck disable=SC2016
 			sw_verify_run adr 'sh "$SOFTWARY_HOME/bin/softwary" adr --base "$SW_VERIFY_BASE"'
 			# shellcheck disable=SC2016
@@ -124,23 +147,38 @@ sw_verify() {
 		esac
 		sw_verify_run "$_k" "$_cmd"
 	done
-	printf 'verify: %s passed, %s failed, %s skipped\n' "$_pass" "$_failc" "$_skip"
+	printf 'verify: %s passed, %s failed, %s skipped, %s waived\n' "$_pass" "$_failc" "$_skip" "$_waived"
 	[ "$_failc" -eq 0 ] || return 1
 	return 0
 }
 
-# sw_verify_run NAME COMMAND: runs one check from the repo root and reports it.
+# sw_verify_run NAME COMMAND: runs one check from the repo root and reports
+# it. A waiver that has not expired turns a failure into WAIVED; an expired
+# one is named on the FAIL line.
 sw_verify_run() {
 	_log=$_logdir/verify-$1.log
 	_start=$(date +%s)
 	_rc=0
 	(cd "$SOFTWARY_ROOT" && sh -c "$2") >"$_log" 2>&1 </dev/null || _rc=$?
 	_dur=$(($(date +%s) - _start))
+	_wnote=
+	if sw_waiver "$1"; then
+		if [ "$_rc" -eq 0 ]; then
+			_wnote=", waiver no longer needed"
+		elif [ "$SW_WAIVER_EXPIRED" -eq 0 ]; then
+			sw_line "$1" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
+			printf '    log: .softwary/state/logs/verify-%s.log (exit %s)\n' "$1" "$_rc"
+			_waived=$((_waived + 1))
+			return 0
+		else
+			_wnote=", waiver expired $SW_WAIVER_DATE"
+		fi
+	fi
 	if [ "$_rc" -eq 0 ]; then
-		sw_line "$1" "PASS (${_dur}s)"
+		sw_line "$1" "PASS (${_dur}s$_wnote)"
 		_pass=$((_pass + 1))
 	else
-		sw_line "$1" "FAIL (${_dur}s)"
+		sw_line "$1" "FAIL (${_dur}s$_wnote)"
 		tail -n "$SW_TAIL_LINES" "$_log" | sed 's/^/    /'
 		printf '    log: .softwary/state/logs/verify-%s.log (exit %s)\n' "$1" "$_rc"
 		_failc=$((_failc + 1))

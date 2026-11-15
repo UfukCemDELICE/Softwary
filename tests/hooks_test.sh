@@ -122,6 +122,9 @@ test_ac_m3_02_push_gated_by_verify() {
 	setup_repo
 	conf_all true
 	add_remote
+	# V1: the push runs adr and changes against main; commit the installed
+	# files so that only the change under test is new.
+	commit_all base
 	conf_set test false
 	change_file one
 	gcommit one
