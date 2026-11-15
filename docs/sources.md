@@ -1,0 +1,159 @@
+# Kaynaklar
+
+softwary v2, beş kaynağın fikir sentezidir (D-49). Bu belge her kaynaktan ne alındığını, neyin bilerek alınmadığını ve bunların softwary'de nerede durduğunu kalıcı olarak kaydeder. Bir ajanın ya da insanın kaynakları yeniden okumadan yönü bulabilmesi için yazılmıştır. Kaynak yorumu bir oturumun belleğinde değil, burada durur.
+
+Kurallar:
+
+- Kaynaklardan yalnızca fikir alınır; metin ya da kod alınmaz (zazencodes GPL-3.0, softwary MIT).
+- Bir kaynağın rolü, insanın onu neden verdiği ile birlikte yazılır. Rolü yanlış okumak, örneğin bir yaklaşım örneğini paketleme hedefi sanmak, yanlış bir yol haritasına götürür.
+- Bir fikrin durumu değiştiğinde (uygulandı, ertelendi, bırakıldı) bu belge aynı değişiklikte güncellenir.
+
+Okuma: 2026-11-15, aşağıdaki commit'ler üzerinde.
+
+| Kaynak | Commit | Lisans | İnsanın verdiği rol |
+| --- | --- | --- | --- |
+| [zazencodes-season-3 / software-factory-claude-code-v2](https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2) | `94f7ae7` | GPL-3.0 | Fabrikanın yapılandırması: istekten birleşmiş koda giden döngü |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | `5863806` | MIT | Skill paketi |
+| [obra/superpowers](https://github.com/obra/superpowers) | `22f0b46` | MIT | Skill paketi |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | `39b723c` | MIT | Skill paketi |
+| [cursor/plugins / pstack](https://github.com/cursor/plugins/tree/main/pstack) | `bf0c7cd` | MIT | **Yaklaşım örneği**: insanın aktardığına göre SpaceX AI'da kullanılan çalışma biçimi (pstack + TLA+ + Lean). Paketleme ya da Cursor eklentisi hedefi değildir. |
+
+Durum sütunu: **var** (uygulandı), **kısmen**, **planlı** (yol haritasındaki kilometre taşı), **bırakıldı**.
+
+## 1. zazencodes software factory v2
+
+Ne: Bir Claude Code skill'i (orkestratör), sekiz ajan, üç script (`job`, `gate`, `route`) ve bir yapılandırma dosyası. GitHub issue kuyruğunu, her iş bir PR olacak şekilde birleşmiş koda çevirir. Hat: intake → route → worktree → spec-writer → builder → gate → paralel inceleyiciler → approver → `gh pr merge` ya da escalate.
+
+| Fikir | softwary'deki yeri | Durum |
+| --- | --- | --- |
+| Orkestratör yalnızca koordine eder, kendisi dosya yazmaz | Döngü skill'i (design §6.4) | Planlı (V2) |
+| İş durumunu tek bir script yazar, geçersiz geçişi reddeder (`TRANSITIONS` tablosu) | `job` scripti, `transitions.json` | Planlı (V2) |
+| Her ajan dosya okur, tek dosya yazar, tek satır yanıt verir; ayrıntı dosyadadır, orkestratörün bağlamı küçük kalır | Ajan sözleşmesi | Planlı (V2) |
+| Kapı (`checks.sh`) incelemeden önce çalışır; kapıdan geçmeyen işi inceleyici görmez | `verify` | Kısmen: `verify` var, döngüde kapı sırası V2 |
+| Kapı ana daldaki denetim kopyasıyla çalışır; dal kendisini yargılayan denetimi değiştiremez | Birleştirme scripti (design §4) | Planlı (V3) |
+| Korunan yollar (fabrikanın kendi denetimleri ve yapılandırması) | Korunan yollar (design §4) | Planlı (V3) |
+| Test korunmaz, ama zayıflatılmış ya da atlanmış test inceleyicide düşer | Test gevşetme denetimi | Planlı (V3) |
+| Risk ve yüzey (UI, güvenlik) inceleyicileri ve modelleri seçer; seçim prompt'ta değil yapılandırmadadır | `risk`, `models.conf` | Kısmen: `risk` var; yönlendirme V2 |
+| Approver birleştirir ya da somut bir soruyla escalate eder; insan PR'ı birleştirerek onaylar | Approver ajanı | Planlı (V2) |
+| Birleştirmeden önce ana dalla eşitle ve kapıyı yeniden çalıştır | Birleştirme kuyruğu | Planlı (V2, paralelde V4) |
+| Her iş bir PR'dır, `gh pr merge` ile birleşir; dal koruması ve zorunlu denetimler geçerlidir | Design §4 | Kısmen: CI şablonu ve dal ayarları var (V1); PR'ı döngü V2'de açar |
+| Durum dosyalardadır; oturum ölürse yeni çalıştırma her işi kaldığı yerden sürdürür | `.softwary/state/jobs/` | Planlı (V2) |
+| İş başına tur sınırı (`max_rounds`), sonra insan | `loop.conf` | Planlı (V2) |
+| İş başına maliyet ölçümü | Token bütçesi (D-50) | Planlı (V2) |
+| Kuyruk girdisi prompt'a değil, alıntılanmış veri olarak dosyaya girer | Güven ilkesi (design §7) | Planlı (V2) |
+
+Alınmayan: kuyruk olarak GitHub issue'ları (softwary'nin kuyruğu plan dosyasıdır; issue tracker'a bağımlılık hedef dışıdır), HTML dashboard, kod ve prompt metinleri (GPL).
+
+## 2. mattpocock/skills
+
+Ne: Mühendislik ve yazı skill'leri. Bizi ilgilendirenler: `grill-me`/`grilling`/`grill-with-docs` (sorgulama), `domain-modeling` (sözlük ve ADR), `to-spec`, `to-tickets` (engelleme ilişkili "tracer bullet" iş blokları), `wayfinder` (tek oturuma sığmayan iş için karar haritası), `handoff`, `tdd`, `diagnosing-bugs`, `code-review` (standartlar ve spec ekseni), `software-factory` (fabrika tasarımı için ortak dil).
+
+| Fikir | softwary'deki yeri | Durum |
+| --- | --- | --- |
+| Bütün dallar çözülene kadar, birer birer soru sorarak sorgulama | `discover`, `define` | Kısmen: `discover` var; derin sorgulama V2 (ince) ve V5 |
+| Sözlük ve kararlar görüşme sürerken güncellenir | `CONTEXT.md`, ADR | Kısmen: şablonlar var |
+| Alan modelleme | Blueprint veri modeli | Planlı (V2 ince, V5 derin) |
+| Engelleme ilişkileri açık, uçtan uca ince iş blokları | Dilim `depends_on`, plan | Kısmen: dilim ve `depends_on` var; plan V2 |
+| Oturum devri | `handoff` | Planlı (V5) |
+| İnceleme iki eksenli: kod standartları ve spec'e uyum | `reviewer` | Kısmen |
+| Fabrika için "fren"ler: otomatik denetim, otomatik inceleme, insan incelemesi; tetikleyicileri yavaş açmak, her döngüyü birkaç denemede insana bağlamak | Kapılar, `reviewer`, tur sınırı | Kısmen: kapılar var; tur sınırı V2 |
+| Bir çalıştırma insanı beklemez, biter; insanın sonraki değişikliği yeni çalıştırmayı başlatır | Escalate ve devam (design §6.4) | Planlı (V2) |
+
+Alınmayan: issue tracker kurulumu ve triage etiketleri, TypeScript'e özgü skill'ler, uzak runner ve orkestratör altyapısı (softwary yerel çalışır, kendi sunucusu yoktur).
+
+## 3. obra/superpowers
+
+Ne: Süreç skill'leri: `brainstorming`, `writing-plans`, `executing-plans`, `subagent-driven-development`, `dispatching-parallel-agents`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `requesting-code-review`, `receiving-code-review`, `verification-before-completion`, `finishing-a-development-branch`.
+
+| Fikir | softwary'deki yeri | Durum |
+| --- | --- | --- |
+| Önce test, kırmızıyı görmeden kod yok | `implement`, `implementer` | Var |
+| Bitti demeden doğrulama çıktısı göster | Kural 2, `verify` | Var |
+| Dosya yolları ve doğrulama adımları olan plan | `docs/plans/`, plan aşaması | Kısmen: paketin kendi geliştirmesinde var; ürün için V2 |
+| Görev başına taze subagent, ardından inceleme | `implementer`, `reviewer` | Kısmen: tek dilim için var; döngüde V2 |
+| Temiz test tabanıyla izole worktree | Paralel yürütme | Planlı (V4) |
+| Sistematik hata ayıklama (kök neden önce) | `diagnose` | Planlı (V7) |
+| İnceleme geri bildirimini körü körüne değil doğrulayarak almak | `implement` (değişiklik turu) | Planlı (V2) |
+
+Alınmayan: "her yanıttan önce skill çağır" zorlaması (softwary aşamaları kapılarla bağlar, prompt baskısıyla değil); belge yolu `docs/superpowers/` (planlar `docs/plans/`'a taşındı).
+
+## 4. addyosmani/agent-skills
+
+Ne: Yaşam döngüsü skill'leri: fikir ve spec, planlama, artımlı uygulama, TDD, inceleme, güvenlik, belgeler ve ADR, CI/CD, gözlemlenebilirlik, teslim.
+
+| Fikir | softwary'deki yeri | Durum |
+| --- | --- | --- |
+| Yaşam döngüsü evreleri ve evre başına kapı | Hat (design §6) | Kısmen: v1 hattı var; tanım, döngü ve teslim V2–V7 |
+| Kalite çıtası yazılı bir sözleşmedir; ajan onu sessizce indiremez (`constraint-driven-development`) | `commands.conf`, muafiyetler | Var: kapılar ve süreli muafiyetler (V1) |
+| Spec önce (`spec-driven-development`) | `specify`, `changes` kapısı | Var |
+| ADR'ler ve belgenin koddan sapmasının yakalanması | `adr` kapısı, drift | Kısmen: `adr` var; drift V7 |
+| Taze bağlamda karşıt görüşlü inceleme (`doubt-driven-development`) | `reviewer`, `spec-analyst` | Kısmen |
+| İnce, doğrulanabilir artımlar (`incremental-implementation`) | Dilimler | Var |
+| "Bahane tabloları" (ajanın kapıyı atlatmak için kullandığı gerekçeler ve karşılıkları) | Skill metinleri | Planlı (V3) |
+| Teslimde gözlemlenebilirlik, kademeli yayın, geri alma planı | `ship` | Planlı (V7) |
+
+Alınmayan: tarayıcı ve ön yüz skill'leri (stack'e özgü), performans optimizasyonu.
+
+## 5. pstack — yaklaşım örneği
+
+İnsanın notu: pstack, TLA+ ve Lean SpaceX AI'da birlikte kullanılan bir çalışma biçimi olarak verildi. Amaç pstack'i paketlemek ya da Cursor eklentisi yapmak değil, bu **yaklaşımı** softwary'nin ürettiği yazılıma uygulamaktır. (pstack'in kendi belgeleri SpaceX AI'dan ya da Lean'den adıyla söz etmez; bu bağlam insanın aktarımıdır.) Yol haritasındaki V9 "Cursor ve sürüm" ayrı bir karardır ("önce Claude Code, ardından Cursor") ve pstack'ten gelmez.
+
+Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kitaplarından birine (özellik, hata, refactor, otonom çalışma, orkestrasyon, gönderim…) eşler; diğer skill'leri adımlar gerektirdikçe çağırır. Otuza yakın ilke skill'i küçük, birleştirilebilir dosyalardır. Çekirdek iddiası: "hızlı gitmek istiyorsan önce derine in"; tek ajana güvenebildiğin için paralelleşebilirsin.
+
+| Fikir | softwary'deki yeri | Durum |
+| --- | --- | --- |
+| İlkeler küçük, ayrı, birleştirilebilir dosyalardır | `src/rules/` | Kısmen: tek dosya (`core.md`) |
+| Tekrar eden bir düzeltmeyi metin olarak değil yapı olarak (lint, kontrol, script) kodlamak | İlke 1 (talimat değil kapı) | Var |
+| Çalıştığını gerçek yapıt üzerinde kanıtla, vekile ya da öz bildirime güvenme | `verify`; kanıtın birleştirmede yeniden hesaplanması | Kısmen: `verify` var; yeniden hesaplama V3 |
+| Yalnızca bir çalıştırmayla kanıtlanan bulgular kalır (`interrogate`) | `reviewer` | Planlı (V3) |
+| Diff'in ötesindeki etki alanı ve güvenliğin tek bir olguyu çalıştırarak kanıtlanması (`blast-radius`) | `risk`, inceleme | Kısmen: `risk` var |
+| Geri alınabilir işte insanı bekleme | İlke 10 | Kısmen: ilke var; döngü V2 |
+| İşi her biri doğrulanabilir durumda biten küçük birimlere bölmek ve sırayı kendini kanıtlayacak şekilde dizmek | Dilimler, plan | Kısmen |
+| Paylaşılan durumu seri hale getirmeden önce ayırmak; işlemleri idempotent yapmak | Paralel yürütme, kilitler, çöküşten devam | Planlı (V4) |
+| Davranışı test et, gerçeklemeyi değil | `implement` | Planlı (skill metni) |
+| Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Planlı (V5) |
+| Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi | Planlı (V2) |
+| **Biçimsel doğrulama** (aşağıda) | §7 | Kısmen planlı; açık soru |
+
+### pstack'in biçimsel doğrulama yaklaşımı
+
+`create-formal-verification-skill`, `maintain-formal-verification-skill` ve `statechart` skill'lerinden:
+
+1. **Hedef koddan seçilir.** Bir hatanın en pahalıya patladığı ve testlerin en az ulaştığı söz: eşzamanlılık, yeniden denemeler, durum makineleri, ayrıştırıcılar, güvensiz kod. En kolay doğrulanacak yer değil, en güçlü hedef.
+2. **Aracı soru seçer.** Olayların kötü bir sırada olup olamayacağı sorusunda küçük bir tasarım modeli üzerinde model denetleyici (varsayılan TLA+). Kodun her girdi için doğru davrandığı sorusunda kanıt asistanı (Lean gibi) ya da SMT tabanlı doğrulayıcı. En düşük maliyetle cevaplayan araç.
+3. **Koda sadık.** Modelin her parçası okunabilir bir koda işaret eder; kodda bölünmez olan adım modelde de bölünmezdir; adlar repodan gelir.
+4. **Başarısız olabilmeli.** Hiç başarısız olduğu görülmemiş bir denetim hiçbir şey kanıtlamaz: her özellik, kodun kasıtlı bozulmuş bir sürümünde başarısız gösterilir.
+5. **Bulgu bulgudur.** Mevcut kod özelliği bozuyorsa karşı örnek kodun diliyle raporlanır; özellik ya da model geçsin diye zayıflatılmaz.
+6. **Kapsam dürüsttür.** Neyin, hangi sınırlar ve varsayımlarla doğrulandığı ve neyin dışarıda kaldığı yazılır. Geçmek modeli ya da sınırı kapsar, bütün sistemi değil.
+7. **Ucuz yeniden çalışır.** Tek komut, sabit araç sürümü, her ilgili değişiklikte çalıştırılacak kadar kısa.
+8. **Kodla birlikte yürür.** Her denetimin kapsadığı dosya ve fonksiyonlar ile en son doğrulandığı commit kaydedilir. Kapsanan kod değişince bakım döngüsü her sonucu ayırır: uyumlu, güncellendi, **hata** (model kodu doğru anlatıyor, kod özelliği bozuyor), engelli. Eskimiş bir modelin geçmesi en tehlikeli durumdur, çünkü kanıt gibi görünür.
+9. **Okunabilir sonuç.** Özellik ve zarar birer düz cümledir. `statechart` TLA+ modelini model denetleyiciden geçirir, her ihlal için en kısa yolu okurun dilinde verir ve sistemi bir Mermaid durum diyagramı olarak çizer. Bulunan her yol gerçek koda karşı adım adım yeniden oynatılır; oynamazsa önce modelin yanlış olduğu varsayılır.
+
+### softwary'deki durum ve açık soru
+
+Bugünkü tasarım (design §7, roadmap V4 ve V8) TLA+'ı yalnızca softwary'nin kendi paralel birleştirme protokolü için kullanır; ürün tarafında isteğe bağlı bir `model_check` kapısı sona (V8) bırakılmıştır; Lean geçmez. Bu, kaynağın verildiği amaçtan dardır: yaklaşım, üretilen ürünün kritik yerlerine uygulanmak için verildi.
+
+Önerilen yön (insan kararı bekliyor, karar verilince `docs/decisions.md`'ye ve design §7'ye işlenir):
+
+- Blueprint'teki durum makineleri (`states/*.json`) ve kritik akışlar için TLA+ belirtimi, değişmezleri insanın onayladığı cümlelerle; blueprint onayından önce model denetleyiciden geçer, sonra her ilgili değişiklikte `model_check` olarak CI'da çalışır. Bu, V8'den V5'e çekilir.
+- Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır.
+- pstack'in 4, 5 ve 8. maddeleri kapı olur: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi.
+- Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk belirtimden türetilen testlerle ve karşı örneklerin koda karşı yeniden oynatılmasıyla daraltılır.
+
+Alınmayan: `poteto-mode`'un çok modelli panel düzeni (softwary `models.conf` ile Opus ve Sonnet'e iki rol verir), arena ve sürü gibi paralel aday üretimi, Cursor'a özgü özellikler (bugbot, otomasyonlar), TypeScript'e özgü skill'ler.
+
+## Karşılıklı eşleme
+
+Kaynaklar aynı fikri farklı adlarla taşır. softwary'deki karşılıkları:
+
+| softwary | zazencodes | mattpocock | superpowers | addyosmani | pstack |
+| --- | --- | --- | --- | --- | --- |
+| Kapı (`verify`) | `gate` + `checks.sh` | otomatik denetim (fren) | verification-before-completion | constraint-driven-development | prove-it-works |
+| Tanım ve sorgulama | intake | grill-me, grilling | brainstorming | interview-me, idea-refine | interrogate, sharpen |
+| Plan ve dilimler | spec-writer | to-spec, to-tickets, wayfinder | writing-plans | planning-and-task-breakdown | sequence-verifiable-units |
+| Uygulama | builder | implement, tdd | subagent-driven-development, TDD | incremental-implementation | poteto-mode (feature) |
+| İnceleme | reviewer-* | code-review | requesting-code-review | code-review-and-quality, doubt-driven | interrogate, blast-radius |
+| Birleştirme | approver + `gh pr merge` | — | finishing-a-development-branch | git-workflow-and-versioning | shipping |
+| Paralel | concurrency | chief-of-staff | worktrees, dispatching-parallel-agents | — | swarm, autopilot |
+| Hata ayıklama | — | diagnosing-bugs | systematic-debugging | debugging-and-error-recovery | bug-fix, forensics |
+| Biçimsel doğrulama | — | — | — | — | create/maintain-formal-verification, statechart |
