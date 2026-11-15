@@ -9,6 +9,70 @@ sw_doctor_fail() {
 	_problems=$((_problems + 1))
 }
 
+# sw_doctor_hooks: core.hooksPath must point at the managed hooks.
+sw_doctor_hooks() {
+	_cur=$(git -C "$SOFTWARY_ROOT" config --get core.hooksPath 2>/dev/null) || _cur=
+	if [ "$_cur" = .softwary/hooks ]; then
+		for _h in pre-commit pre-push; do
+			if [ ! -x "$SOFTWARY_ROOT/.softwary/hooks/$_h" ]; then
+				sw_doctor_fail hooks ".softwary/hooks/$_h is missing or not executable; rerun install.sh"
+				return 0
+			fi
+		done
+		sw_line hooks PASS
+	elif [ -n "$_cur" ]; then
+		sw_doctor_fail hooks "core.hooksPath is '$_cur', not .softwary/hooks"
+	else
+		_shown=$(cd "$SOFTWARY_ROOT" && git rev-parse --git-path hooks 2>/dev/null)
+		case $_shown in
+		/*) _hdir=$_shown ;;
+		*) _hdir=$SOFTWARY_ROOT/$_shown ;;
+		esac
+		_custom=
+		for _f in "$_hdir"/*; do
+			[ -f "$_f" ] || continue
+			case ${_f##*/} in *.sample) ;; *) _custom="$_custom $_shown/${_f##*/}" ;; esac
+		done
+		_why=
+		[ -z "$_custom" ] || _why=" ($_custom is not a sample, so install.sh left it)"
+		sw_doctor_fail hooks "core.hooksPath is not set; run: git config core.hooksPath .softwary/hooks$_why"
+	fi
+}
+
+# sw_doctor_ci: the CI workflow and CODEOWNERS must be placed and filled in.
+# Comment lines (#) are ignored.
+sw_doctor_ci() {
+	_wf=.github/workflows/softwary.yml
+	if [ ! -f "$SOFTWARY_ROOT/$_wf" ]; then
+		sw_doctor_fail workflow "$_wf not found; copy .softwary/templates/softwary.yml"
+	else
+		_ln=$(awk '/^[ \t]*#/ { next } /UNSET/ { print NR; exit }' "$SOFTWARY_ROOT/$_wf")
+		if [ -n "$_ln" ]; then
+			sw_doctor_fail workflow "$_wf still contains UNSET (line $_ln)"
+		else
+			sw_line workflow PASS
+		fi
+	fi
+	_co=.github/CODEOWNERS
+	if [ ! -f "$SOFTWARY_ROOT/$_co" ]; then
+		sw_doctor_fail CODEOWNERS "$_co not found; copy .softwary/templates/CODEOWNERS"
+		return 0
+	fi
+	_cn=$_problems
+	for _p in specs architecture .softwary/config .github; do
+		awk -v p="$_p" '
+			/^[ \t]*#/ || NF < 2 { next }
+			{ pat = $1; sub(/^\//, "", pat); sub(/\/\*\*$/, "", pat); sub(/\/$/, "", pat)
+			  if (pat == p || pat == "*" || pat == "**") found = 1 }
+			END { exit !found }' "$SOFTWARY_ROOT/$_co" || sw_doctor_fail CODEOWNERS "does not cover $_p/"
+	done
+	# shellcheck disable=SC2013 # the words are line numbers, without whitespace
+	for _ln in $(awk '/^[ \t]*#/ { next } { for (i = 2; i <= NF; i++) if ($i == "UNSET") { print NR; break } }' "$SOFTWARY_ROOT/$_co"); do
+		sw_doctor_fail CODEOWNERS "owner is UNSET (line $_ln)"
+	done
+	[ "$_problems" -ne "$_cn" ] || sw_line CODEOWNERS PASS
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -28,6 +92,7 @@ sw_doctor() {
 		sw_doctor_fail "git repository" "cannot check without git"
 	elif git -C "$SOFTWARY_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		sw_line "git repository" PASS
+		sw_doctor_hooks
 	else
 		sw_doctor_fail "git repository" "not a git repository"
 	fi
@@ -97,6 +162,8 @@ EOF
 	else
 		sw_line "risk.conf" PASS
 	fi
+
+	sw_doctor_ci
 
 	if [ -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
 		sw_line "model" PASS

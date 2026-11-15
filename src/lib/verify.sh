@@ -6,18 +6,39 @@
 
 SW_TAIL_LINES=20
 
+sw_verify_usage() {
+	printf 'usage: ./softwary verify [--fast] [--base <ref>]\n' >&2
+}
+
 sw_verify() {
-	_fast=0
-	for _a in "$@"; do
-		case $_a in
-		--fast) _fast=1 ;;
+	_fast=0 _base=
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--fast)
+			_fast=1
+			shift
+			;;
+		--base)
+			[ $# -ge 2 ] || { sw_verify_usage; return 2; }
+			_base=$2
+			shift 2
+			;;
 		*)
-			printf 'softwary verify: unknown option: %s\n' "$_a" >&2
-			printf 'usage: ./softwary verify [--fast]\n' >&2
+			printf 'softwary verify: unknown option: %s\n' "$1" >&2
+			sw_verify_usage
 			return 2
 			;;
 		esac
 	done
+	if [ "$_fast" -eq 1 ] && [ -n "$_base" ]; then
+		printf 'softwary verify: --fast cannot be combined with --base\n' >&2
+		return 2
+	fi
+	if [ -n "$_base" ]; then
+		sw_base_commit "$_base" || return 2
+		SW_VERIFY_BASE=$_base
+		export SW_VERIFY_BASE
+	fi
 	if [ "$_fast" -eq 1 ]; then _checks=$SW_FAST_KEYS; else _checks=$SW_VERIFY_KEYS; fi
 
 	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
@@ -73,6 +94,10 @@ sw_verify() {
 		sw_verify_run views 'sh "$SOFTWARY_HOME/bin/softwary" views --check'
 		# shellcheck disable=SC2016
 		sw_verify_run trace 'sh "$SOFTWARY_HOME/bin/softwary" trace'
+		if [ -n "$_base" ]; then
+			# shellcheck disable=SC2016
+			sw_verify_run adr 'sh "$SOFTWARY_HOME/bin/softwary" adr --base "$SW_VERIFY_BASE"'
+		fi
 	fi
 	for _k in $_checks; do
 		if sw_conf_is_unset "$_k"; then

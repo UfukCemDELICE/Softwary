@@ -1,0 +1,25 @@
+# softwary CI. Copy this file to .github/workflows/softwary.yml, then replace
+# the UNSET step below with the commands that install the tools your
+# .softwary/config/commands.conf uses. ./softwary doctor reports it until then.
+name: softwary
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install tools
+        run: UNSET # replace with the commands that install the tools commands.conf uses
+      - name: Verify the pull request against its base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: ./softwary verify --base "origin/$BASE_REF"
+      - name: Verify
+        if: github.event_name == 'push'
+        run: ./softwary verify

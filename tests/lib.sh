@@ -67,6 +67,7 @@ setup_repo() {
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
 		risk_set default R1
+		add_ci
 		[ "$_model" -eq 0 ] || add_model
 	fi
 }
@@ -86,6 +87,13 @@ add_model() {
 add_specs() {
 	cp -R "$FIXTURES/specs" "$FIXTURES/tests" "$REPO/"
 	conf_set test_paths tests
+}
+
+# add_ci: fills in the CI workflow and CODEOWNERS templates under .github/.
+add_ci() {
+	mkdir -p "$REPO/.github/workflows"
+	sed 's/^\( *run: \)UNSET.*$/\1true/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
+	sed 's/UNSET/@owner/' "$REPO/.softwary/templates/CODEOWNERS" >"$REPO/.github/CODEOWNERS"
 }
 
 # risk_set PATTERN TIER: sets PATTERN in risk.conf.
@@ -178,6 +186,20 @@ block_of() {
 # outside_block FILE: prints the lines outside the softwary block.
 outside_block() {
 	awk '/^<!-- softwary:begin/ { on = 1 } !on { print } /^<!-- softwary:end -->$/ { on = 0 }' "$1"
+}
+
+# commit_all MESSAGE: commits every file in the repo. --no-verify: the repo's
+# git hooks are installed and would run verify; only hooks_test.sh wants that.
+commit_all() {
+	git -C "$REPO" add -A || fail "git add failed"
+	git -C "$REPO" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "$1" || fail "commit failed"
+}
+
+# write_adr ID STATUS AFFECTS: writes architecture/decisions/ID-x.md.
+write_adr() {
+	mkdir -p "$REPO/architecture/decisions"
+	printf -- '---\nid: %s\ntitle: Decision %s\nstatus: %s\naffects: %s\n---\n\n# %s\n' "$1" "$1" "$2" "$3" "$1" \
+		>"$REPO/architecture/decisions/$1-x.md"
 }
 
 # sw ARGS...: runs ./softwary ARGS in the repo, capturing output and exit code.
