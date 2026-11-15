@@ -79,6 +79,9 @@ commands:
                    hand the job to the human with one concrete question
   job resume <job> <answer>, job abandon <job> <reason>
                    continue an escalated job in a new round; give it up
+  run start|next|stop
+                   open the run (the checks it needs), print what to do next
+                   (start, resume, waiting, none or stop), close the run
   merge <job>      recompute every condition on the commit to merge and merge
                    the PR bound to it, or hand the job to the human
   job event <job> <event> [detail]
@@ -94,7 +97,7 @@ commands:
                    approved spec in the change (default base: integration_branch)
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: integration_branch)
-  status           summarise approvals, specs, slices and proposed ADRs
+  status           summarise approvals, specs, slices, proposed ADRs and jobs
   doctor           report installation and configuration problems
   upgrade <package-path>
                    replace the managed files with those of a newer package,
@@ -138,6 +141,10 @@ plan)
 job)
 	shift
 	sw_job "$@"
+	;;
+run)
+	shift
+	sw_run "$@"
 	;;
 merge)
 	shift

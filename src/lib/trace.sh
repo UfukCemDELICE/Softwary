@@ -421,5 +421,6 @@ sw_status() {
 		_b=${_f##*/}
 		printf 'ADR %-4s %-9s %s\n' "${_id:-${_b%%-*}}" proposed "$(sw_fm_get title)"
 	done
+	sw_status_jobs
 	return "$_st_rc"
 }

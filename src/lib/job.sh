@@ -204,6 +204,63 @@ sw_job_active() {
 	done
 }
 
+# sw_job_waiting: prints the jobs that wait for a human (escalated).
+sw_job_waiting() {
+	for _jw in "$SOFTWARY_ROOT/$SW_JOBS_REL"/*/job; do
+		[ -f "$_jw" ] || continue
+		[ "$(sw_kvf_get "$_jw" state)" = escalated ] || continue
+		_jw=${_jw%/job}
+		printf '%s\n' "${_jw##*/}"
+	done
+}
+
+# sw_job_unmet JOB SLICEFILE: prints the first dependency of the slice that
+# is not done in the working tree (nothing when all are).
+sw_job_unmet() {
+	sw_fm_read "$2"
+	for _ju_d in $(sw_list "$(sw_fm_get depends_on)"); do
+		case $_ju_d in S*) _ju_d=${1%%-*}-$_ju_d ;; esac
+		_ju_f=
+		for _ju_x in "$SOFTWARY_ROOT"/specs/"${_ju_d%%-*}"-*/slices/"${_ju_d#*-}".md; do
+			[ -f "$_ju_x" ] && _ju_f=$_ju_x
+		done
+		_ju_s=
+		if [ -n "$_ju_f" ]; then
+			sw_fm_read "$_ju_f"
+			_ju_s=$(sw_fm_get status)
+		fi
+		if [ "$_ju_s" != "done" ]; then
+			printf '%s\n' "$_ju_d"
+			return 0
+		fi
+		sw_fm_read "$2"
+	done
+}
+
+# sw_status_jobs: one line per job (state, round, minutes since it started),
+# then the questions of the jobs that wait for a human. Nothing without jobs.
+sw_status_jobs() {
+	_sj_any=0
+	_sj_now=$(date +%s)
+	for _sj in "$SOFTWARY_ROOT/$SW_JOBS_REL"/*/job; do
+		[ -f "$_sj" ] || continue
+		_sj_any=1
+		_sj_id=${_sj%/job}
+		_sj_id=${_sj_id##*/}
+		_sj_s=$(sw_kvf_get "$_sj" started)
+		printf 'job %s %-13s round %s %sm\n' "$_sj_id" "$(sw_kvf_get "$_sj" state)" "$(sw_kvf_get "$_sj" round)" \
+			"$(((_sj_now - ${_sj_s:-$_sj_now}) / 60))"
+	done
+	[ "$_sj_any" -eq 1 ] || return 0
+	_sj_w=$(sw_job_waiting)
+	[ -n "$_sj_w" ] || return 0
+	printf 'waiting for you:\n'
+	for _sj_id in $_sj_w; do
+		_sj_q=$SOFTWARY_ROOT/$SW_JOBS_REL/$_sj_id/escalation
+		printf '  %s: %s\n' "$_sj_id" "$([ -f "$_sj_q" ] && head -n 1 "$_sj_q" || printf '(no question recorded)')"
+	done
+}
+
 sw_job_refuse() {
 	printf 'job %s: %s\n' "$1" "$2"
 	return 1
@@ -234,21 +291,8 @@ sw_job_start() {
 	[ "$(sw_fm_get status)" = planned ] || { sw_job_refuse "$_js_job" "slice is not planned"; return 1; }
 	sw_fm_read "$SOFTWARY_ROOT/specs/$_js_spec/spec.md"
 	[ "$(sw_fm_get status)" = approved ] || { sw_job_refuse "$_js_job" "spec ${_js_job%%-*} is not approved"; return 1; }
-	sw_fm_read "$_js_sfile"
-	for _js_d in $(sw_list "$(sw_fm_get depends_on)"); do
-		case $_js_d in S*) _js_d=${_js_job%%-*}-$_js_d ;; esac
-		_js_df=
-		for _js_x in "$SOFTWARY_ROOT"/specs/"${_js_d%%-*}"-*/slices/"${_js_d#*-}".md; do
-			[ -f "$_js_x" ] && _js_df=$_js_x
-		done
-		_js_ds=
-		if [ -n "$_js_df" ]; then
-			sw_fm_read "$_js_df"
-			_js_ds=$(sw_fm_get status)
-		fi
-		[ "$_js_ds" = "done" ] || { sw_job_refuse "$_js_job" "dependency $_js_d is not done"; return 1; }
-		sw_fm_read "$_js_sfile"
-	done
+	_js_un=$(sw_job_unmet "$_js_job" "$_js_sfile")
+	[ -z "$_js_un" ] || { sw_job_refuse "$_js_job" "dependency $_js_un is not done"; return 1; }
 	for _js_k in $SW_APPROVAL_KINDS; do
 		_js_a=$(sw_approval_state "$_js_k") || { sw_job_refuse "$_js_job" "approvals.conf is malformed"; return 1; }
 		[ "$_js_a" = approved ] || { sw_job_refuse "$_js_job" "$_js_k approval is $_js_a"; return 1; }
