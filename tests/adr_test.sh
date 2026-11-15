@@ -247,9 +247,10 @@ test_ac_m3_04_verify_base() {
 	sw verify --base main
 	assert_eq "$RC" 0 "exit code with an ADR"
 	assert_match "$OUT" "^adr +PASS"
+	# V1: plain verify runs adr too, against the integration branch (main).
 	sw verify
 	assert_eq "$RC" 0 "plain verify"
-	assert_no_match "$OUT" "^adr "
+	assert_match "$OUT" "^adr +PASS"
 	sw verify --fast --base main
 	assert_eq "$RC" 2 "--fast with --base"
 	sw verify --base nope

@@ -8,7 +8,8 @@
 SW_REQUIRED_KEYS="format_check lint typecheck test build security"
 SW_OPTIONAL_CHECK_KEYS="contract_check arch_check"
 SW_OTHER_KEYS="run deploy bootstrap"
-SW_SETTING_KEYS="test_paths src_paths"
+SW_SETTING_KEYS="test_paths src_paths integration_branch production_branch"
+SW_BRANCH_KEYS="integration_branch production_branch"
 SW_VERIFY_KEYS="format_check lint typecheck test build contract_check arch_check security"
 SW_FAST_KEYS="format_check lint typecheck"
 SW_CONF_REL=.softwary/config/commands.conf
@@ -143,8 +144,19 @@ sw_kv_line() {
 }
 
 # sw_conf_load FILE: parses commands.conf into the SW_CONF_* variables.
+# A branch setting that is set must be a valid branch name.
 sw_conf_load() {
 	sw_kv_load "$1" "$SW_CONF_REL" SW_CONF commands
+	for _bk in $SW_BRANCH_KEYS; do
+		sw_conf_is_unset "$_bk" && continue
+		_bv=$(sw_conf_get "$_bk")
+		case $_bv in
+		-* | @*) ;;
+		*) git check-ref-format --branch "$_bv" >/dev/null 2>&1 && continue ;;
+		esac
+		SW_CONF_ERRORS="${SW_CONF_ERRORS}${SW_CONF_REL}:$(sw_conf_line "$_bk"): invalid branch name '$_bv' for '$_bk'
+"
+	done
 }
 
 # sw_none_reason VALUE: prints the reason of a `NONE: <reason>` value.

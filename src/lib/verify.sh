@@ -34,11 +34,6 @@ sw_verify() {
 		printf 'softwary verify: --fast cannot be combined with --base\n' >&2
 		return 2
 	fi
-	if [ -n "$_base" ]; then
-		sw_base_commit "$_base" verify || return 2
-		SW_VERIFY_BASE=$_base
-		export SW_VERIFY_BASE
-	fi
 	if [ "$_fast" -eq 1 ]; then _checks=$SW_FAST_KEYS; else _checks=$SW_VERIFY_KEYS; fi
 
 	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
@@ -74,17 +69,33 @@ sw_verify() {
 			printf 'model: %s\n' "$SW_MODEL_MISSING"
 			_bad=1
 		fi
-		if [ -n "$_base" ]; then
-			_spp=$(sw_src_paths_problems)
-			if [ -n "$_spp" ]; then
-				printf '%s\n' "$_spp" | sed 's/^/changes: /'
-				_bad=1
-			fi
+		_spp=$(sw_src_paths_problems)
+		if [ -n "$_spp" ]; then
+			printf '%s\n' "$_spp" | sed 's/^/changes: /'
+			_bad=1
+		fi
+		if [ -z "$_base" ] && sw_conf_is_unset integration_branch; then
+			printf 'verify: integration_branch is not set in %s (set it, or use --base <ref>)\n' "$SW_CONF_REL"
+			_bad=1
 		fi
 	fi
 	if [ "$_bad" -ne 0 ]; then
 		printf 'verify: configuration incomplete; fix the lines above\n'
 		return 2
+	fi
+	# adr and changes run against --base, else the integration branch; before
+	# the first commit there is nothing to compare (an explicit --base still
+	# needs a commit).
+	_nocommits=0
+	if [ "$_fast" -eq 0 ]; then
+		if [ -z "$_base" ] && ! sw_has_commits; then
+			_nocommits=1
+		else
+			[ -n "$_base" ] || _base=$(sw_conf_get integration_branch)
+			sw_base_commit "$_base" verify || return 2
+			SW_VERIFY_BASE=$_base
+			export SW_VERIFY_BASE
+		fi
 	fi
 
 	_logdir=$SOFTWARY_ROOT/.softwary/state/logs
@@ -101,7 +112,12 @@ sw_verify() {
 		sw_verify_run views 'sh "$SOFTWARY_HOME/bin/softwary" views --check'
 		# shellcheck disable=SC2016
 		sw_verify_run trace 'sh "$SOFTWARY_HOME/bin/softwary" trace'
-		if [ -n "$_base" ]; then
+		if [ "$_nocommits" -eq 1 ]; then
+			for _k in adr changes; do
+				sw_line "$_k" "SKIP (no commits yet)"
+				_skip=$((_skip + 1))
+			done
+		else
 			# shellcheck disable=SC2016
 			sw_verify_run adr 'sh "$SOFTWARY_HOME/bin/softwary" adr --base "$SW_VERIFY_BASE"'
 			# shellcheck disable=SC2016

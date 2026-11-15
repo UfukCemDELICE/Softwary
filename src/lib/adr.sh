@@ -79,6 +79,32 @@ sw_base_commit() {
 	fi
 }
 
+# sw_default_base NAME: sets SW_DEFAULT_BASE to integration_branch from
+# commands.conf. Prints the reason (prefixed with NAME) and returns 2 when it
+# cannot: the file is missing or malformed, or the setting is not set.
+sw_default_base() {
+	SW_DEFAULT_BASE=
+	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
+	if [ "$SW_CONF_FOUND" -eq 0 ]; then
+		printf '%s: %s not found; run install.sh or ./softwary doctor\n' "$1" "$SW_CONF_REL"
+		return 2
+	fi
+	if [ -n "$SW_CONF_ERRORS" ]; then
+		printf '%s' "$SW_CONF_ERRORS"
+		return 2
+	fi
+	if sw_conf_is_unset integration_branch; then
+		printf '%s: integration_branch is not set in %s (set it, or use --base <ref>)\n' "$1" "$SW_CONF_REL"
+		return 2
+	fi
+	SW_DEFAULT_BASE=$(sw_conf_get integration_branch)
+}
+
+# sw_has_commits: true if the repository has at least one commit.
+sw_has_commits() {
+	git -C "$SOFTWARY_ROOT" rev-parse -q --verify 'HEAD^{commit}' >/dev/null 2>&1
+}
+
 # sw_changed_since COMMIT: the paths changed since COMMIT (committed,
 # uncommitted and untracked), sorted and unique. Renames are not collapsed:
 # both the old and the new path are listed. Non-ASCII names stay unquoted.
@@ -102,11 +128,11 @@ sw_adr_usage() {
 }
 
 # sw_adr [--base REF]: every model or contract file changed since REF
-# (default main) needs an accepted ADR in the change whose affects covers it.
+# (default integration_branch) needs an accepted ADR in the change whose affects covers it.
 # The ADR must be new in the change or not yet accepted on the base.
 # Exit: 0 covered, 1 not covered, 2 base missing or usage.
 sw_adr() {
-	_adr_base=main
+	_adr_base=
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--base)
@@ -117,6 +143,14 @@ sw_adr() {
 		*) sw_adr_usage; return 2 ;;
 		esac
 	done
+	if [ -z "$_adr_base" ]; then
+		sw_default_base adr || return 2
+		_adr_base=$SW_DEFAULT_BASE
+		if ! sw_has_commits; then
+			printf 'adr: no commits yet\n'
+			return 0
+		fi
+	fi
 	sw_base_commit "$_adr_base" || return 2
 	_changed=$(sw_changed_since "$SW_BASE_COMMIT")
 

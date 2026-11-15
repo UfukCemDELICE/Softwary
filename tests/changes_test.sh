@@ -120,8 +120,9 @@ test_ac_m4_06_verify_base_order() {
 	sw verify --base main
 	assert_eq "$RC" 0 "exit code with a slice"
 	assert_match "$OUT" "^changes +PASS"
+	# V1: bare verify runs changes too, against the integration branch.
 	sw verify
-	assert_no_match "$OUT" "^changes "
+	assert_match "$OUT" "^changes +PASS"
 }
 
 run_tests "$0"

@@ -61,6 +61,7 @@ setup_repo() {
 	mkdir -p "$REPO/src"
 	if [ "$_git" -eq 1 ]; then
 		git -C "$REPO" init -q || fail "git init failed"
+		git -C "$REPO" symbolic-ref HEAD refs/heads/main
 	fi
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
 	if [ "$_sync" -eq 1 ]; then
@@ -122,13 +123,16 @@ write_conf() {
 }
 
 # conf_all VALUE: every required key gets VALUE ("%k" is replaced by the key);
-# src_paths points at src/, which setup_repo creates.
+# src_paths points at src/, which setup_repo creates; the integration branch
+# is main (setup_repo starts on it) and the production branch master.
 conf_all() {
 	{
 		for _k in $REQUIRED_KEYS; do
 			printf '%s = %s\n' "$_k" "$(printf '%s' "$1" | sed "s/%k/$_k/g")"
 		done
 		printf 'src_paths = src\n'
+		printf 'integration_branch = main\n'
+		printf 'production_branch = master\n'
 	} | write_conf
 }
 

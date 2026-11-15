@@ -85,6 +85,7 @@ test_ac_m0_08_valid_variations_accepted() {
 		# shellcheck disable=SC2016 # $A is expanded by the checked command
 		printf 'typecheck = A=1 sh -c '"'"'[ "$A" = 1 ]'"'"' # trailing text\n'
 		printf 'test = true\nbuild = true\nsecurity = true\n'
+		printf 'src_paths=src\nintegration_branch =main\n'
 	} | write_conf
 	sw verify
 	assert_eq "$RC" 0 "exit code"

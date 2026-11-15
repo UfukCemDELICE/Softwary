@@ -64,7 +64,7 @@ sw_changes_usage() {
 # sw_changes [--base REF]: exit 0 covered or nothing to cover, 1 not covered,
 # 2 configuration or usage.
 sw_changes() {
-	_ch_base=main
+	_ch_base=
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--base)
@@ -90,6 +90,14 @@ sw_changes() {
 		return 2
 	fi
 	_ch_paths=$(sw_conf_get src_paths)
+	if [ -z "$_ch_base" ]; then
+		sw_default_base changes || return 2
+		_ch_base=$SW_DEFAULT_BASE
+		if ! sw_has_commits; then
+			printf 'changes: no commits yet\n'
+			return 0
+		fi
+	fi
 	sw_base_commit "$_ch_base" changes || return 2
 	_ch_changed=$(sw_changed_since "$SW_BASE_COMMIT")
 

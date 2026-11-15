@@ -39,6 +39,21 @@ sw_doctor_hooks() {
 	fi
 }
 
+# sw_doctor_branches: both branch settings must be set; once the repository
+# has commits, the integration branch must exist (verify compares with it).
+sw_doctor_branches() {
+	for _bk in $SW_BRANCH_KEYS; do
+		if sw_conf_is_unset "$_bk"; then
+			sw_doctor_fail "$_bk" "not set in $SW_CONF_REL"
+		elif [ "$_bk" = integration_branch ] && sw_has_commits &&
+			! git -C "$SOFTWARY_ROOT" rev-parse -q --verify "$(sw_conf_get "$_bk")^{commit}" >/dev/null 2>&1; then
+			sw_doctor_fail "$_bk" "branch '$(sw_conf_get "$_bk")' not found"
+		else
+			sw_line "$_bk" PASS
+		fi
+	done
+}
+
 # sw_doctor_ci: the CI workflow and CODEOWNERS must be placed and filled in.
 # Comment lines (#) are ignored.
 sw_doctor_ci() {
@@ -137,6 +152,7 @@ EOF
 		else
 			sw_line src_paths PASS
 		fi
+		sw_doctor_branches
 	fi
 
 	SW_PROBLEMS=

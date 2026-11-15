@@ -178,7 +178,7 @@ test_unknown_key_exits_2() {
 	printf 'lnit = true\n' >>"$REPO/.softwary/config/commands.conf"
 	sw verify
 	assert_eq "$RC" 2 "exit code"
-	assert_match "$OUT" "^UNKNOWN +lnit \(line 8\)$"
+	assert_match "$OUT" "^UNKNOWN +lnit \(line 10\)$"
 }
 
 # A missing commands.conf is a configuration error.
@@ -207,8 +207,8 @@ test_ac_m2_10_package_checks_in_order() {
 	add_specs
 	sw verify
 	assert_eq "$RC" 0 "exit code"
-	order=$(grep -E '^[a-z_]+ +(PASS|FAIL|SKIP)' "$OUT" | awk '{ print $1 }' | head -n 5 | tr '\n' ' ')
-	assert_eq "$order" "sync model views trace format_check " "order"
+	order=$(grep -E '^[a-z_]+ +(PASS|FAIL|SKIP)' "$OUT" | awk '{ print $1 }' | head -n 7 | tr '\n' ' ')
+	assert_eq "$order" "sync model views trace adr changes format_check " "order"
 }
 
 # AC-M2-10: without a model verify stops with 2, names the template and runs nothing.
@@ -241,6 +241,94 @@ test_ac_m2_10_package_check_failures() {
 	sw verify
 	assert_eq "$RC" 1 "exit code for an invalid model"
 	assert_match "$OUT" "^model +FAIL "
+}
+
+# setup_branch: the sample specs and a src/ file committed on main (the
+# integration branch), a feature branch checked out.
+setup_branch() {
+	setup_repo
+	conf_all true
+	add_specs
+	printf 'v1\n' >"$REPO/src/app.txt"
+	commit_all base
+	git -C "$REPO" checkout -qb feature
+}
+
+# AC-V1-02: bare verify runs adr and changes right after trace, before the
+# project's checks.
+test_ac_v1_02_bare_verify_runs_adr_and_changes_after_trace() {
+	setup_branch
+	sw verify
+	assert_eq "$RC" 0 "exit code"
+	order=$(grep -E '^[a-z_]+ +(PASS|FAIL|SKIP)' "$OUT" | awk '{ print $1 }' | head -n 7 | tr '\n' ' ')
+	assert_eq "$order" "sync model views trace adr changes format_check " "order"
+}
+
+# AC-V1-02: bare verify gates the change against the integration branch.
+test_ac_v1_02_bare_verify_gates_against_integration_branch() {
+	setup_branch
+	printf 'v2\n' >"$REPO/src/app.txt"
+	printf ' \n' >>"$REPO/$MODEL_REL"
+	commit_all change
+	sw verify
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^adr +FAIL "
+	assert_match "$OUT" "^changes +FAIL "
+	assert_match "$OUT" "src/app\.txt: no slice in this change covers it"
+}
+
+# AC-V1-02: before the first commit adr and changes are skipped, in verify
+# and on their own.
+test_ac_v1_02_no_commits_yet() {
+	setup_repo
+	conf_all true
+	sw verify
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^adr +SKIP \(no commits yet\)$"
+	assert_match "$OUT" "^changes +SKIP \(no commits yet\)$"
+	for _c in adr changes; do
+		sw "$_c"
+		assert_eq "$RC" 0 "$_c exit code"
+		assert_match "$OUT" "^$_c: no commits yet$"
+	done
+	conf_set test false
+	sw verify
+	assert_eq "$RC" 1 "exit code follows the project's checks"
+}
+
+# AC-V1-02: with commits, a missing integration branch stops verify with 2.
+test_ac_v1_02_branch_missing_exits_2() {
+	setup_branch
+	conf_set integration_branch develop
+	sw verify
+	assert_eq "$RC" 2 "exit code"
+	assert_match "$OUT" "base 'develop' not found"
+}
+
+# AC-V1-02: --fast runs neither, and needs no branch setting.
+test_ac_v1_02_fast_skips_both() {
+	setup_branch
+	printf 'v2\n' >"$REPO/src/app.txt"
+	sw verify --fast
+	assert_eq "$RC" 0 "exit code"
+	assert_no_match "$OUT" "^(adr|changes) "
+	conf_del integration_branch
+	sw verify --fast
+	assert_eq "$RC" 0 "exit code without integration_branch"
+}
+
+# AC-V1-02: on the integration branch itself only uncommitted changes count.
+test_ac_v1_02_on_integration_branch_itself() {
+	setup_branch
+	git -C "$REPO" checkout -q main
+	sw verify
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^adr +PASS "
+	assert_match "$OUT" "^changes +PASS "
+	printf 'v3\n' >"$REPO/src/app.txt"
+	sw verify
+	assert_eq "$RC" 1 "exit code with an uncommitted source change"
+	assert_match "$OUT" "^changes +FAIL "
 }
 
 run_tests "$0"

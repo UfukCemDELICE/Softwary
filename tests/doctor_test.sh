@@ -66,8 +66,8 @@ test_ac_m0_07_unknown_keys() {
 	printf 'lnit = true\nformat = true\n' >>"$REPO/.softwary/config/commands.conf"
 	sw doctor
 	assert_eq "$RC" 2 "exit code"
-	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 8\)$"
-	assert_match "$OUT" "^format +FAIL \(unknown key, line 9\)$"
+	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 10\)$"
+	assert_match "$OUT" "^format +FAIL \(unknown key, line 11\)$"
 }
 
 # AC-M0-07: several problems at once are each reported separately.
