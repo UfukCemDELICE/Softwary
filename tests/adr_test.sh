@@ -132,6 +132,43 @@ test_ac_m3_04_adr_must_be_in_the_change() {
 	assert_eq "$RC" 1 "exit code"
 }
 
+# AC-M3-04: an ADR that was already accepted on the base cannot be reused by
+# editing it in the change (e.g. pointing its affects at the model): the
+# acceptance itself must be part of the change, so a human approves it there.
+test_ac_m3_04_accepted_adr_from_base_cannot_be_reused() {
+	setup_repo
+	conf_all true
+	write_adr 0001 accepted architecture/decisions
+	git -C "$REPO" symbolic-ref HEAD refs/heads/main
+	commit_all base
+	git -C "$REPO" checkout -qb feature
+	change_model
+	write_adr 0001 accepted "$MODEL_REL"
+	sw adr
+	assert_eq "$RC" 1 "exit code for an ADR accepted on the base"
+	assert_match "$OUT" "^$MODEL_REL: no accepted ADR in this change covers it \(ADR 0001 was already accepted on the base\)$"
+	# A new accepted ADR in the change covers it.
+	write_adr 0002 accepted "$MODEL_REL"
+	sw adr
+	assert_eq "$RC" 0 "exit code with a new accepted ADR"
+	assert_match "$OUT" "^$MODEL_REL: covered by ADR 0002$"
+}
+
+# AC-M3-04: an ADR proposed on the base and accepted in the change covers it.
+test_ac_m3_04_adr_accepted_in_the_change_covers() {
+	setup_repo
+	conf_all true
+	write_adr 0001 proposed "$MODEL_REL"
+	git -C "$REPO" symbolic-ref HEAD refs/heads/main
+	commit_all base
+	git -C "$REPO" checkout -qb feature
+	change_model
+	write_adr 0001 accepted "$MODEL_REL"
+	sw adr
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^$MODEL_REL: covered by ADR 0001$"
+}
+
 # AC-M3-04: contracts need an ADR whose affects covers them; a directory covers
 # its files; a bare architecture/ covers nothing.
 test_ac_m3_04_contracts() {

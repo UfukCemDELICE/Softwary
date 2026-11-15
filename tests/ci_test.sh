@@ -74,6 +74,24 @@ test_ac_m3_05_codeowners_coverage() {
 	assert_match "$OUT" "^CODEOWNERS +FAIL \(does not cover specs/\)$"
 }
 
+# AC-M3-05: as on GitHub, the last matching line decides: a later pattern
+# without an owner removes the owner a wider pattern gave.
+test_ac_m3_05_codeowners_last_match_wins() {
+	setup_repo
+	conf_all true
+	printf '* @a\n/specs/\n' | write_owners
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "^CODEOWNERS +FAIL \(does not cover specs/\)$"
+	assert_no_match "$OUT" "does not cover (architecture|\.softwary/config|\.github)/"
+	printf '/specs/\n* @a\n' | write_owners
+	sw doctor
+	assert_match "$OUT" "^CODEOWNERS +PASS"
+	printf '/specs/ @a\n*\n/architecture/ @a\n/.softwary/config/ @a\n/.github/ @a\n' | write_owners
+	sw doctor
+	assert_match "$OUT" "^CODEOWNERS +FAIL \(does not cover specs/\)$"
+}
+
 # AC-M3-05: a comment mentioning UNSET in the workflow is not a problem.
 test_ac_m3_05_workflow_comment_is_not_unset() {
 	setup_repo
