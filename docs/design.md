@@ -231,7 +231,7 @@ Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı destek
 
 ## 14. Yapım biçimi
 
-- Her kilometre taşı kendi spec'iyle yapılır. Spec, sırası geldiğinde ve önceki kilometre taşının gerçek kullanım denemesinden öğrenilenlerle yazılır.
+- Her kilometre taşı kendi spec'iyle yapılır. Spec, sırası geldiğinde ve önceki kilometre taşı birleştikten sonra yazılır. Gerçek kullanım denemesi bütün proje bitince yapılır (D-64).
 - Yapıcı önce plan sunar, onaydan sonra testi önce yazarak uygular ve kabul kriterlerini çıktıyla gösterir.
 - Belgede olmayan kararlar ilkelere göre verilir ve `docs/decisions.md` dosyasına yazılır.
 - Bir karar değişirse önce bu belge değişir, sonra kod.

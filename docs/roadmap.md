@@ -1,6 +1,6 @@
 # Yol haritası (v2)
 
-v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve aşama skill'leri. v2 bunların üzerine tanım, blueprint, döngü ve paralel yürütmeyi kurar (`docs/design.md`). Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec sırası geldiğinde, önceki kilometre taşının gerçek kullanım denemesinden öğrenilenlerle yazılır.
+v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve aşama skill'leri. v2 bunların üzerine tanım, blueprint, döngü ve paralel yürütmeyi kurar (`docs/design.md`). Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec sırası geldiğinde, önceki kilometre taşı birleştikten sonra yazılır. Gerçek kullanım denemesi bütün proje bitince yapılır.
 
 | No | Kilometre taşı | Ne teslim eder | Verilmiş kararlar |
 | --- | --- | --- | --- |
@@ -16,10 +16,10 @@ v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve a�
 
 ## Sıra kuralları
 
-- **Bir seferde bir kilometre taşı.** Bir sonrakinin spec'i, önceki bitmeden ve denenmeden yazılmaz.
-- **Her kilometre taşından sonra gerçek kullanım.** Deneme notları bir sonraki spec'in girdisidir.
+- **Bir seferde bir kilometre taşı.** Bir sonrakinin spec'i, önceki birleşmeden yazılmaz.
+- **Gerçek kullanım sonda.** Kilometre taşları arasında deneme yapılmaz; insan bütün proje bitince dener (D-64). Arada doğrulama, testler, `shellcheck` ve mutasyon denetimiyle yapılır.
 - **Önce çalışan döngü.** Tanım ve blueprint, döngünün takıldığı yerlere göre derinleştirilir.
-- **Sıra değişebilir.** V5'ten sonrasının sırası, kullanımda en çok eksikliği hissedilene göre yeniden belirlenir.
+- **Sıra değişebilir.** V5'ten sonrasının sırası insan kararıyla yeniden belirlenebilir.
 
 ## Sonraki fikirler
 
