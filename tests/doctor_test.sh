@@ -66,8 +66,8 @@ test_ac_m0_07_unknown_keys() {
 	printf 'lnit = true\nformat = true\n' >>"$REPO/.softwary/config/commands.conf"
 	sw doctor
 	assert_eq "$RC" 2 "exit code"
-	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 7\)$"
-	assert_match "$OUT" "^format +FAIL \(unknown key, line 8\)$"
+	assert_match "$OUT" "^lnit +FAIL \(unknown key, line 8\)$"
+	assert_match "$OUT" "^format +FAIL \(unknown key, line 9\)$"
 }
 
 # AC-M0-07: several problems at once are each reported separately.
@@ -115,6 +115,22 @@ test_ac_m2_10_doctor_reports_missing_model() {
 	sw doctor
 	assert_eq "$RC" 2 "exit code"
 	assert_match "$OUT" "^model +FAIL \(architecture/model/system\.calm\.json not found"
+}
+
+# AC-M4-07: doctor reports src_paths that are missing or point nowhere.
+test_ac_m4_07_src_paths() {
+	setup_repo
+	conf_all true
+	sw doctor
+	assert_match "$OUT" "^src_paths +PASS$"
+	conf_del src_paths
+	sw doctor
+	assert_eq "$RC" 2 "exit code without src_paths"
+	assert_match "$OUT" "^src_paths +FAIL \\(not set in \\.softwary/config/commands\\.conf\\)$"
+	conf_set src_paths "src nope"
+	sw doctor
+	assert_eq "$RC" 2 "exit code with a missing path"
+	assert_match "$OUT" "^src_paths +FAIL \\('nope' not found\\)$"
 }
 
 run_tests "$0"

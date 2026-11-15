@@ -127,6 +127,16 @@ EOF
 		for _k in $(sw_conf_unknown_keys); do
 			sw_doctor_fail "$_k" "unknown key, line $(sw_conf_line "$_k")"
 		done
+		_spp=$(sw_src_paths_problems)
+		if [ -n "$_spp" ]; then
+			while IFS= read -r _err; do
+				sw_doctor_fail src_paths "$_err"
+			done <<EOF
+$_spp
+EOF
+		else
+			sw_line src_paths PASS
+		fi
 	fi
 
 	SW_PROBLEMS=

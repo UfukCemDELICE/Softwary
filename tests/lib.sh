@@ -58,7 +58,7 @@ setup_repo() {
 		esac
 	done
 	REPO=$T/repo
-	mkdir -p "$REPO"
+	mkdir -p "$REPO/src"
 	if [ "$_git" -eq 1 ]; then
 		git -C "$REPO" init -q || fail "git init failed"
 	fi
@@ -121,11 +121,15 @@ write_conf() {
 	cat >"$REPO/.softwary/config/commands.conf"
 }
 
-# conf_all VALUE: every required key gets VALUE ("%k" is replaced by the key).
+# conf_all VALUE: every required key gets VALUE ("%k" is replaced by the key);
+# src_paths points at src/, which setup_repo creates.
 conf_all() {
-	for _k in $REQUIRED_KEYS; do
-		printf '%s = %s\n' "$_k" "$(printf '%s' "$1" | sed "s/%k/$_k/g")"
-	done | write_conf
+	{
+		for _k in $REQUIRED_KEYS; do
+			printf '%s = %s\n' "$_k" "$(printf '%s' "$1" | sed "s/%k/$_k/g")"
+		done
+		printf 'src_paths = src\n'
+	} | write_conf
 }
 
 # file_set FILE KEY VALUE: replaces KEY's line in FILE, or appends it.
