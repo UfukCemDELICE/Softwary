@@ -8,10 +8,10 @@ v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve a�
 | V2 | Yürüyen iskelet | Boş bir repoda uçtan uca: ince `define` ve `approve product`, ince blueprint (CALM, veri modeli) ve `approve blueprint`, `depends_on`'lu plan, sıralı döngü (`job`, `transitions.json`, olay günlüğü, kapı, PR ve CI, bir inceleyici, approver), bütçe ve tur sınırı, `models.conf` | Döngü `main`'e birleştirir; onaylar içerik özetidir; Opus planlar ve inceler, Sonnet uygular |
 | V3 | Güveni sertleştirme | Korunan yollar, diff ⊆ `touches`, test gevşetme denetimleri, R3 escalate, bozuk diff'lerle değerlendirme | Birleştirme scripti kayıtlı PASS'e güvenmez |
 | V4 | Paralel | Worktree'ler, `mkdir` kilitleri, birleştirme kuyruğu, çöküşten devam, birleştirme protokolünün TLA+ belirtimi | En fazla 3 eşzamanlı iş |
-| V5 | Tanım ve blueprint'i derinleştirme | Sorgulama, akışlar, durum makineleri, blueprint eleştirmeni, `next`, `handoff` | Diyagramlar yapısal kaynaktan üretilir |
+| V5 | Tanım ve blueprint'i derinleştirme | Sorgulama, akışlar, durum makineleri, blueprint eleştirmeni, `next`, `handoff`; durum makineleri ve kritik akışlar için TLA+ belirtimi, `model_check` kapısı (belirtim varsa zorunlu), değişmez cümlelerinin blueprint onayına girmesi, bozulmuş varyant kanıtı, ihlal yolunun ve durum diyagramının okurun diliyle gösterilmesi | Diyagramlar yapısal kaynaktan üretilir; biçimsel doğrulama ürüne uygulanır (D-63) |
 | V6 | Mevcut repo | Taban çizgisi ve muafiyetlerle mevcut bir repoda döngü | Önce proje tamamlanır |
 | V7 | Teslim ve işletim | `ship` (üretim dalına alma önerisi), `diagnose`, drift | Üretime dağıtım insan onayıyla |
-| V8 | Proje biçimsel doğrulaması | `model_check` kapısı, blueprint'te biçimsel belirtim | Kodun belirtime uyduğu iddia edilmez |
+| V8 | Biçimsel doğrulamayı derinleştirme | Belirtim ile kod arasındaki sapma bakımı (kapsam kaydı, son doğrulanan commit, uyumlu/güncellendi/hata/engelli), karşı örneklerin koda karşı test olarak yeniden oynatılması, belirtimden kabul testi türetme, R3 saf algoritmalar için isteğe bağlı Lean kanıtı | Kodun belirtime uyduğu iddia edilmez; boşluk testlerle daraltılır |
 | V9 | Cursor ve sürüm | Cursor orkestratörü, kurulum kanalları, `uninstall`, İngilizce belgeler, `v0.1.0` | MIT, telemetri yok, anlamsal sürümleme |
 
 ## Sıra kuralları

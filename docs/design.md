@@ -75,6 +75,7 @@ Her birleştirme gerekçesiyle `decision.md`'ye ve olay günlüğüne yazılır.
 | Sözlük | `CONTEXT.md` | Görüşmede güncellenir |
 | Blueprint, bağlayıcı | `architecture/model/system.calm.json` (bileşenler, ilişkiler), `architecture/data/model.json` (varlıklar, alanlar, ilişkiler), `architecture/contracts/` (OpenAPI) | İnsan (`approve blueprint`) |
 | Blueprint, bilgilendirici | `architecture/flows/*.json` (çok bileşenli akışlar), `architecture/states/*.json` (durumlu varlıklar); Mermaid görünümleri `views` ile üretilir | Yok; döngü güncelleyebilir |
+| Biçimsel belirtim | `architecture/formal/<ad>.tla` ve `.cfg` (TLA+ modeli), `architecture/formal/<ad>.md` (her değişmezin düz cümlesi ve zararı, kapsadığı dosya ve fonksiyonlar, sınırlar ve varsayımlar, son doğrulandığı commit, bozulmuş varyant kaydı); R3 saf algoritmalar için isteğe bağlı kanıt (Lean) | Değişmez cümleleri bağlayıcıdır: insan (`approve blueprint`); model ve kapsam kaydı döngüde güncellenebilir |
 | Karar (ADR) | `architecture/decisions/NNNN-ad.md` | Bağlayıcı kısmı değiştirirse insan |
 | Spec | `specs/NNN-ad/spec.md`: kabul kriterleri `PRODUCT.md`'deki örneklere bağlanır | Otomatik (§6.3) |
 | Dilim | `specs/NNN-ad/slices/Sx.md`: `depends_on`, `touches` | Yok |
@@ -90,7 +91,7 @@ Her birleştirme gerekçesiyle `decision.md`'ye ve olay günlüğüne yazılır.
 
 ### 6.2 Blueprint (`blueprint`)
 
-Onaylı üründen bileşen modeli, veri modeli, sözleşmeler; yalnızca birden çok bileşene dokunan akışlar için akış tanımı; durumlu varlıklar için durum makinesi; ADR'ler. Taze bağlamlı bir eleştirmen blueprint'i kırmaya çalışır. Kapı: `./softwary blueprint check` (her özelliğin bir bileşene ve gerekiyorsa bir akışa bağlanması, akışların var olan bileşen ve varlıklara başvurması, modellerin geçerliliği) ve `approve blueprint`.
+Onaylı üründen bileşen modeli, veri modeli, sözleşmeler; yalnızca birden çok bileşene dokunan akışlar için akış tanımı; durumlu varlıklar için durum makinesi; ADR'ler. Her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış için bir TLA+ belirtimi yazılır (§7): kurallar insanın okuyacağı cümlelerle değişmez olarak konur, model denetleyiciden geçer ve sonuç okurun dilinde bir durum diyagramı ile her ihlalin en kısa yolu olarak gösterilir. Taze bağlamlı bir eleştirmen blueprint'i kırmaya çalışır. Kapı: `./softwary blueprint check` (her özelliğin bir bileşene ve gerekiyorsa bir akışa bağlanması, akışların var olan bileşen ve varlıklara başvurması, modellerin geçerliliği, belirtim gereken her durum makinesi ve akışın bir belirtimi olması, `model_check`'in geçmesi ve her değişmezin bozulmuş bir varyantta başarısız gösterilmiş olması) ve `approve blueprint` (değişmez cümleleri dahil).
 
 ### 6.3 Planlama (`plan`)
 
@@ -120,7 +121,13 @@ Sınırlar ve gözlem (`.softwary/config/loop.conf`, varsayılanlar insan onayl�
 
 - **Değerlendirme (eval).** Approver'a güvenmek kanıt ister. Bilinçli olarak bozuk diff'ler içeren bir örnek repo ile yakalama oranı ölçülür; döngü varsayılan olarak ancak bu ölçüm belirlenen eşiği geçtiyse kendi kendine birleştirir.
 - **Ajan izinleri.** Arka plan ajanlarının ağ, `gh` ve gizli bilgi erişimi kısıtlanır; yalnızca kendi dalına push eder.
-- **Biçimsel doğrulama.** TLA+ paketin kendi paralel birleştirme protokolü için kullanılır (değişmezler: kapısı yeşil olmayan SHA entegrasyona girmez; `touches`'ı kesişen iki iş aynı anda çalışmaz; iki adım arasındaki çöküş kurtarılabilir; her iş bir son duruma ya da insana ulaşır). TLC Java gerektirir; yalnızca paketin geliştirme bağımlılığıdır. Projeler için isteğe bağlı `model_check` anahtarı yalnızca "yapılandırılmış denetleyici `architecture/formal/` belirtimlerinden geçti" der; kodun belirtime uyduğunu iddia etmez. Ajanın yazdığı değişmezler blueprint onayında insana düz dille gösterilir. Lean kullanılmaz; Alloy veri modeli kısıtları için isteğe bağlıdır.
+- **Biçimsel doğrulama (ürün).** Yaklaşım pstack'ten (`docs/sources.md` §5, insan kararı D-63): biçimsel doğrulama, hatanın en pahalı ve testlerin en zayıf olduğu yere uygulanır ve araç soruya göre seçilir.
+  - *Ne zaman:* blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış. Olayların kötü bir sırada olup olamayacağı sorusu TLA+ modeli ve model denetleyici (TLC) ile cevaplanır. R3 riskli, saf algoritmik bir çekirdeğin (para hesabı, yetki kuralı, ayrıştırıcı) her girdi için doğruluğu gerekiyorsa kanıt asistanı (Lean) isteğe bağlıdır; zorunlu değildir, çünkü maliyeti her projeye uymaz.
+  - *Kurallar (kapı):* her değişmezin düz bir cümlesi ve zararı vardır ve insan bunları blueprint onayında onaylar. Model koda sadıktır: her parçası bir dosyaya ve fonksiyona işaret eder, koddaki bölünmez adım modelde de bölünmezdir. Her değişmez bozulmuş bir varyantta başarısız gösterilir; hiç başarısız olmamış denetim kanıt sayılmaz. Mevcut kod bir değişmezi bozuyorsa bu bir bulgudur; değişmez ya da model geçsin diye zayıflatılmaz (korunan yol, §4). Kapsam dürüsttür: sınırlar, varsayımlar ve dışarıda kalanlar yazılır.
+  - *Sürekli:* `model_check` belirtim olan projede zorunludur ve her `verify`'da çalışır; kısa ve tek komuttur. Kapsam kaydındaki dosyalar son doğrulanan commit'ten beri değiştiyse `model_check` bunu bildirir ve sapma denetimi her belirtimi şu sonuçlardan birine bağlar: uyumlu, güncellendi, hata (model kodu doğru anlatıyor, kod kuralı bozuyor), engelli. Eskimiş bir modelin geçmesi en tehlikeli durumdur, çünkü kanıt gibi görünür.
+  - *Sınır:* belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz. Bu boşluk iki yolla daraltılır: model denetleyicinin bulduğu her karşı örnek gerçek koda karşı adım adım test olarak yeniden oynatılır (oynamazsa önce model yanlış sayılır), ve kabul testleri belirtimin durum ve geçişlerinden türetilir.
+  - *Araç:* TLC Java gerektirir; belirtimi olan projede `bootstrap` ve CI'ın kurulum adımı onu kurar. Alloy veri modeli kısıtları için isteğe bağlıdır.
+- **Biçimsel doğrulama (paket).** softwary'nin kendi paralel birleştirme protokolü TLA+ ile belirtilir (değişmezler: kapısı yeşil olmayan SHA entegrasyona girmez; `touches`'ı kesişen iki iş aynı anda çalışmaz; iki adım arasındaki çöküş kurtarılabilir; her iş bir son duruma ya da insana ulaşır). Burada TLC yalnızca paketin geliştirme bağımlılığıdır.
 
 ## 8. Araçlar, modeller ve uygulama dili
 
@@ -183,7 +190,7 @@ Skill'ler, hook'lar ve CI yalnızca sözleşme isimlerini kullanır. Gerçek kom
 | `contract_check` | Uygulama sözleşme dosyalarıyla uyumlu | Sözleşme varsa zorunlu |
 | `arch_check` | Modeldeki bağımlılık kurallarına uyuluyor | Birden fazla bileşen varsa zorunlu |
 | `run`, `deploy`, `bootstrap` | Yerelde başlatma, dağıtım, yeni kopyayı (ve worktree'yi) hazırlama | İsteğe bağlı; döngüde `bootstrap` zorunlu |
-| `model_check` | Biçimsel belirtimler model denetleyiciden geçiyor | İsteğe bağlı (§7) |
+| `model_check` | `architecture/formal/` belirtimleri model denetleyiciden geçiyor ve kapsam kayıtları güncel | Belirtim varsa zorunlu (§7) |
 
 Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNSET` (zorunlu anahtarda hata) ya da `NONE: <gerekçe>` (atlanır, gerekçe raporda görünür). `test_paths` ve `src_paths` komut değil ayardır.
 
@@ -219,6 +226,7 @@ Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı destek
 - GitHub PR ve CI döngünün zorunlu parçasıdır; CI şablonu GitHub Actions içindir.
 - R3 ve korunan yol değişiklikleri her zaman insana gelir. Bütçe varsayılanları §6.4'tedir; kullanıcı abonelikle çalıştığı için maliyet token ile sınırlanır.
 - Opus kritik planlamayı ve incelemeyi, Sonnet uygulamayı yapar; Sonnet gerektiğinde Opus'u danışman olarak kullanır.
+- Biçimsel doğrulama ürüne uygulanır: blueprint'teki durum makineleri ve kritik akışlar için TLA+ ve `model_check` kapısı (V5); Lean yalnızca R3 saf algoritmalar için isteğe bağlı (D-63).
 - v2 tasarımı bağımsız bir danışman incelemesinden (Fable, 2026-11-15) geçti; bulguları ve v1'den geçersiz kalanlar `docs/decisions.md`'dedir.
 
 ## 14. Yapım biçimi

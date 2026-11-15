@@ -113,7 +113,7 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 | Davranışı test et, gerçeklemeyi değil | `implement` | Planlı (skill metni) |
 | Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Planlı (V5) |
 | Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi | Planlı (V2) |
-| **Biçimsel doğrulama** (aşağıda) | §7 | Kısmen planlı; açık soru |
+| **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Planlı (V5, V8; D-63) |
 
 ### pstack'in biçimsel doğrulama yaklaşımı
 
@@ -129,16 +129,15 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 8. **Kodla birlikte yürür.** Her denetimin kapsadığı dosya ve fonksiyonlar ile en son doğrulandığı commit kaydedilir. Kapsanan kod değişince bakım döngüsü her sonucu ayırır: uyumlu, güncellendi, **hata** (model kodu doğru anlatıyor, kod özelliği bozuyor), engelli. Eskimiş bir modelin geçmesi en tehlikeli durumdur, çünkü kanıt gibi görünür.
 9. **Okunabilir sonuç.** Özellik ve zarar birer düz cümledir. `statechart` TLA+ modelini model denetleyiciden geçirir, her ihlal için en kısa yolu okurun dilinde verir ve sistemi bir Mermaid durum diyagramı olarak çizer. Bulunan her yol gerçek koda karşı adım adım yeniden oynatılır; oynamazsa önce modelin yanlış olduğu varsayılır.
 
-### softwary'deki durum ve açık soru
+### softwary'deki durum
 
-Bugünkü tasarım (design §7, roadmap V4 ve V8) TLA+'ı yalnızca softwary'nin kendi paralel birleştirme protokolü için kullanır; ürün tarafında isteğe bağlı bir `model_check` kapısı sona (V8) bırakılmıştır; Lean geçmez. Bu, kaynağın verildiği amaçtan dardır: yaklaşım, üretilen ürünün kritik yerlerine uygulanmak için verildi.
+İnsan kararıyla (D-63, 2026-11-15) yaklaşım ürüne uygulanır; ayrıntı design §6.2 ve §7'de:
 
-Önerilen yön (insan kararı bekliyor, karar verilince `docs/decisions.md`'ye ve design §7'ye işlenir):
-
-- Blueprint'teki durum makineleri (`states/*.json`) ve kritik akışlar için TLA+ belirtimi, değişmezleri insanın onayladığı cümlelerle; blueprint onayından önce model denetleyiciden geçer, sonra her ilgili değişiklikte `model_check` olarak CI'da çalışır. Bu, V8'den V5'e çekilir.
-- Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır.
-- pstack'in 4, 5 ve 8. maddeleri kapı olur: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi.
-- Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk belirtimden türetilen testlerle ve karşı örneklerin koda karşı yeniden oynatılmasıyla daraltılır.
+- Blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış için TLA+ belirtimi. Değişmezler insanın onayladığı cümlelerdir; belirtim blueprint onayından önce model denetleyiciden geçer, sonra `model_check` olarak her `verify`'da çalışır (V5).
+- Yukarıdaki 4, 5 ve 8. maddeler kapıdır: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi (V5'te kayıt, V8'de bakım döngüsü).
+- Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır (V8).
+- Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk karşı örneklerin koda karşı yeniden oynatılması ve belirtimden türetilen testlerle daraltılır (V8).
+- softwary'nin kendi paralel birleştirme protokolü de TLA+ ile belirtilir (V4).
 
 Alınmayan: `poteto-mode`'un çok modelli panel düzeni (softwary `models.conf` ile Opus ve Sonnet'e iki rol verir), arena ve sürü gibi paralel aday üretimi, Cursor'a özgü özellikler (bugbot, otomasyonlar), TypeScript'e özgü skill'ler.
 
