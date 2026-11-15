@@ -10,6 +10,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 
 # shellcheck source=src/lib/config.sh
 . "$SOFTWARY_HOME/lib/config.sh"
+# shellcheck source=src/lib/waivers.sh
+. "$SOFTWARY_HOME/lib/waivers.sh"
 # shellcheck source=src/lib/verify.sh
 . "$SOFTWARY_HOME/lib/verify.sh"
 # shellcheck source=src/lib/doctor.sh

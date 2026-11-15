@@ -54,6 +54,30 @@ sw_doctor_branches() {
 	done
 }
 
+# sw_doctor_waivers: each waiver on its own line; an expired one is a problem.
+sw_doctor_waivers() {
+	sw_waivers_load
+	if [ -n "$SW_WAIVERS_ERRORS" ]; then
+		while IFS= read -r _err; do
+			[ -n "$_err" ] && sw_doctor_fail waivers "$_err"
+		done <<EOF
+$SW_WAIVERS_ERRORS
+EOF
+	fi
+	if [ -z "$SW_WAIVERS" ]; then
+		[ -n "$SW_WAIVERS_ERRORS" ] || sw_line waivers "PASS (none)"
+		return 0
+	fi
+	for _wk in $SW_WAIVERS; do
+		sw_waiver "$_wk"
+		if [ "$SW_WAIVER_EXPIRED" -eq 1 ]; then
+			sw_doctor_fail "waiver $_wk" "expired $SW_WAIVER_DATE: $SW_WAIVER_REASON"
+		else
+			sw_line "waiver $_wk" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
+		fi
+	done
+}
+
 # sw_doctor_ci: the CI workflow and CODEOWNERS must be placed and filled in.
 # Comment lines (#) are ignored.
 sw_doctor_ci() {
@@ -154,6 +178,7 @@ EOF
 		fi
 		sw_doctor_branches
 	fi
+	sw_doctor_waivers
 
 	SW_PROBLEMS=
 	sw_tools_load
