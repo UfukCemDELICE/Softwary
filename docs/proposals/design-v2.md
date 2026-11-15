@@ -41,21 +41,26 @@ Hedef dışı: kendi sunucusu ya da daemon'u olan bir çalışma zamanı, stack 
 7. **Kısa ve yapısal yapıtlar.**
 8. **Aşamalı bağlam.**
 9. **Durum dosyalarda, geçişler tablodan.** Orkestratör yapıt yazmaz ve durumu doğrudan değiştirmez. Geçişleri `transitions.json` tablosunu uygulayan bir script yapar; her olay ekleme yapılan bir olay günlüğüne yazılır. Oturum ölürse dosyalardan devam edilir. *(yeni)*
-10. **Geri alınabilir işte bekleme, geri alınamazda dur.** Döngü insanı yalnızca onay noktalarında, escalate'te ve geri alınamaz eylemlerde bekler. Varsayılan dala birleştirme dağıtım tetikleyebileceği için geri alınamaz sayılır: döngü bir entegrasyon dalına birleştirir. *(yeni)*
+10. **Geri alınabilir işte bekleme, geri alınamazda dur.** Döngü insanı yalnızca onay noktalarında, escalate'te ve geri alınamaz eylemlerde bekler. Üretim dalına alma ve dağıtım geri alınamaz sayılır: döngü yalnızca entegrasyon dalına birleştirir. *(yeni)*
 
 ## 4. İnsan denetimi ve güven sınırı
 
-İnsanın devredilemez kararları: **ürün tanımı onayı, blueprint onayı, escalate edilen işler, entegrasyon dalının varsayılan dala alınması, drift kararı, üretime dağıtım.**
+İnsanın devredilemez kararları: **ürün tanımı onayı, blueprint onayı, escalate edilen işler, entegrasyon dalının üretim dalına alınması, drift kararı, üretime dağıtım.**
 
-**Onaylar metin alanı değildir.** `./softwary approve product|blueprint`, onaylanan dosyaların içerik özetlerini kaydeder. Birleştirme ve planlama scriptleri özet uyuşmazsa reddeder. Aynı işletim sistemi kullanıcısı altında bu değiştirilemez değil, yalnızca değiştirildiği anlaşılır bir korumadır (tamper-evident). Daha güçlü sınır için seçenekler §10'dadır.
+**Dallar.** İki dal vardır, adları yapılandırılır: entegrasyon dalı (varsayılan `main`) ve üretim dalı (varsayılan `master`). Döngü her işi kendi worktree'sinde ve dalında yürütür, entegrasyon dalına bir PR açar ve birleştirir. Üretim dalına alma `ship` adımıdır ve insan onayıyla yapılır.
+
+**GitHub PR ve CI zorunludur.** Her iş bir PR'dır; entegrasyon dalının koruması CI'ın yeşil olmasını şart koşar ve birleştirme `gh pr merge` ile yapılır. Ajanlar insanın git ve GitHub kimliğiyle çalıştığı için dal koruması insan incelemesi şart koşamaz (kişi kendi PR'ını onaylayamaz); zorunlu koşul CI'dır.
+
+**Onaylar metin alanı değildir.** `./softwary approve product|blueprint`, onaylanan dosyaların içerik özetlerini kaydeder. Planlama ve birleştirme scriptleri özet uyuşmazsa reddeder. Bu koruma, onaydan sonra yapılan değişikliği yakalar (tamper-evident); ajanın `approve`'u kendisinin çalıştırmasını engellemez, onu yasaklayan bir kuraldır ve olay günlüğünde görünür. İnsan bu düzeyi yeterli buldu (2026-11-15); daha güçlü sınır (imzalı onay ya da ajanlar için ayrı GitHub kimliği) sonraya bırakıldı.
 
 **Birleştirme kararı approver ajanınındır**, ama approver yalnızca birleştirme scriptini çağırabilir. Script şunları kendisi hesaplar ve biri tutmazsa reddedip işi insana gönderir:
 
-- iş, entegrasyon dalıyla eşitlendikten sonra o SHA üzerinde kapı yeşil,
+- iş, entegrasyon dalıyla eşitlendikten sonra o SHA üzerinde yerel kapı ve PR'ın CI'ı yeşil,
 - diff, dilimin `touches` alanıyla bildirdiği yolların içinde,
 - test silinmemiş, atlanmamış (`skip`, `only`), kriter kimliği kaldırılmamış,
 - korunan yollara dokunulmamış: `.softwary/`, CI, `CODEOWNERS`, `PRODUCT.md`, blueprint'in bağlayıcı kısımları,
-- risk kademesi R3 değil (R3 her zaman escalate),
+- risk kademesi R3 değil: R3 her zaman insana gelir,
+- korunan yol değişikliği yok: her zaman insana gelir,
 - tur ve bütçe sınırı aşılmamış.
 
 Her birleştirme gerekçesiyle `decision.md`'ye ve olay günlüğüne yazılır.
@@ -93,10 +98,13 @@ Blueprint özellik başına spec'e, spec dilimlere bölünür. Her spec kriteri 
 
 Tek bir orkestratör oturumu (Claude Code'da bir skill) kuyruğu boşaltır. Bir dilim, `depends_on`'u birleşmiş ve `touches`'ı çalışan işlerle ve ortak dosyalarla (kilit dosyaları, migration'lar, `CONTEXT.md`, üretilen dosyalar) kesişmiyorsa başlar; en fazla `concurrency` iş aynı anda.
 
-Her iş: kendi worktree'si, dalı ve bağımlılık hazırlığı (`bootstrap`) → `implementer` (test önce, `verify --fast`) → kapı (ana daldaki denetimlerle tam `verify`) → inceleyici (kanıtlı bulgular) → `approver` → birleştirme kuyruğu. Birleştirmeler tek tek yapılır: eşitle, o SHA üzerinde kapı, entegrasyon dalına birleştir. Entegrasyon dalı kırmızıya dönerse hat durur ve son birleştirme geri alınır.
+Her iş: kendi worktree'si, dalı ve bağımlılık hazırlığı (`bootstrap`) → `implementer` (test önce, `verify --fast`) → kapı (entegrasyon dalındaki denetimlerle tam `verify`) → entegrasyon dalına PR ve CI → inceleyici (kanıtlı bulgular) → `approver` → birleştirme kuyruğu. Birleştirmeler tek tek yapılır: eşitle, o SHA üzerinde kapı ve CI, `gh pr merge`. Entegrasyon dalı kırmızıya dönerse hat durur ve son birleştirme geri alınır.
 
-Sınırlar ve gözlem:
-- iş başına `max_rounds`, iş başına ve koşu başına süre ve maliyet bütçesi,
+Sınırlar ve gözlem (`.softwary/config/loop.conf`, varsayılanlar insan onaylı):
+- iş başına en fazla 3 tur, sonra insan,
+- iş başına 45 dakika, koşu başına 4 saat,
+- aynı anda 1 iş; paralel kilometre taşından sonra 3,
+- isteğe bağlı token üst sınırı (iş ve koşu başına),
 - kararsız testler için kural: bir kez yeniden çalıştır; yine kararsızsa işi durdur ve insana bildir, testi asla gevşetme,
 - `./softwary status`: işler, aşamalar, süreler ve escalate kutusu; bir iş insanı beklerken diğerleri sürer.
 
@@ -104,7 +112,7 @@ Sınırlar ve gözlem:
 
 ### 6.5 Teslim ve işletim
 
-`ship`: entegrasyon dalını varsayılan dala alma önerisi, sürüm notu, gözlemlenebilirlik, kademeli yayın ve geri alma planı; dağıtım insan onayıyla. `diagnose`: önce hatayı yeniden üreten test. `maintain`: drift denetimi.
+`ship`: entegrasyon dalını üretim dalına alma önerisi, sürüm notu, gözlemlenebilirlik, kademeli yayın ve geri alma planı; dağıtım insan onayıyla. `diagnose`: önce hatayı yeniden üreten test. `maintain`: drift denetimi.
 
 ## 7. Güven, değerlendirme ve biçimsel doğrulama
 
@@ -112,14 +120,26 @@ Sınırlar ve gözlem:
 - **Ajan izinleri.** Arka plan ajanlarının ağ, `gh` ve gizli bilgi erişimi kısıtlanır; yalnızca kendi dalına push eder.
 - **Biçimsel doğrulama.** TLA+ paketin kendi paralel birleştirme protokolü için kullanılır (değişmezler: kapısı yeşil olmayan SHA entegrasyona girmez; `touches`'ı kesişen iki iş aynı anda çalışmaz; iki adım arasındaki çöküş kurtarılabilir; her iş bir son duruma ya da insana ulaşır). TLC Java gerektirir; yalnızca paketin geliştirme bağımlılığıdır. Projeler için isteğe bağlı `model_check` anahtarı yalnızca "yapılandırılmış denetleyici `architecture/formal/` belirtimlerinden geçti" der; kodun belirtime uyduğunu iddia etmez. Ajanın yazdığı değişmezler blueprint onayında insana düz dille gösterilir. Lean kullanılmaz; Alloy veri modeli kısıtları için isteğe bağlıdır.
 
-## 8. Araçlar ve uygulama dili
+## 8. Araçlar, modeller ve uygulama dili
 
-Önce Claude Code, sonra Cursor. Kapılar ve `job`, `queue`, `merge` scriptleri POSIX `sh` ve `jq` ile, dosyalar üzerinde saf fonksiyonlar olarak kalır; kilitler `mkdir` ile (Git Bash'te `flock` yok). Durum kodu gerçek eşzamanlılık ilkelleri gerektirir ya da yaklaşık 500 satırı geçerse dil yeniden düşünülür.
+Önce Claude Code, sonra Cursor.
+
+Rol başına model (`.softwary/config/models.conf`, insan kararı 2026-11-15):
+
+| Rol | Model |
+| --- | --- |
+| Kritik planlama: `define`, `blueprint`, blueprint eleştirmeni, `plan`, `spec-analyst` | Opus |
+| Uygulama: `implementer` | Sonnet |
+| Uygulayıcının danışmanı: takıldığında ya da bir tasarım belirsizliğinde Sonnet'in çağırdığı, yalnızca okuyan ve öneri veren ajan | Opus |
+| İnceleme ve birleştirme kararı: `reviewer`, `approver` | Opus (yazandan farklı model) |
+
+Danışman kod yazmaz ve durum değiştirmez; önerisi uygulayıcının notlarına kaydedilir. Kapılar ve `job`, `queue`, `merge` scriptleri POSIX `sh` ve `jq` ile, dosyalar üzerinde saf fonksiyonlar olarak kalır; kilitler `mkdir` ile (Git Bash'te `flock` yok). Durum kodu gerçek eşzamanlılık ilkelleri gerektirir ya da yaklaşık 500 satırı geçerse dil yeniden düşünülür.
 
 ## 9. v1'den değişenler
 
 - Spec onayı insandan alınıp `PRODUCT.md` örneklerine bağlı otomatik onaya geçti.
-- Birleştirme approver'a geçti, ama hedef entegrasyon dalıdır; varsayılan dala alma ve dağıtım insanda.
+- Birleştirme approver'a geçti, ama hedef entegrasyon dalıdır; üretim dalına alma ve dağıtım insanda.
+- GitHub PR ve CI döngünün zorunlu parçası oldu; dal koruması insan incelemesi yerine CI'ı şart koşar.
 - Taban çizgisi, süreli muafiyet anlamına geldi.
 - Yol haritasındaki M4a ("döngü onay vermez ve birleştirme yapmaz"), M4b ("worktree'leri kullanıcı açar") ve D-44 v2 ile geçersiz olur.
 
@@ -127,7 +147,7 @@ Sınırlar ve gözlem:
 
 | No | Kilometre taşı | Teslim |
 | --- | --- | --- |
-| V1 | Deneme düzeltmeleri | Varsayılan dalın algılanması, skill'lerde `--fast`, dürüst `doctor`, tek geliştirici modu, süreli muafiyetler, boş repo yolu |
+| V1 | Deneme düzeltmeleri | Entegrasyon ve üretim dalı ayarları, skill'lerde `--fast`, dürüst `doctor`, dal korumasında insan incelemesi yerine CI, süreli muafiyetler, boş repo yolu |
 | V2 | Yürüyen iskelet | Boş bir oyuncak repoda uçtan uca: ince `define` ve `approve product`; ince blueprint (CALM ve veri modeli) ve `approve blueprint`; `depends_on`'lu plan; sıralı döngü (`job` scripti, `transitions.json`, olay günlüğü, kapı, bir inceleyici, entegrasyon dalına birleştiren approver, bütçe ve `max_rounds`). Gösterim: küçük bir API'yi anlat, iki kez onayla, birleşmiş ve test edilmiş dilimleri al. |
 | V3 | Güveni sertleştirme | Korunan yollar, diff ⊆ `touches`, test gevşetme denetimleri, R3 escalate, bozuk diff'lerle değerlendirme |
 | V4 | Paralel | Worktree'ler, kilitler, birleştirme kuyruğu, çöküşten devam, birleştirme protokolünün TLA+ belirtimi |
@@ -143,10 +163,13 @@ Her kilometre taşından sonra gerçek bir projede deneme yapılır.
 
 Fable incelemesinin bu taslağa işlenen başlıca bulguları: onayların metin alanı olarak taklit edilebilmesi; kayıtlı PASS'e güvenilmesi; R3'ün zayıflaması; test gevşetmenin kapısız kalması; varsayılan dala birleştirmenin dağıtım tetikleyebilmesi; `touches`'ın doğrulanmaması; birleştirme kuyruğu, kararsız test, bütçe ve geri alma kurallarının eksikliği; elle yazılan Mermaid'in ilke 2'yi tersine çevirmesi; iş durum makinesi için TLA+'ın gereksiz törene dönüşmesi; yol haritasının döngüden önce üç belge kilometre taşı koyması.
 
-İnsanın karar vereceği sorular:
+İnsanın kararları (2026-11-15):
 
-1. Approver doğrudan varsayılan dala mı birleştirir, yoksa entegrasyon dalına mı (sonra insan alır)? Varsayılan dal otomatik dağıtım yapıyor mu?
-2. Onay güven sınırı: değiştirildiği anlaşılır içerik özetleri yeterli mi, yoksa süreç dışı bir sınır mı (imzalı etiket ya da ajanlar için ayrı bir GitHub bot kimliği)?
-3. İlk hedef: döngü çalışana kadar yalnızca boş repo mu, yoksa mevcut repo da paralel mi?
-4. GitHub PR ve CI döngüde ikinci kapı olarak zorunlu mu, yoksa birleştirmeler yalnızca yerel mi?
-5. Sert sınırlar: R3 ve korunan yol değişiklikleri her zaman escalate edilsin mi; iş ve koşu başına varsayılan bütçe ne olsun?
+1. **Dallar:** Döngü worktree'den entegrasyon dalına (`main`) birleştirir; üretim dalı (`master`) ayrıdır ve ona alma insan onayıyla yapılır.
+2. **Onay güven sınırı:** İçerik özetleri yeterli.
+3. **İlk hedef:** Boş repo; mevcut repo proje tamamlanınca eklenir.
+4. **GitHub PR ve CI:** Döngünün zorunlu parçası.
+5. **Sert sınırlar:** R3 ve korunan yol değişiklikleri her zaman insana gelir; bütçe varsayılanları §6.4'teki gibi.
+6. **Modeller:** Opus kritik planlamayı, Sonnet uygulamayı yapar; Sonnet gerektiğinde Opus'u danışman olarak kullanır (§8).
+
+Açık kalan: maliyet sınırının token mı dolar mı olacağı (abonelik ya da API kullanımına göre).
