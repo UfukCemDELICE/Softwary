@@ -1,7 +1,5 @@
 # V1 Deneme düzeltmeleri — Uygulama planı
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `docs/specs/V1.md`'deki AC-V1-01..09'u karşılamak: dal ayarları ve varsayılan taban, bayraksız `verify`'da `adr` ve `changes`, süreli muafiyetler, dürüst `doctor`, isteğe bağlı `CODEOWNERS`, dalı `UNSET` gelen CI şablonu, güncellenmiş `setup`, `implement` ve `review` skill'leri.
 
 **Architecture:** Mevcut düzenin üstüne biner. Dal ayarları `commands.conf`'un ayar anahtarlarına (`SW_SETTING_KEYS`) eklenir; varsayılan tabanı tek bir yardımcı (`sw_default_base`, `src/lib/adr.sh`) çözer ve `verify`, `adr`, `changes`, `risk` onu kullanır. Muafiyetler yeni bir dosyada (`src/lib/waivers.sh`) ayrıştırılır; `verify` ve `doctor` onu kaynaklar. `install.sh` boş `waivers.conf`'u projeye ait dosya olarak kurar.

@@ -1,7 +1,5 @@
 # M3 Kurulum ve kapılar — Uygulama planı
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `docs/specs/M3.md`'deki AC-M3-01..09'u karşılamak: `setup` skill'i, git hook'ları, CI ve CODEOWNERS şablonları, ADR denetimi (`trace` + `adr`), `verify --base` ve `upgrade`.
 
 **Architecture:** Her şey mevcut düzenin üstüne biner: POSIX `sh` kütüphaneleri `src/lib/`'de, `bin/softwary` dağıtıcısı, `install.sh` yönetilen ağaçları kopyalar. ADR mantığı tek yeni dosyada (`src/lib/adr.sh`) toplanır; hook'lar `src/hooks/`, şablonlar `src/templates/github/`, skill `src/skills/setup/` altına girer. `upgrade`, yeni paketin `install.sh --upgrade`'ini çağırıp `sync` çalıştırır; yönetilen dosya kümesinin tek tanımı `install.sh`'taki plandır.
