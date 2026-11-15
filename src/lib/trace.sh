@@ -19,6 +19,7 @@ SW_SPEC_MAX_WORDS=600
 # sw_fm_read FILE: sets _fm to "F<TAB>key<TAB>value" and "E<TAB>problem" lines.
 sw_fm_read() {
 	_fm=$(awk '
+		{ sub(/\r$/, "") }
 		NR == 1 {
 			if ($0 != "---") { print "E\tmissing front matter (the first line must be ---)"; bad = 1; exit }
 			next
@@ -125,6 +126,7 @@ sw_spec_criteria() {
 # sw_spec_open_questions FILE: true if "## Open questions" has a list item.
 sw_spec_open_questions() {
 	awk '
+		{ sub(/\r$/, "") }
 		/^## / { on = ($0 ~ /^## Open questions[ \t]*$/); next }
 		on && /^[ \t]*([-*+]|[0-9]+\.)[ \t]/ { found = 1 }
 		END { exit !found }' "$1"
