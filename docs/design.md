@@ -21,6 +21,8 @@ Hedef dışı: kendi sunucusu ya da daemon'u olan bir çalışma zamanı, stack 
 
 ## 2. Kaynaklar ve alınan fikirler
 
+Her kaynağın rolü, alınan ve alınmayan fikirler, durumları ve pstack'in biçimsel doğrulama yaklaşımının ayrıntısı `docs/sources.md`'dedir. Aşağıdaki tablo özettir.
+
 | Kaynak | Alınan fikir | v2'deki yeri |
 | --- | --- | --- |
 | softwary v1 | Script kapıları (`verify`, `trace`, `adr`, `changes`), CALM modeli kaynak, `sync` ile araç dağıtımı, `commands.conf` sözleşmesi, kriterden teste izlenebilirlik | Çekirdek |
@@ -28,7 +30,7 @@ Hedef dışı: kendi sunucusu ya da daemon'u olan bir çalışma zamanı, stack 
 | mattpocock/skills | Bütün dallar çözülene kadar sorgulama; sözlük ve kararların görüşmede güncellenmesi; alan modelleme; engelleme ilişkili "tracer bullet" iş blokları; oturum devri | Tanım, blueprint, planlama |
 | obra/superpowers | Temiz test tabanıyla worktree; dosya yolları ve doğrulama adımları olan plan; görev başına taze subagent; bitirmeden önce doğrulama; sistematik hata ayıklama | Planlama, uygulama, işletim |
 | addyosmani/agent-skills | Yaşam döngüsü evreleri; kalite çıtası ve kapıyı oyunlamaya karşı önlem; taze bağlamda karşıt görüşlü inceleme; "bahane tabloları"; teslimde gözlemlenebilirlik, kademeli yayın, geri alma planı | İlkeler, inceleme, teslim |
-| cursor/plugins pstack | İlkeleri küçük, birleştirilebilir dosyalar olarak tutmak; yalnızca kanıtlanan bulguların kaldığı inceleme; etki alanı analizi; durum makineleri ve biçimsel doğrulama; "çalıştığını kanıtla"; geri alınabilir işte insanı bekleme | İnceleme, blueprint, biçimsel doğrulama |
+| cursor/plugins pstack (yaklaşım örneği; paketleme hedefi değil) | İlkeleri küçük, birleştirilebilir dosyalar olarak tutmak; yalnızca kanıtlanan bulguların kaldığı inceleme; etki alanı analizi; durum makineleri ve biçimsel doğrulama; "çalıştığını kanıtla"; geri alınabilir işte insanı bekleme | İnceleme, blueprint, biçimsel doğrulama |
 
 ## 3. İlkeler
 
