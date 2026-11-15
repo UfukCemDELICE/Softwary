@@ -360,12 +360,29 @@ sw_slice_counts() {
 		}'
 }
 
-# sw_status: one line per spec and per proposed ADR. Writes nothing.
+# sw_status_approvals: one line per approval, when the repository has a
+# product definition or an approvals.conf. Returns 2 for a malformed
+# approvals.conf (its problems are printed instead).
+sw_status_approvals() {
+	[ -f "$SOFTWARY_ROOT/$SW_PRODUCT_REL" ] || [ -f "$SOFTWARY_ROOT/$SW_APPROVALS_REL" ] || return 0
+	if ! _sa=$(sw_approvals_problems); then
+		printf '%s\n' "$_sa"
+		return 2
+	fi
+	for _sk in $SW_APPROVAL_KINDS; do
+		printf 'approval %s: %s\n' "$_sk" "$(sw_approval_state "$_sk")"
+	done
+}
+
+# sw_status: approvals, then one line per spec and per proposed ADR. Writes
+# nothing.
 sw_status() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary status\n' >&2
 		return 2
 	fi
+	_st_rc=0
+	sw_status_approvals || _st_rc=$?
 	_n=0
 	for _dir in "$SOFTWARY_ROOT"/specs/*/; do
 		_dir=${_dir%/}
@@ -392,5 +409,5 @@ sw_status() {
 		_b=${_f##*/}
 		printf 'ADR %-4s %-9s %s\n' "${_id:-${_b%%-*}}" proposed "$(sw_fm_get title)"
 	done
-	return 0
+	return "$_st_rc"
 }

@@ -214,3 +214,125 @@ sw_blueprint() {
 	printf 'blueprint: %s problem(s)\n' "$(sw_count "$_probs")"
 	return 1
 }
+
+# --- approvals ----------------------------------------------------------------
+
+SW_APPROVALS_REL=.softwary/config/approvals.conf
+SW_APPROVAL_KINDS="product blueprint"
+
+# sw_digest KIND: prints the content digest of the files KIND's approval
+# binds: the git blob of each file (working tree), listed as "<blob> <path>"
+# by path, hashed again. A changed, added or removed file changes it.
+sw_digest() {
+	_dg_paths=$(
+		{
+			case $1 in
+			product) [ ! -f "$SOFTWARY_ROOT/$SW_PRODUCT_REL" ] || printf '%s\n' "$SW_PRODUCT_REL" ;;
+			blueprint)
+				[ ! -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ] || printf '%s\n' "$SW_MODEL_REL"
+				[ ! -f "$SOFTWARY_ROOT/$SW_DATA_REL" ] || printf '%s\n' "$SW_DATA_REL"
+				(cd "$SOFTWARY_ROOT" && find architecture/contracts -type f 2>/dev/null)
+				;;
+			esac
+		} | LC_ALL=C sort
+	)
+	printf '%s\n' "$_dg_paths" | while IFS= read -r _dg_p; do
+		[ -n "$_dg_p" ] || continue
+		printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p"
+	done | git -C "$SOFTWARY_ROOT" hash-object --stdin
+}
+
+# sw_approvals_problems: prints one "approvals.conf:LINE: ..." line per
+# problem of approvals.conf. Returns 0 when it is well-formed (or absent).
+sw_approvals_problems() {
+	sw_kv_load "$SOFTWARY_ROOT/$SW_APPROVALS_REL" "$SW_APPROVALS_REL" SW_AP commands
+	_ap_err=$SW_AP_ERRORS
+	for _ap_k in $SW_AP_KEYS; do
+		_ap_l=$(sw_kv_line SW_AP "$_ap_k")
+		_ap_v=$(sw_kv_get SW_AP "$_ap_k")
+		if ! sw_in_list "$_ap_k" "$SW_APPROVAL_KINDS"; then
+			_ap_err="${_ap_err}${SW_APPROVALS_REL}:$_ap_l: unknown key '$_ap_k' (use $SW_APPROVAL_KINDS)
+"
+			continue
+		fi
+		case $_ap_v in
+		*[!0-9a-f]*) _ap_bad=1 ;;
+		*) _ap_bad=0 ;;
+		esac
+		case ${#_ap_v} in 40 | 64) ;; *) _ap_bad=1 ;; esac
+		if [ "$_ap_bad" -eq 1 ]; then
+			_ap_err="${_ap_err}${SW_APPROVALS_REL}:$_ap_l: invalid digest for '$_ap_k'
+"
+		fi
+	done
+	[ -z "$_ap_err" ] || printf '%s' "$_ap_err"
+	[ -z "$_ap_err" ]
+}
+
+# sw_approval_state KIND: prints approved, stale or missing. Returns 2 (and
+# prints nothing) when approvals.conf is malformed; see sw_approvals_problems.
+sw_approval_state() {
+	sw_approvals_problems >/dev/null || return 2
+	if ! sw_kv_has SW_AP "$1"; then
+		printf 'missing\n'
+	elif [ "$(sw_kv_get SW_AP "$1")" = "$(sw_digest "$1")" ]; then
+		printf 'approved\n'
+	else
+		printf 'stale\n'
+	fi
+}
+
+# sw_approvals_put KIND DIGEST: sets KIND's line in approvals.conf (creating
+# the file). Only `approve` calls it.
+sw_approvals_put() {
+	_ap_f=$SOFTWARY_ROOT/$SW_APPROVALS_REL
+	mkdir -p "$(dirname "$_ap_f")" || return 2
+	[ -f "$_ap_f" ] || printf '# softwary approvals. Written only by ./softwary approve; do not edit by hand.\n' >"$_ap_f"
+	awk -v k="$1" -v v="$2" '
+		$1 == k && $2 == "=" { print k " = " v; done = 1; next }
+		{ print }
+		END { if (!done) print k " = " v }' "$_ap_f" >"$_ap_f.tmp" && mv "$_ap_f.tmp" "$_ap_f"
+}
+
+# sw_approve product|blueprint: records the digest when the checks pass.
+sw_approve() {
+	case ${1:-} in
+	product | blueprint) [ $# -eq 1 ] || set -- '' ;;
+	*) set -- '' ;;
+	esac
+	if [ -z "$1" ]; then
+		printf 'usage: ./softwary approve product|blueprint\n' >&2
+		return 2
+	fi
+	_apk=$1
+	if ! git -C "$SOFTWARY_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+		printf 'approve: not a git repository\n'
+		return 2
+	fi
+	if ! _apr=$(sw_approvals_problems); then
+		printf '%s\n' "$_apr"
+		printf 'approve: fix approvals.conf first\n'
+		return 2
+	fi
+	_apc=0
+	if [ "$_apk" = product ]; then
+		_apr=$(sw_product_check) || _apc=$?
+		[ "$_apc" -ne 2 ] || _apr="product: $SW_PRODUCT_MISSING"
+	else
+		_aps=$(sw_approval_state product)
+		if [ "$_aps" != approved ]; then
+			printf 'approve: the product approval is %s; run ./softwary approve product first\n' "$_aps"
+			return 1
+		fi
+		_apr=$(sw_blueprint_check) || _apc=$?
+	fi
+	if [ "$_apc" -ne 0 ]; then
+		printf '%s\n' "$_apr"
+		printf 'approve: %s check does not pass; nothing was approved\n' "$_apk"
+		return 1
+	fi
+	_apd=$(sw_digest "$_apk")
+	sw_approvals_put "$_apk" "$_apd" || return 2
+	sw_event - "approve_$_apk" - - "$_apd" || return 2
+	printf 'approve: %s approved (%s)\n' "$_apk" "$_apd"
+}

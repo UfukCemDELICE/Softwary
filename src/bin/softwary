@@ -53,6 +53,9 @@ commands:
   product check    check product/PRODUCT.md: sections, features, examples
   blueprint check  check the model, the data model and that every product
                    feature is delivered by a component
+  approve product|blueprint
+                   record the human's approval of the product definition or
+                   the blueprint (a digest of the files they bind)
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -62,7 +65,7 @@ commands:
                    approved spec in the change (default base: integration_branch)
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: integration_branch)
-  status           summarise specs, slices and proposed ADRs
+  status           summarise approvals, specs, slices and proposed ADRs
   doctor           report installation and configuration problems
   upgrade <package-path>
                    replace the managed files with those of a newer package,
@@ -94,6 +97,10 @@ views)
 trace)
 	shift
 	sw_trace "$@"
+	;;
+approve)
+	shift
+	sw_approve "$@"
 	;;
 product)
 	shift
