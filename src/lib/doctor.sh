@@ -78,23 +78,25 @@ EOF
 	done
 }
 
-# sw_doctor_ci: the CI workflow and CODEOWNERS must be placed and filled in.
+# sw_doctor_ci: the CI workflow must be placed and filled in; CODEOWNERS,
+# when present, must cover the protected paths.
 # Comment lines (#) are ignored.
 sw_doctor_ci() {
 	_wf=.github/workflows/softwary.yml
 	if [ ! -f "$SOFTWARY_ROOT/$_wf" ]; then
 		sw_doctor_fail workflow "$_wf not found; copy .softwary/templates/softwary.yml"
 	else
-		_ln=$(awk '/^[ \t]*#/ { next } /UNSET/ { print NR; exit }' "$SOFTWARY_ROOT/$_wf")
-		if [ -n "$_ln" ]; then
+		_lns=$(awk '/^[ \t]*#/ { next } /UNSET/ { print NR }' "$SOFTWARY_ROOT/$_wf")
+		for _ln in $_lns; do
 			sw_doctor_fail workflow "$_wf still contains UNSET (line $_ln)"
-		else
-			sw_line workflow PASS
-		fi
+		done
+		[ -n "$_lns" ] || sw_line workflow PASS
 	fi
 	_co=.github/CODEOWNERS
+	# CODEOWNERS is optional: a team that wants owners to review uses it; the
+	# loop's merges are gated by CI, not by a human review.
 	if [ ! -f "$SOFTWARY_ROOT/$_co" ]; then
-		sw_doctor_fail CODEOWNERS "$_co not found; copy .softwary/templates/CODEOWNERS"
+		sw_line CODEOWNERS "SKIP (optional)"
 		return 0
 	fi
 	_cn=$_problems
@@ -156,11 +158,15 @@ sw_doctor() {
 $SW_CONF_ERRORS
 EOF
 		fi
+		# doctor never runs the project's commands: verify does.
 		for _k in $SW_REQUIRED_KEYS; do
 			if sw_conf_is_unset "$_k"; then
 				sw_doctor_fail "$_k" UNSET
 			else
-				sw_line "$_k" PASS
+				case $(sw_conf_get "$_k") in
+				NONE | NONE:*) sw_line "$_k" "SKIP ($(sw_none_reason "$(sw_conf_get "$_k")"))" ;;
+				*) sw_line "$_k" "PASS (configured, not run)" ;;
+				esac
 			fi
 		done
 		for _k in $(sw_conf_unknown_keys); do

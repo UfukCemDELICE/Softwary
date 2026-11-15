@@ -93,7 +93,7 @@ add_specs() {
 # add_ci: fills in the CI workflow and CODEOWNERS templates under .github/.
 add_ci() {
 	mkdir -p "$REPO/.github/workflows"
-	sed 's/^\( *run: \)UNSET.*$/\1true/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
+	sed 's/^\( *run: \)UNSET.*$/\1true/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
 	sed 's/UNSET/@owner/' "$REPO/.softwary/templates/CODEOWNERS" >"$REPO/.github/CODEOWNERS"
 }
 

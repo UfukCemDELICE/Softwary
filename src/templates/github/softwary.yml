@@ -1,11 +1,14 @@
 # softwary CI. Copy this file to .github/workflows/softwary.yml, then replace
-# the UNSET step below with the commands that install the tools your
-# .softwary/config/commands.conf uses. ./softwary doctor reports it until then.
+# every UNSET: both branches with the integration branch (integration_branch
+# in .softwary/config/commands.conf), and the install step with the commands
+# that install the tools commands.conf uses. ./softwary doctor reports each
+# UNSET until then.
 name: softwary
 on:
   pull_request:
+    branches: [UNSET]
   push:
-    branches: [main]
+    branches: [UNSET]
 jobs:
   verify:
     runs-on: ubuntu-latest
