@@ -9,3 +9,4 @@ These rules hold in every session. Details come from skills when they are needed
 5. Never edit generated files by hand; change the source and run `./softwary sync`.
 6. When something is unclear, ask instead of assuming.
 7. Do not read or commit files that contain secrets.
+8. Only a human runs `./softwary approve`: it records the approval of the product or the blueprint, and an agent never runs it.
