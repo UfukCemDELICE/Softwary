@@ -1,32 +1,30 @@
-# Yol haritası
+# Yol haritası (v2)
 
-Paket M0'dan sonra on bir kilometre taşıyla tamamlanır ve M4'ün sonunda gerçek bir projede kullanılabilir hale gelir. Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec, sırası geldiğinde ve önceki kilometre taşlarından öğrenilenlerle yazılır. Arşiv sekmesindeki notlar o spec'lerin girdisidir.
+v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve aşama skill'leri. v2 bunların üzerine tanım, blueprint, döngü ve paralel yürütmeyi kurar (`docs/design.md`). Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec sırası geldiğinde, önceki kilometre taşının gerçek kullanım denemesinden öğrenilenlerle yazılır.
 
 | No | Kilometre taşı | Ne teslim eder | Verilmiş kararlar |
 | --- | --- | --- | --- |
-| M1 | Dağıtım | `core.md`, `AGENTS.md` bloğu, `sync` ve Claude Code, Cursor, Codex hedef scriptleri | Tek kaynak, üretilen dosyalar commit'lenir, mevcut `AGENTS.md` korunur |
-| M2 | Yapıtlar | Şablonlar, `model validate`, `views`, `trace`, `risk`, `status` | CALM kaynak, Mermaid `jq` ile üretilir, kabul kriteri kimliği düz metin aramasıyla izlenir |
-| M3 | Kurulum ve kapılar | `setup` skill'i, git hook'ları, CI şablonu, ADR denetimi, `upgrade` | CI GitHub Actions, mevcut repolarda taslak model ve taban çizgisi |
-| M4 | Hat | Keşiften incelemeye kadar skill'ler, üç subagent, kalan kurallar | Yazan incelemez, her değişikliğin bir spec'i var |
-| M4a | Sıralı döngü | `./softwary next`, `next` ve `handoff` skill'leri, `softwary-loop`, durma koşulları | Döngü onay vermez ve birleştirme yapmaz |
-| M4b | Paralel dilimler | `touches`, `scope`, sahiplenme kilidi, `next --parallel`, `bootstrap` | Worktree'leri kullanıcı açar, ortak dosyalar dilim dallarında değişmez |
-| M4c | Arka plan alt oturumları | Çalıştırıcı sözleşmesi, herdr eşlemesi, `softwary-dispatch`, `./softwary queue` | ADR ve spec ana oturumda, herdr isteğe bağlı, durumun kaynağı repo |
-| M5 | Drift | Yapı denetimi, `drift-auditor`, `maintain` | Üç katman: sözleşme, yapı, anlam; kararı insan verir |
-| M6 | Teslim ve işletim | `ship`, `diagnose` | Üretime dağıtım insan onayıyla |
-| M7 | Bağımsızlık kanıtı | İkinci bir stack'te gerçek kullanım | Paket reposunda belge dışında değişiklik gerekmemeli |
-| M8 | İlk açık sürüm | Kurulum kanalları, `uninstall`, İngilizce belgeler, skill değerlendirmeleri, `v0.1.0` | MIT, kademeli benimseme (`gates`, `specs`, `full`), telemetri yok, anlamsal sürümleme |
+| V1 | Deneme düzeltmeleri | Entegrasyon ve üretim dalı ayarları, süreli muafiyetler, dürüst `doctor`, isteğe bağlı `CODEOWNERS`, skill'lerde `--fast`, boş repo yolu | Dal koruması insan incelemesi değil CI şart koşar |
+| V2 | Yürüyen iskelet | Boş bir repoda uçtan uca: ince `define` ve `approve product`, ince blueprint (CALM, veri modeli) ve `approve blueprint`, `depends_on`'lu plan, sıralı döngü (`job`, `transitions.json`, olay günlüğü, kapı, PR ve CI, bir inceleyici, approver), bütçe ve tur sınırı, `models.conf` | Döngü `main`'e birleştirir; onaylar içerik özetidir; Opus planlar ve inceler, Sonnet uygular |
+| V3 | Güveni sertleştirme | Korunan yollar, diff ⊆ `touches`, test gevşetme denetimleri, R3 escalate, bozuk diff'lerle değerlendirme | Birleştirme scripti kayıtlı PASS'e güvenmez |
+| V4 | Paralel | Worktree'ler, `mkdir` kilitleri, birleştirme kuyruğu, çöküşten devam, birleştirme protokolünün TLA+ belirtimi | En fazla 3 eşzamanlı iş |
+| V5 | Tanım ve blueprint'i derinleştirme | Sorgulama, akışlar, durum makineleri, blueprint eleştirmeni, `next`, `handoff` | Diyagramlar yapısal kaynaktan üretilir |
+| V6 | Mevcut repo | Taban çizgisi ve muafiyetlerle mevcut bir repoda döngü | Önce proje tamamlanır |
+| V7 | Teslim ve işletim | `ship` (üretim dalına alma önerisi), `diagnose`, drift | Üretime dağıtım insan onayıyla |
+| V8 | Proje biçimsel doğrulaması | `model_check` kapısı, blueprint'te biçimsel belirtim | Kodun belirtime uyduğu iddia edilmez |
+| V9 | Cursor ve sürüm | Cursor orkestratörü, kurulum kanalları, `uninstall`, İngilizce belgeler, `v0.1.0` | MIT, telemetri yok, anlamsal sürümleme |
 
 ## Sıra kuralları
 
-- **Bir seferde bir kilometre taşı.** Bir sonrakinin spec'i, önceki bitmeden yazılmaz.
-- **M4'ten sonra gerçek kullanım.** Döngü, paralel dilimler ve alt oturumlar, hat gerçek bir projede kullanıldıktan sonra tasarlanır. Bu üçünün arşivdeki ayrıntıları o deneyime göre değişebilir.
-- **Paket kendi üzerinde.** M4'ten itibaren paketteki her değişiklik paketin kendi hattından geçer.
-- **Sıra değişebilir.** M5, M6 ve M4a ile M4c arasındaki sıra, kullanımda en çok eksikliği hissedilene göre yeniden belirlenir.
+- **Bir seferde bir kilometre taşı.** Bir sonrakinin spec'i, önceki bitmeden ve denenmeden yazılmaz.
+- **Her kilometre taşından sonra gerçek kullanım.** Deneme notları bir sonraki spec'in girdisidir.
+- **Önce çalışan döngü.** Tanım ve blueprint, döngünün takıldığı yerlere göre derinleştirilir.
+- **Sıra değişebilir.** V5'ten sonrasının sırası, kullanımda en çok eksikliği hissedilene göre yeniden belirlenir.
 
 ## Sonraki fikirler
 
 Karar verilmedi, yalnızca not:
 
-- CI'da başsız ajanla anlamsal drift denetimi.
-- herdr dışındaki çalıştırıcılar için eşlemeler.
+- Daha güçlü onay sınırı: imzalı onay ya da ajanlar için ayrı bir GitHub kimliği.
+- İnceleme için farklı model ailesinden ikinci görüş.
 - Issue tracker ile iki yönlü eşitleme.
