@@ -1,0 +1,21 @@
+{
+  "entities": [
+    {
+      "id": "user",
+      "name": "User",
+      "fields": [
+        { "name": "id", "type": "uuid", "required": true },
+        { "name": "email", "type": "string", "required": true }
+      ],
+      "relations": [{ "to": "task", "kind": "one-to-many" }]
+    },
+    {
+      "id": "task",
+      "name": "Task",
+      "fields": [
+        { "name": "id", "type": "uuid", "required": true },
+        { "name": "title", "type": "string" }
+      ]
+    }
+  ]
+}

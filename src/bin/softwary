@@ -18,10 +18,14 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/doctor.sh"
 # shellcheck source=src/lib/sync.sh
 . "$SOFTWARY_HOME/lib/sync.sh"
+# shellcheck source=src/lib/events.sh
+. "$SOFTWARY_HOME/lib/events.sh"
 # shellcheck source=src/lib/model.sh
 . "$SOFTWARY_HOME/lib/model.sh"
 # shellcheck source=src/lib/trace.sh
 . "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/product.sh
+. "$SOFTWARY_HOME/lib/product.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/adr.sh
@@ -46,6 +50,9 @@ commands:
   model validate   check architecture/model/system.calm.json
   views [--check]  generate architecture/views/system.mmd from the model
                    (--check: report a missing or stale view, write nothing)
+  product check    check product/PRODUCT.md: sections, features, examples
+  blueprint check  check the model, the data model and that every product
+                   feature is delivered by a component
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -87,6 +94,14 @@ views)
 trace)
 	shift
 	sw_trace "$@"
+	;;
+product)
+	shift
+	sw_product "$@"
+	;;
+blueprint)
+	shift
+	sw_blueprint "$@"
 	;;
 risk)
 	shift

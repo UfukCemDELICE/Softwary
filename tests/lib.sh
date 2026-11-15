@@ -64,6 +64,7 @@ setup_repo() {
 		git -C "$REPO" symbolic-ref HEAD refs/heads/main
 	fi
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
+	loop_conf
 	if [ "$_sync" -eq 1 ]; then
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
@@ -80,6 +81,42 @@ MODEL_REL=architecture/model/system.calm.json
 add_model() {
 	mkdir -p "$REPO/architecture/model"
 	cp "$FIXTURES/system.calm.json" "$REPO/$MODEL_REL"
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
+V2FIX=$FIXTURES/v2
+LOOP_CONF_REL=.softwary/config/loop.conf
+
+# loop_conf: writes the default loop limits, with the token keys filled in
+# (the installed template leaves them UNSET). loop_set KEY VALUE changes one.
+loop_conf() {
+	mkdir -p "$REPO/.softwary/config"
+	cat >"$REPO/$LOOP_CONF_REL" <<'LOOP'
+max_rounds = 3
+max_job_minutes = 45
+max_run_minutes = 240
+concurrency = 1
+max_job_tokens = NONE: tests do not count tokens
+max_run_tokens = NONE: tests do not count tokens
+LOOP
+}
+
+loop_set() {
+	file_set "$REPO/$LOOP_CONF_REL" "$1" "$2"
+}
+
+# add_product: copies the sample product definition into the repo.
+add_product() {
+	mkdir -p "$REPO/product"
+	cp "$V2FIX/PRODUCT.md" "$REPO/product/PRODUCT.md"
+}
+
+# add_blueprint: replaces the model with the sample one that names product
+# features, regenerates its view and adds the sample data model.
+add_blueprint() {
+	mkdir -p "$REPO/architecture/model" "$REPO/architecture/data"
+	cp "$V2FIX/system.calm.json" "$REPO/$MODEL_REL"
+	cp "$V2FIX/data-model.json" "$REPO/architecture/data/model.json"
 	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
 }
 
