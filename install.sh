@@ -26,7 +26,7 @@ fi
 target=$(cd "$1" && pwd -P)
 version=$(cat "$pkg/VERSION")
 # Project-owned files: written once, never overwritten.
-owned="commands.conf tools.conf risk.conf waivers.conf"
+owned="commands.conf tools.conf risk.conf waivers.conf loop.conf models.conf"
 
 # Pairs of "source destination", destination relative to the target.
 plan="src/templates/softwary softwary

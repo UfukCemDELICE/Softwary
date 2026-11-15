@@ -24,6 +24,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/model.sh"
 # shellcheck source=src/lib/trace.sh
 . "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/loopconf.sh
+. "$SOFTWARY_HOME/lib/loopconf.sh"
 # shellcheck source=src/lib/plan.sh
 . "$SOFTWARY_HOME/lib/plan.sh"
 # shellcheck source=src/lib/product.sh

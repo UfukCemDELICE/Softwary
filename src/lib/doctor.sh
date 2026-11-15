@@ -115,6 +115,19 @@ sw_doctor_ci() {
 	[ "$_problems" -ne "$_cn" ] || sw_line CODEOWNERS PASS
 }
 
+# sw_doctor_conf LABEL ERRORS: PASS, or one FAIL line per problem.
+sw_doctor_conf() {
+	if [ -z "$2" ]; then
+		sw_line "$1" PASS
+		return 0
+	fi
+	while IFS= read -r _err; do
+		[ -n "$_err" ] && sw_doctor_fail "$1" "$_err"
+	done <<EOF
+$2
+EOF
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -222,6 +235,11 @@ EOF
 	fi
 
 	sw_doctor_ci
+
+	sw_loop_load || :
+	sw_doctor_conf loop.conf "${SW_LOOP_ERRORS-}"
+	sw_models_load || :
+	sw_doctor_conf models "${SW_MODELS_ERRORS-}"
 
 	if [ -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
 		sw_line "model" PASS

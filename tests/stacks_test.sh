@@ -25,6 +25,7 @@ run_scenarios() {
 	cp -R "$PKG_ROOT/tests/fixtures/$_stack-sample" "$REPO"
 	git -C "$REPO" init -q || fail "git init failed"
 	sh "$PKG_ROOT/install.sh" "$REPO" >/dev/null 2>&1 || fail "$_stack: install failed"
+	loop_conf
 	tools_all on
 	(cd "$REPO" && ./softwary sync) >/dev/null 2>&1 || fail "$_stack: sync failed"
 	risk_set default R1
