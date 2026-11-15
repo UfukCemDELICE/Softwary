@@ -101,6 +101,7 @@ sw_adr_usage() {
 
 # sw_adr [--base REF]: every model or contract file changed since REF
 # (default main) needs an accepted ADR in the change whose affects covers it.
+# The ADR must be new in the change or not yet accepted on the base.
 # Exit: 0 covered, 1 not covered, 2 base missing or usage.
 sw_adr() {
 	_adr_base=main
@@ -129,8 +130,20 @@ sw_adr() {
 " ;;
 		"$SW_ADR_REL"/*.md)
 			[ -f "$SOFTWARY_ROOT/$_p" ] || continue
+			# An ADR already accepted on the base was accepted for another
+			# change; reusing it would let a change pass without a human
+			# accepting anything in it.
+			_bs=
+			if git -C "$SOFTWARY_ROOT" cat-file -e "$SW_BASE_COMMIT:$_p" 2>/dev/null; then
+				_bf=$(mktemp) || return 2
+				git -C "$SOFTWARY_ROOT" show "$SW_BASE_COMMIT:$_p" >"$_bf" 2>/dev/null
+				sw_fm_read "$_bf"
+				_bs=$(sw_fm_get status)
+				rm -f "$_bf"
+			fi
 			sw_fm_read "$SOFTWARY_ROOT/$_p"
 			_cs=$(sw_fm_get status)
+			[ "$_cs" != accepted ] || [ "$_bs" != accepted ] || _cs=base-accepted
 			_ci=$(sw_fm_get id)
 			[ -n "$_ci" ] || _ci=${_p##*/}
 			while IFS= read -r _ce; do
@@ -153,13 +166,14 @@ CHANGED
 	_miss=0
 	while IFS= read -r _p; do
 		[ -n "$_p" ] || continue
-		_acc='' _prop=''
+		_acc='' _prop='' _based=''
 		while IFS='	' read -r _cs _ci _ce; do
 			[ -n "$_ce" ] || continue
 			sw_adr_covers "$_ce" "$_p" || continue
 			case $_cs in
 			accepted) [ -n "$_acc" ] || _acc=$_ci ;;
 			proposed) [ -n "$_prop" ] || _prop=$_ci ;;
+			base-accepted) [ -n "$_based" ] || _based=$_ci ;;
 			esac
 		done <<CANDS
 $_cands
@@ -168,6 +182,9 @@ CANDS
 			printf '%s: covered by ADR %s\n' "$_p" "$_acc"
 		elif [ -n "$_prop" ]; then
 			printf '%s: awaiting human acceptance (ADR %s is proposed)\n' "$_p" "$_prop"
+			_miss=$((_miss + 1))
+		elif [ -n "$_based" ]; then
+			printf '%s: no accepted ADR in this change covers it (ADR %s was already accepted on the base)\n' "$_p" "$_based"
 			_miss=$((_miss + 1))
 		else
 			printf '%s: no accepted ADR in this change covers it\n' "$_p"

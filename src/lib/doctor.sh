@@ -60,11 +60,12 @@ sw_doctor_ci() {
 	fi
 	_cn=$_problems
 	for _p in specs architecture .softwary/config .github; do
+		# As on GitHub, the last matching line decides; it must name an owner.
 		awk -v p="$_p" '
-			/^[ \t]*#/ || NF < 2 { next }
+			/^[ \t]*#/ || NF < 1 { next }
 			{ pat = $1; sub(/^\//, "", pat); sub(/\/\*\*$/, "", pat); sub(/\/$/, "", pat)
-			  if (pat == p || pat == "*" || pat == "**") found = 1 }
-			END { exit !found }' "$SOFTWARY_ROOT/$_co" || sw_doctor_fail CODEOWNERS "does not cover $_p/"
+			  if (pat == p || pat == "*" || pat == "**") owned = (NF >= 2) }
+			END { exit !owned }' "$SOFTWARY_ROOT/$_co" || sw_doctor_fail CODEOWNERS "does not cover $_p/"
 	done
 	# shellcheck disable=SC2013 # the words are line numbers, without whitespace
 	for _ln in $(awk '/^[ \t]*#/ { next } { for (i = 2; i <= NF; i++) if ($i == "UNSET") { print NR; break } }' "$SOFTWARY_ROOT/$_co"); do
