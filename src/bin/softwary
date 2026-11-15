@@ -24,6 +24,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/model.sh"
 # shellcheck source=src/lib/trace.sh
 . "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/job.sh
+. "$SOFTWARY_HOME/lib/job.sh"
 # shellcheck source=src/lib/loopconf.sh
 . "$SOFTWARY_HOME/lib/loopconf.sh"
 # shellcheck source=src/lib/plan.sh
@@ -65,6 +67,13 @@ commands:
   plan approve <spec>
                    approve a draft spec when plan check is clean and the
                    spec-analyst's analysis.md passes for this version of it
+  job start|gate <job>
+                   open the branch of a planned slice and take it into its
+                   first round; run the full verify on the job branch
+  job event <job> <event> [detail]
+                   apply one transition of lib/transitions.json to a job
+  job tokens <job> <n>
+                   add n tokens to the job's and the run's totals
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -114,6 +123,10 @@ approve)
 plan)
 	shift
 	sw_plan "$@"
+	;;
+job)
+	shift
+	sw_job "$@"
 	;;
 product)
 	shift

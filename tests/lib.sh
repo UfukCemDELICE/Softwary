@@ -126,6 +126,25 @@ add_plan() {
 	cp -R "$V2FIX/specs" "$REPO/"
 }
 
+# add_origin: commits what the repo has, creates the bare repository
+# $T/origin.git as its `origin` and pushes main (setting origin/main).
+add_origin() {
+	git -C "$REPO" config user.name t
+	git -C "$REPO" config user.email t@example.com
+	[ -z "$(git -C "$REPO" status --porcelain)" ] || commit_all "base"
+	git init -q --bare "$T/origin.git" || fail "git init --bare failed"
+	git -C "$T/origin.git" symbolic-ref HEAD refs/heads/main
+	git -C "$REPO" remote add origin "$T/origin.git"
+	git -C "$REPO" push -q --no-verify origin main >"$T/push.out" 2>&1 || fail "push to origin failed: $(cat "$T/push.out")"
+	git -C "$REPO" fetch -q origin
+}
+
+# open_run: opens a run the way `run start` does, without its checks.
+open_run() {
+	mkdir -p "$REPO/.softwary/state"
+	printf 'started=%s\ntokens=0\n' "$(date +%s)" >"$REPO/.softwary/state/run"
+}
+
 # add_specs: copies the sample specs and tests into the repo and points
 # test_paths at the tests. Call it after conf_all, which rewrites commands.conf.
 add_specs() {

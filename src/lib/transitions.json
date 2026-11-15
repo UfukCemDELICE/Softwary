@@ -1,0 +1,25 @@
+{
+  "states": ["ready", "implementing", "gating", "pr", "ci", "reviewing", "approving", "merged", "escalated", "abandoned"],
+  "terminal": ["merged", "abandoned"],
+  "transitions": [
+    { "from": "ready", "event": "start", "to": "implementing", "round": "next" },
+    { "from": "implementing", "event": "implemented", "to": "gating" },
+    { "from": "gating", "event": "gate_pass", "to": "pr" },
+    { "from": "gating", "event": "gate_fail", "to": "implementing", "round": "next" },
+    { "from": "pr", "event": "pr_opened", "to": "ci" },
+    { "from": "ci", "event": "ci_pass", "to": "reviewing" },
+    { "from": "ci", "event": "ci_fail", "to": "implementing", "round": "next" },
+    { "from": "reviewing", "event": "review_approve", "to": "approving" },
+    { "from": "reviewing", "event": "review_changes", "to": "implementing", "round": "next" },
+    { "from": "approving", "event": "merged", "to": "merged" },
+    { "from": "implementing", "event": "escalate", "to": "escalated" },
+    { "from": "gating", "event": "escalate", "to": "escalated" },
+    { "from": "pr", "event": "escalate", "to": "escalated" },
+    { "from": "ci", "event": "escalate", "to": "escalated" },
+    { "from": "reviewing", "event": "escalate", "to": "escalated" },
+    { "from": "approving", "event": "escalate", "to": "escalated" },
+    { "from": "escalated", "event": "resume", "to": "implementing", "round": "reset" },
+    { "from": "escalated", "event": "human_merged", "to": "merged" },
+    { "from": "escalated", "event": "abandon", "to": "abandoned" }
+  ]
+}
