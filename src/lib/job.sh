@@ -318,8 +318,154 @@ sw_job_tokens() {
 	printf 'job %s: +%s tokens (job total %s)\n' "$1" "$2" "$(sw_job_get "$1" tokens)"
 }
 
+# sw_job_state_is JOB STATE: refuses (return 1) unless the job is in STATE.
+sw_job_state_is() {
+	_jsi=$(sw_job_get "$1" state)
+	[ "$_jsi" = "$2" ] || { sw_job_refuse "$1" "state is $_jsi, not $2"; return 1; }
+}
+
+# sw_job_known JOB: returns 2 (with a message) for a job that does not exist.
+sw_job_known() {
+	[ -f "$(sw_job_file "$1")" ] || { printf 'job: unknown job %s\n' "$1"; return 2; }
+}
+
+# sw_job_push JOB: pushes the job's branch (the script gates itself, so the
+# git hooks are skipped).
+sw_job_push() {
+	if ! _jpo=$(git -C "$SOFTWARY_ROOT" push -q --no-verify -u origin "softwary/$1" 2>&1); then
+		printf 'job %s: push failed: %s\n' "$1" "$_jpo"
+		return 1
+	fi
+}
+
+# sw_job_pr JOB: pushes the branch and opens the PR (once), then pr_opened.
+sw_job_pr() {
+	_jp_job=$1
+	sw_job_known "$_jp_job" || return 2
+	sw_job_state_is "$_jp_job" pr || return 1
+	[ "$(sw_job_branch_now)" = "softwary/$_jp_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jp_job" "$_jp_job"; return 2; }
+	_jp_base=$(sw_job_integration) || { printf 'job pr: integration_branch is not set\n'; return 2; }
+	sw_job_push "$_jp_job" || return 1
+	_jp_n=$(sw_job_get "$_jp_job" pr)
+	if [ -z "$_jp_n" ]; then
+		sw_job_locate "$_jp_job" || return 2
+		sw_fm_read "$SW_JOB_SLICEFILE"
+		_jp_goal=$(sw_fm_get goal)
+		if ! _jp_out=$(gh pr create --base "$_jp_base" --head "softwary/$_jp_job" --title "$_jp_job: $_jp_goal" \
+			--body "Spec: specs/$SW_JOB_SPEC/spec.md. Slice: specs/$SW_JOB_SPEC/slices/$SW_JOB_SLICE.md." 2>&1); then
+			sw_job_refuse "$_jp_job" "gh pr create failed: $_jp_out"
+			return 1
+		fi
+		_jp_url=$(printf '%s\n' "$_jp_out" | tail -n 1)
+		_jp_n=${_jp_url##*/}
+		sw_positive_int "$_jp_n" || { sw_job_refuse "$_jp_job" "gh pr create printed no PR number: $_jp_url"; return 1; }
+		sw_job_put "$_jp_job" pr "$_jp_n"
+	fi
+	sw_job_apply "$_jp_job" pr_opened "PR #$_jp_n"
+}
+
+# sw_job_pr_green JOB SHA: true when the PR's head is SHA and its checks pass.
+# On failure SW_JOB_WHY says which.
+sw_job_pr_green() {
+	_jq_n=$(sw_job_get "$1" pr)
+	_jq_head=$(gh pr view "$_jq_n" --json headRefOid --jq .headRefOid 2>/dev/null) || _jq_head=
+	if [ "$_jq_head" != "$2" ]; then
+		SW_JOB_WHY="PR head is not ${3:-HEAD}"
+		return 1
+	fi
+	if ! gh pr checks "$_jq_n" --watch >"$SOFTWARY_ROOT/$SW_JOBS_REL/$1/ci.log" 2>&1; then
+		SW_JOB_WHY="CI checks are not green"
+		return 1
+	fi
+}
+
+# sw_job_ci JOB: ci_pass when the PR's head is HEAD and its checks pass.
+sw_job_ci() {
+	_jc_job=$1
+	sw_job_known "$_jc_job" || return 2
+	sw_job_state_is "$_jc_job" ci || return 1
+	[ "$(sw_job_branch_now)" = "softwary/$_jc_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jc_job" "$_jc_job"; return 2; }
+	[ -n "$(sw_job_get "$_jc_job" pr)" ] || { sw_job_refuse "$_jc_job" "no PR recorded"; return 1; }
+	if sw_job_pr_green "$_jc_job" "$(git -C "$SOFTWARY_ROOT" rev-parse HEAD)"; then
+		sw_job_apply "$_jc_job" ci_pass
+	else
+		sw_job_apply "$_jc_job" ci_fail "$SW_JOB_WHY"
+	fi
+}
+
+# sw_fm_status_set FILE VALUE: sets the front matter's status line.
+sw_fm_status_set() {
+	awk -v v="$2" '
+		NR == 1 { print; next }
+		!closed && $0 ~ /^---[ \t\r]*$/ { closed = 1 }
+		!closed && !done && /^status:/ { print "status: " v ($0 ~ /\r$/ ? "\r" : ""); done = 1; next }
+		{ print }' "$1" >"$1.tmp" && cat "$1.tmp" >"$1" && rm -f "$1.tmp"
+}
+
+# sw_job_review JOB: reads the slice's review record; approve makes the slice
+# done, both commit and push the record before the transition.
+sw_job_review() {
+	_jr_job=$1
+	sw_job_known "$_jr_job" || return 2
+	sw_job_state_is "$_jr_job" reviewing || return 1
+	sw_job_locate "$_jr_job" || return 2
+	_jr_rel=specs/$SW_JOB_SPEC/reviews/$SW_JOB_SLICE.md
+	[ -f "$SOFTWARY_ROOT/$_jr_rel" ] || { sw_job_refuse "$_jr_job" "no review record ($_jr_rel)"; return 1; }
+	sw_fm_read "$SOFTWARY_ROOT/$_jr_rel"
+	_jr_dec=$(sw_fm_get decision)
+	if [ -n "$(sw_fm_errors)" ] || [ "$(sw_fm_get slice)" != "$SW_JOB_SLICE" ] || ! sw_in_list "$_jr_dec" "$SW_REVIEW_DECISIONS"; then
+		sw_job_refuse "$_jr_job" "the review record $_jr_rel is invalid (slice: $SW_JOB_SLICE, decision: approve or changes)"
+		return 1
+	fi
+	[ "$(sw_job_branch_now)" = "softwary/$_jr_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jr_job" "$_jr_job"; return 2; }
+	_jr_files=$_jr_rel
+	_jr_msg="$_jr_job: review requested changes"
+	if [ "$_jr_dec" = approve ]; then
+		sw_fm_status_set "$SW_JOB_SLICEFILE" "done"
+		_jr_files="$_jr_rel specs/$SW_JOB_SPEC/slices/$SW_JOB_SLICE.md"
+		_jr_msg="$_jr_job: review approved"
+	fi
+	# shellcheck disable=SC2086 # two repo-relative paths without whitespace
+	git -C "$SOFTWARY_ROOT" add -- $_jr_files || return 2
+	if ! git -C "$SOFTWARY_ROOT" diff --cached --quiet; then
+		git -C "$SOFTWARY_ROOT" commit -q --no-verify -m "$_jr_msg" || { printf 'job %s: commit failed\n' "$_jr_job"; return 2; }
+	fi
+	sw_job_push "$_jr_job" || return 1
+	sw_job_apply "$_jr_job" "review_$_jr_dec" "$_jr_dec"
+}
+
+# sw_job_text JOB EVENT TEXT FILE: an event that carries the human's or the
+# agent's words, kept in FILE of the job directory too.
+sw_job_text() {
+	sw_job_known "$1" || return 2
+	[ -n "$3" ] || { sw_job_usage; return 2; }
+	sw_job_apply "$1" "$2" "$3" || return $?
+	[ -z "$4" ] || printf '%s\n' "$3" >"$SOFTWARY_ROOT/$SW_JOBS_REL/$1/$4"
+}
+
+# sw_job_merged JOB: a human merged the PR (an R3 change, or a refused merge).
+sw_job_merged() {
+	sw_job_known "$1" || return 2
+	sw_job_state_is "$1" escalated || return 1
+	_jm_n=$(sw_job_get "$1" pr)
+	[ -n "$_jm_n" ] || { sw_job_refuse "$1" "no PR recorded"; return 1; }
+	_jm_st=$(gh pr view "$_jm_n" --json state --jq .state 2>/dev/null) || _jm_st=
+	[ "$_jm_st" = MERGED ] || { sw_job_refuse "$1" "PR #$_jm_n is ${_jm_st:-not readable}, not MERGED"; return 1; }
+	sw_job_apply "$1" human_merged "PR #$_jm_n"
+}
+
+# sw_job_show JOB: the job file, the open question and the last events.
+sw_job_show() {
+	sw_job_known "$1" || return 2
+	cat "$(sw_job_file "$1")"
+	_jh_q=$SOFTWARY_ROOT/$SW_JOBS_REL/$1/escalation
+	[ "$(sw_job_get "$1" state)" != escalated ] || [ ! -f "$_jh_q" ] || printf 'question: %s\n' "$(cat "$_jh_q")"
+	[ ! -f "$SOFTWARY_ROOT/$SW_EVENTS_REL" ] || jq -c --arg j "$1" 'select(.job == $j)' "$SOFTWARY_ROOT/$SW_EVENTS_REL" | tail -n 5
+	return 0
+}
+
 sw_job_usage() {
-	printf 'usage: ./softwary job start|gate|event|tokens|... <job> [args]\n' >&2
+	printf 'usage: ./softwary job start|gate|pr|ci|review|merged|show <job>, job escalate|resume|abandon <job> <text>,\n       job event <job> <event> [detail], job tokens <job> <n>\n' >&2
 }
 
 # sw_job SUBCOMMAND JOB [ARGS]
@@ -348,6 +494,13 @@ sw_job() {
 		[ $# -eq 1 ] || { sw_job_usage; return 2; }
 		sw_job_tokens "$_jj" "$1"
 		;;
+	pr | ci | review | merged | show)
+		[ $# -eq 0 ] || { sw_job_usage; return 2; }
+		"sw_job_$_jc" "$_jj"
+		;;
+	escalate) sw_job_text "$_jj" escalate "$*" "" ;;
+	resume) sw_job_text "$_jj" resume "$*" answer ;;
+	abandon) sw_job_text "$_jj" abandon "$*" "" ;;
 	*)
 		sw_job_usage
 		return 2

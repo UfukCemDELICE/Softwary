@@ -26,6 +26,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/trace.sh"
 # shellcheck source=src/lib/job.sh
 . "$SOFTWARY_HOME/lib/job.sh"
+# shellcheck source=src/lib/run.sh
+. "$SOFTWARY_HOME/lib/run.sh"
 # shellcheck source=src/lib/loopconf.sh
 . "$SOFTWARY_HOME/lib/loopconf.sh"
 # shellcheck source=src/lib/plan.sh
@@ -70,6 +72,15 @@ commands:
   job start|gate <job>
                    open the branch of a planned slice and take it into its
                    first round; run the full verify on the job branch
+  job pr|ci|review|merged|show <job>
+                   push the branch and open the PR; check the PR's head and
+                   CI; read the review record; record a human's merge; print
+  job escalate <job> <question>
+                   hand the job to the human with one concrete question
+  job resume <job> <answer>, job abandon <job> <reason>
+                   continue an escalated job in a new round; give it up
+  merge <job>      recompute every condition on the commit to merge and merge
+                   the PR bound to it, or hand the job to the human
   job event <job> <event> [detail]
                    apply one transition of lib/transitions.json to a job
   job tokens <job> <n>
@@ -127,6 +138,10 @@ plan)
 job)
 	shift
 	sw_job "$@"
+	;;
+merge)
+	shift
+	sw_merge_job "$@"
 	;;
 product)
 	shift

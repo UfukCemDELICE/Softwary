@@ -145,6 +145,84 @@ open_run() {
 	printf 'started=%s\ntokens=0\n' "$(date +%s)" >"$REPO/.softwary/state/run"
 }
 
+# fake_gh: puts a fake `gh` first in PATH. It logs every call to $T/gh.log and
+# works against the repository $T/origin.git: `pr create` prints
+# https://github.com/o/r/pull/<n> (n = 1, 2, ...) and records the PR's title,
+# base and head branch under $T/gh/; `pr view --json headRefOid` prints
+# $T/gh/head when that file exists, else the tip of the PR's branch in origin;
+# `pr view --json state` prints $T/gh/state or OPEN; `pr checks` exits with the
+# code in $T/gh/checks (default 0); `pr merge` exits with the code in
+# $T/gh/merge when that file exists, else squash-merges the PR's branch into
+# its base in origin (refusing a --match-head-commit that is not the tip).
+fake_gh() {
+	mkdir -p "$T/bin" "$T/gh"
+	cat >"$T/bin/gh" <<'GH'
+#!/bin/sh
+T=@T@
+printf '%s\n' "$*" >>"$T/gh.log"
+[ "$1" = pr ] || exit 0
+sub=$2
+shift 2
+case $sub in
+create)
+	n=$(cat "$T/gh/next" 2>/dev/null || echo 1)
+	echo $((n + 1)) >"$T/gh/next"
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--title) printf '%s\n' "$2" >"$T/gh/pr-$n"; shift 2 ;;
+		--base) printf '%s\n' "$2" >"$T/gh/base-$n"; shift 2 ;;
+		--head) printf '%s\n' "$2" >"$T/gh/branch-$n"; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	printf 'https://github.com/o/r/pull/%s\n' "$n"
+	;;
+view)
+	n=$1
+	case "$*" in
+	*headRefOid*)
+		if [ -f "$T/gh/head" ]; then cat "$T/gh/head"
+		else git --git-dir="$T/origin.git" rev-parse "refs/heads/$(cat "$T/gh/branch-$n")"; fi
+		;;
+	*state*) cat "$T/gh/state" 2>/dev/null || echo OPEN ;;
+	esac
+	;;
+checks)
+	exit "$(cat "$T/gh/checks" 2>/dev/null || echo 0)"
+	;;
+merge)
+	n=$1
+	shift
+	[ ! -f "$T/gh/merge" ] || exit "$(cat "$T/gh/merge")"
+	br=$(cat "$T/gh/branch-$n")
+	base=$(cat "$T/gh/base-$n")
+	tip=$(git --git-dir="$T/origin.git" rev-parse "refs/heads/$br")
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--match-head-commit) [ "$2" = "$tip" ] || exit 1; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	w=$(mktemp -d) || exit 1
+	git clone -q "$T/origin.git" "$w/c" || exit 1
+	cd "$w/c" || exit 1
+	git config user.name gh
+	git config user.email gh@example.com
+	git checkout -q "$base" || exit 1
+	git merge -q --squash "origin/$br" >/dev/null 2>&1 || exit 1
+	git commit -q -m "squash $br" || exit 1
+	git push -q origin "$base" >/dev/null 2>&1 || exit 1
+	rm -rf "$w"
+	;;
+esac
+GH
+	sed -i.bak "s|@T@|$T|" "$T/bin/gh" && rm -f "$T/bin/gh.bak"
+	chmod +x "$T/bin/gh"
+	: >"$T/gh.log"
+	PATH=$T/bin:$PATH
+	export PATH
+}
+
 # add_specs: copies the sample specs and tests into the repo and points
 # test_paths at the tests. Call it after conf_all, which rewrites commands.conf.
 add_specs() {
