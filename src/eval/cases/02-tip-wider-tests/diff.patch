@@ -1,0 +1,101 @@
+diff --git a/specs/002-tip/slices/S1.md b/specs/002-tip/slices/S1.md
+index 96af228..e8b1175 100644
+--- a/specs/002-tip/slices/S1.md
++++ b/specs/002-tip/slices/S1.md
+@@ -5,7 +5,7 @@ goal: Add a tip and split the total with it
+ acs: AC-002-01, AC-002-02, AC-002-03
+ depends_on: 001-S1
+ touches: src/tip.sh, src/split.sh, tests/
+-status: in-progress
++status: review
+ ---
+ 
+ # S1: Tip
+diff --git a/src/split.sh b/src/split.sh
+index 3d13c98..41a1d12 100644
+--- a/src/split.sh
++++ b/src/split.sh
+@@ -23,3 +23,11 @@ split_even() {
+ 		_se_i=$((_se_i + 1))
+ 	done
+ }
++
++# split_with_tip TOTAL PEOPLE PERCENT: splits TOTAL plus its tip among PEOPLE;
++# add_tip (tip.sh) must be loaded. A refused tip or a refused head count ends
++# with the status of the refusal and prints no shares.
++split_with_tip() {
++	_sw_with=$(add_tip "$1" "$3") || return $?
++	split_even "$_sw_with" "$2"
++}
+diff --git a/src/tip.sh b/src/tip.sh
+new file mode 100644
+index 0000000..c1cb43d
+--- /dev/null
++++ b/src/tip.sh
+@@ -0,0 +1,16 @@
++# shellcheck shell=sh
++# Tips. Amounts are whole cents.
++
++# add_tip TOTAL PERCENT: prints TOTAL plus the tip, which is PERCENT percent of
++# TOTAL rounded to the nearest cent (halves up). PERCENT must be a whole number
++# from 0 to 100; anything else is refused with status 2.
++add_tip() {
++	_at_total=$1
++	_at_percent=$2
++	if ! printf '%s\n' "$_at_percent" | grep -Eq '^(0|[1-9][0-9]{0,2})$' || [ "$_at_percent" -gt 100 ]; then
++		echo "tip: percent must be a whole number from 0 to 100" >&2
++		return 2
++	fi
++	_at_tip=$(((_at_total * _at_percent + 50) / 100))
++	echo $((_at_total + _at_tip))
++}
+diff --git a/tests/tip_test.sh b/tests/tip_test.sh
+new file mode 100644
+index 0000000..0c57d0f
+--- /dev/null
++++ b/tests/tip_test.sh
+@@ -0,0 +1,44 @@
++# shellcheck shell=sh
++# shellcheck disable=SC2154,SC2329 # root and assert_eq come from run.sh; tests are called by it
++# shellcheck source=/dev/null
++. "$root/src/tip.sh"
++# shellcheck source=/dev/null
++. "$root/src/split.sh"
++
++# AC-002-01
++test_tip_rounds_to_the_nearest_cent() {
++	assert_eq "$(add_tip 1001 15)" 1151
++	assert_eq "$(add_tip 1003 10)" 1103
++}
++
++# AC-002-01
++test_tip_halves_round_up() {
++	assert_eq "$(add_tip 1010 15)" 1162
++	assert_eq "$(add_tip 5 10)" 6
++}
++
++# AC-002-02
++test_tip_percent_is_checked() {
++	for p in 101 -1 1.5 abc ""; do
++		add_tip 1000 "$p" 2>/dev/null
++		assert_eq "$?" 2
++	done
++	assert_eq "$(add_tip 1000 100)" 2000
++	assert_eq "$(add_tip 1000 0)" 1000
++}
++
++# AC-002-03
++test_split_with_tip_adds_up() {
++	sum=0
++	for s in $(split_with_tip 1010 3 15); do
++		sum=$((sum + s))
++	done
++	assert_eq "$sum" 1162
++}
++
++# AC-002-03
++test_split_with_a_refused_tip_prints_no_shares() {
++	assert_eq "$(split_with_tip 1000 3 150 2>/dev/null)" ""
++	split_with_tip 1000 3 150 2>/dev/null
++	assert_eq "$?" 2
++}

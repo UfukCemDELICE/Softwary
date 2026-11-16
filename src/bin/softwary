@@ -38,6 +38,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh
 . "$SOFTWARY_HOME/lib/guard.sh"
+# shellcheck source=src/lib/eval.sh
+. "$SOFTWARY_HOME/lib/eval.sh"
 # shellcheck source=src/lib/adr.sh
 . "$SOFTWARY_HOME/lib/adr.sh"
 # shellcheck source=src/lib/changes.sh
@@ -94,6 +96,11 @@ commands:
                    report protected paths, paths outside the slice's touches
                    and loosened tests in the job's diff (default base:
                    integration_branch)
+  eval prepare <dir>
+                   build one repository per evaluation case (the sample
+                   project with a deliberately broken or a clean change)
+  eval score <dir> read the reviewer's record of every case and write the
+                   result to .softwary/config/eval.conf
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -171,6 +178,10 @@ risk)
 guard)
 	shift
 	sw_guard "$@"
+	;;
+eval)
+	shift
+	sw_eval "$@"
 	;;
 status)
 	shift

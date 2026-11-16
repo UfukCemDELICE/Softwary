@@ -1,0 +1,18 @@
+{
+  "entities": [
+    {
+      "id": "bill",
+      "name": "Bill",
+      "fields": [
+        { "name": "total_cents", "type": "integer", "required": true },
+        { "name": "people", "type": "integer", "required": true }
+      ],
+      "relations": [{ "to": "share", "kind": "one-to-many" }]
+    },
+    {
+      "id": "share",
+      "name": "Share",
+      "fields": [{ "name": "cents", "type": "integer", "required": true }]
+    }
+  ]
+}

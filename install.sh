@@ -34,7 +34,7 @@ VERSION .softwary/VERSION
 src/templates/gitignore .softwary/.gitignore
 src/bin/softwary .softwary/bin/softwary"
 # Managed trees: every file under these src/ directories is installed.
-for dir in lib rules targets skills agents hooks; do
+for dir in lib rules targets skills agents hooks eval; do
 	[ -d "$pkg/src/$dir" ] || continue
 	files=$(cd "$pkg/src" && find "$dir" -type f | sort)
 	for f in $files; do
@@ -93,7 +93,7 @@ done
 # files are never touched.
 if [ "$upgrade" -eq 1 ]; then
 	wanted=$(printf '%s\n' "$plan" | while read -r _src dest; do printf '%s\n' "$dest"; done)
-	for root in bin lib rules targets skills agents hooks templates; do
+	for root in bin lib rules targets skills agents hooks templates eval; do
 		[ -d "$target/.softwary/$root" ] || continue
 		(cd "$target" && find ".softwary/$root" -type f) | sort | while IFS= read -r f; do
 			printf '%s\n' "$wanted" | grep -Fqx -e "$f" && continue

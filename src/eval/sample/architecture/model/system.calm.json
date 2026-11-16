@@ -1,0 +1,24 @@
+{
+  "$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
+  "nodes": [
+    {
+      "unique-id": "diner",
+      "node-type": "actor",
+      "name": "Diner",
+      "description": "Shares a bill with friends."
+    },
+    {
+      "unique-id": "splitter",
+      "node-type": "service",
+      "name": "Splitter",
+      "description": "Adds the tip and splits the bill.",
+      "metadata": { "paths": ["src/*"], "risk": "R1", "status": "planned", "features": ["F1", "F2"] }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "diner-uses-splitter",
+      "relationship-type": { "interacts": { "actor": "diner", "nodes": ["splitter"] } }
+    }
+  ]
+}
