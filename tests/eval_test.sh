@@ -265,4 +265,63 @@ test_ac_v3_10_install_and_upgrade_ship_eval() {
 	assert_eq "$RC" 0 "sync --check after the upgrade"
 }
 
+# AC-V3-12: min_catch_percent is a whole number from 0 to 100; doctor and run
+# start report anything else; 0 is valid.
+test_ac_v3_12_min_catch_percent_validation() {
+	setup_repo
+	conf_all true
+	add_product
+	add_blueprint
+	sw approve product
+	sw approve blueprint
+	add_plan
+	add_origin
+	for bad in -1 101 x 9.5 07 UNSET; do
+		loop_set min_catch_percent "$bad"
+		sw doctor
+		assert_match "$OUT" "^loop\.conf +FAIL \(.*min_catch_percent"
+		sw run start
+		assert_eq "$RC" 2 "run start with min_catch_percent $bad"
+		assert_contains "$OUT" "min_catch_percent"
+	done
+	sed '/^min_catch_percent/d' "$REPO/.softwary/config/loop.conf" >"$T/l" && cp "$T/l" "$REPO/.softwary/config/loop.conf"
+	sw run start
+	assert_eq "$RC" 2 "run start without min_catch_percent"
+	for good in 0 1 90 100; do
+		loop_set min_catch_percent "$good"
+		sw doctor
+		assert_no_match "$OUT" "^loop\.conf +FAIL"
+	done
+}
+
+# AC-V3-12: a threshold of 0 still wants an evaluation of the current reviewer.
+test_ac_v3_12_zero_threshold_still_needs_eval() {
+	setup_repo
+	loop_set min_catch_percent 0
+	sw status
+	assert_match "$OUT" "^evaluation: missing$"
+	add_eval 0 10
+	sw status
+	assert_match "$OUT" "^evaluation: ok 0$"
+}
+
+# AC-V3-12: status shows the state of the evaluation, only when loop.conf exists.
+test_ac_v3_12_status_evaluation() {
+	setup_repo
+	sw status
+	assert_match "$OUT" "^evaluation: missing$"
+	add_eval 9 10
+	sw status
+	assert_match "$OUT" "^evaluation: ok 90$"
+	add_eval 8 10
+	sw status
+	assert_match "$OUT" "^evaluation: below 80$"
+	printf '\nmore\n' >>"$REPO/.softwary/agents/reviewer.md"
+	sw status
+	assert_match "$OUT" "^evaluation: stale$"
+	rm "$REPO/.softwary/config/loop.conf"
+	sw status
+	assert_no_match "$OUT" "^evaluation:"
+}
+
 run_tests "$0"

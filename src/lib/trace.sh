@@ -386,6 +386,13 @@ sw_status_approvals() {
 	done
 }
 
+# sw_status_eval: the state of the evaluation, when the repository has a
+# loop.conf (a project that runs the loop).
+sw_status_eval() {
+	[ -f "$SOFTWARY_ROOT/$SW_LOOP_REL" ] || return 0
+	printf 'evaluation: %s\n' "$(sw_eval_state)"
+}
+
 # sw_status: approvals, then one line per spec and per proposed ADR. Writes
 # nothing.
 sw_status() {
@@ -421,6 +428,7 @@ sw_status() {
 		_b=${_f##*/}
 		printf 'ADR %-4s %-9s %s\n' "${_id:-${_b%%-*}}" proposed "$(sw_fm_get title)"
 	done
+	sw_status_eval
 	sw_status_jobs
 	return "$_st_rc"
 }

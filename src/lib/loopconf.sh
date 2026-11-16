@@ -8,7 +8,7 @@
 # *_ERRORS variable; doctor lists them and `run start` stops on them.
 
 SW_LOOP_REL=.softwary/config/loop.conf
-SW_LOOP_KEYS_ALL="max_rounds max_job_minutes max_run_minutes concurrency max_job_tokens max_run_tokens"
+SW_LOOP_KEYS_ALL="max_rounds max_job_minutes max_run_minutes concurrency max_job_tokens max_run_tokens min_catch_percent"
 SW_LOOP_TOKEN_KEYS="max_job_tokens max_run_tokens"
 SW_MODELS_REL=.softwary/config/models.conf
 
@@ -32,6 +32,8 @@ sw_loop_load() {
 			NONE:*) ;;
 			*) sw_positive_int "$_lv" || _le="$_lk: '$_lv' is not a positive integer or 'NONE: <reason>'" ;;
 			esac
+		elif [ "$_lk" = min_catch_percent ]; then
+			sw_percent "$_lv" || _le="$_lk: '$_lv' is not a whole number from 0 to 100"
 		elif [ "$_lv" = UNSET ]; then
 			_le="$_lk: is UNSET (set a positive integer)"
 		elif ! sw_positive_int "$_lv"; then
@@ -54,6 +56,15 @@ sw_loop_load() {
 sw_positive_int() {
 	case $1 in '' | 0* | *[!0-9]*) return 1 ;; esac
 	return 0
+}
+
+# sw_percent VALUE: true for a whole number from 0 to 100 (no sign, no
+# leading zero).
+sw_percent() {
+	case $1 in
+	0 | [1-9] | [1-9][0-9] | 100) return 0 ;;
+	esac
+	return 1
 }
 
 # sw_loop_get KEY: the value of KEY (after sw_loop_load returned 0).

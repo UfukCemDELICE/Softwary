@@ -105,7 +105,17 @@ sw_merge_job() {
 		sw_merge_refuse "$_mg_job" "$SW_JOB_WHY"
 		return 1
 	fi
-	# 9. merge exactly this commit
+	# 9. the evaluation of the reviewer must be current and meet the threshold,
+	# or the merge is left to the human
+	_mg_ev=$(sw_eval_state)
+	case $_mg_ev in
+	ok*) ;;
+	*)
+		sw_merge_refuse "$_mg_job" "auto-merge is off (evaluation $_mg_ev); merge the PR yourself and run ./softwary job merged $_mg_job"
+		return 1
+		;;
+	esac
+	# 10. merge exactly this commit
 	if ! gh pr merge "$(sw_job_get "$_mg_job" pr)" --squash --match-head-commit "$_mg_sha" >"$_mg_dir/merge-gh.log" 2>&1; then
 		sw_merge_refuse "$_mg_job" "gh pr merge failed"
 		return 1

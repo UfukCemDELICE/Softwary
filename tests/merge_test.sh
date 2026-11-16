@@ -36,6 +36,7 @@ merge_repo() {
 	add_plan
 	conf_set test_paths tests
 	risk_set 'src/pay/*' R3
+	add_eval
 	[ -z "${MERGE_TOUCHES-}" ] || fm_set "$REPO/$SLICE_REL" touches "$MERGE_TOUCHES"
 	mkdir -p "$REPO/tests"
 	printf '# covers AC-001-01\n' >"$REPO/tests/test_login.py"
@@ -81,6 +82,25 @@ other_push() {
 	git -C "$T/other" add "$1"
 	git -C "$T/other" commit -q -m other
 	git -C "$T/other" push -q --no-verify origin main >/dev/null 2>&1
+}
+
+# other_rm FILE: someone else deletes FILE on origin's main.
+other_rm() {
+	rm -rf "$T/other"
+	git clone -q "$T/origin.git" "$T/other"
+	git -C "$T/other" config user.name o
+	git -C "$T/other" config user.email o@example.com
+	git -C "$T/other" rm -q "$1"
+	git -C "$T/other" commit -q -m other
+	git -C "$T/other" push -q --no-verify origin main >/dev/null 2>&1
+}
+
+# other_eval CAUGHT BROKEN: someone else pushes an eval.conf with these counts.
+other_eval() {
+	add_eval "$1" "$2"
+	cp "$REPO/.softwary/config/eval.conf" "$T/eval.conf"
+	git -C "$REPO" checkout -q -- .softwary/config/eval.conf
+	other_push .softwary/config/eval.conf "$(cat "$T/eval.conf")"
 }
 
 # refused TEXT: merge refused with TEXT, the job escalated, gh never merged.
@@ -260,6 +280,51 @@ test_ac_v3_08_r3_from_paths() {
 	commit_all "pay"
 	assert_eq "$(sed -n 's/^risk: //p' "$REPO/specs/001-login/spec.md")" R1 "the spec's own risk"
 	refused "risk tier is R3 (a human merges)"
+}
+
+# AC-V3-12: without a valid evaluation of the current reviewer that meets
+# min_catch_percent, the merge is left to the human: the job is escalated with
+# the way to finish it, and gh pr merge is not called.
+test_ac_v3_12_merge_requires_eval() {
+	merge_repo
+	tail_msg="merge the PR yourself and run ./softwary job merged $JOB"
+	other_rm .softwary/config/eval.conf
+	refused "auto-merge is off (evaluation missing); $tail_msg"
+	assert_contains "$OUT" "evaluation missing"
+
+	restore
+	other_push .softwary/agents/reviewer.md "$(cat "$REPO/.softwary/agents/reviewer.md")
+
+A new instruction."
+	refused "auto-merge is off (evaluation stale); $tail_msg"
+
+	restore
+	sed 's/^reviewer = .*/reviewer = haiku/' "$REPO/.softwary/config/models.conf" >"$T/m"
+	other_push .softwary/config/models.conf "$(cat "$T/m")"
+	refused "auto-merge is off (evaluation stale); $tail_msg"
+
+	restore
+	other_eval 8 10
+	refused "auto-merge is off (evaluation below 80); $tail_msg"
+
+	# the same 80 percent meets a threshold of 80
+	restore
+	other_eval 8 10
+	sed 's/^min_catch_percent = .*/min_catch_percent = 80/' "$REPO/.softwary/config/loop.conf" >"$T/l"
+	other_push .softwary/config/loop.conf "$(cat "$T/l")"
+	sw merge $JOB
+	assert_eq "$RC" 0 "exit code at the threshold"
+	assert_eq "$(job_get state)" merged "state"
+}
+
+# AC-V3-12: the threshold is checked last, after every other condition: a job
+# that fails another condition says that one.
+test_ac_v3_12_eval_is_checked_last() {
+	merge_repo
+	other_rm .softwary/config/eval.conf
+	other_push .softwary/config/risk.conf "default = R1
+specs/* = R3"
+	refused "risk tier is R3"
 }
 
 run_tests "$0"

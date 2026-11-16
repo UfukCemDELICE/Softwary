@@ -123,6 +123,39 @@ sw_eval_digest() {
 	} | git -C "$SOFTWARY_ROOT" hash-object --stdin
 }
 
+# sw_eval_state: prints the state of the evaluation: missing (no usable
+# eval.conf), stale (the reviewer is not the one that was evaluated),
+# `below <percent>` or `ok <percent>` against min_catch_percent of loop.conf.
+# The percent is caught * 100 / broken, rounded down.
+sw_eval_state() {
+	sw_loop_load >/dev/null 2>&1 || { printf 'unavailable\n'; return 0; }
+	sw_kv_load "$SOFTWARY_ROOT/$SW_EVAL_CONF_REL" "$SW_EVAL_CONF_REL" SW_EV commands
+	if [ "$SW_EV_FOUND" -eq 0 ] || [ -n "$SW_EV_ERRORS" ]; then
+		printf 'missing\n'
+		return 0
+	fi
+	for _ek in caught broken false_alarms clean digest date; do
+		sw_kv_has SW_EV "$_ek" || { printf 'missing\n'; return 0; }
+	done
+	_ec=$(sw_kv_get SW_EV caught)
+	_eb=$(sw_kv_get SW_EV broken)
+	case $_ec$_eb in '' | *[!0-9]*) printf 'missing\n'; return 0 ;; esac
+	if [ "$_eb" -eq 0 ] || [ "$_ec" -gt "$_eb" ]; then
+		printf 'missing\n'
+		return 0
+	fi
+	if [ "$(sw_kv_get SW_EV digest)" != "$(sw_eval_digest)" ]; then
+		printf 'stale\n'
+		return 0
+	fi
+	_ep=$((_ec * 100 / _eb))
+	if [ "$_ep" -ge "$(sw_loop_get min_catch_percent)" ]; then
+		printf 'ok %s\n' "$_ep"
+	else
+		printf 'below %s\n' "$_ep"
+	fi
+}
+
 # sw_eval_score DIR
 sw_eval_score() {
 	[ $# -eq 1 ] || { sw_eval_usage; return 2; }

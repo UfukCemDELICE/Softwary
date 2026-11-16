@@ -42,6 +42,7 @@ test_ac_v2_16_empty_repo_to_two_merged_slices() {
 	printf -- '---\nspec: 001\ndigest: %s\ndecision: pass\n---\n\n# Analysis of 001\n' "$digest" >"$REPO/specs/001-login/analysis.md"
 	sw plan approve 001
 	assert_eq "$RC" 0 "plan approve"
+	add_eval
 	add_origin
 	fake_gh
 	sw run start
