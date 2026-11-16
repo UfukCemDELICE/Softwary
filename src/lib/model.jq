@@ -21,6 +21,9 @@ def meta_problems($p; $m):
 	then [$p + ["risk"], "must be R1, R2 or R3"] else empty end),
 	(if ($m | has("status")) and $m.status != "UNSET" and ($m.status | IN("planned", "active", "deprecated") | not)
 	then [$p + ["status"], "must be planned, active or deprecated"] else empty end),
+	(if ($m | has("features")) and (($m.features | type) != "array" or ($m.features | length) == 0
+		or (all($m.features[]; type == "string" and test("^F[1-9][0-9]*$")) | not))
+	then [$p + ["features"], "must be a non-empty array of feature ids (F1, F2, ...)"] else empty end),
 	(if $m | has("paths") then
 		("risk", "status") as $f | select($m | has($f) | not) | [$p + [$f], "required when paths is set"]
 	else empty end);

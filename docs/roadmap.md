@@ -1,6 +1,6 @@
 # Yol haritası (v2)
 
-v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve aşama skill'leri. v2 bunların üzerine tanım, blueprint, döngü ve paralel yürütmeyi kurar (`docs/design.md`). Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec sırası geldiğinde, önceki kilometre taşı birleştikten sonra yazılır. Gerçek kullanım denemesi bütün proje bitince yapılır.
+v1 (M0–M4) tamamlandı: kapılar, yapıtlar, araç dağıtımı, kurulum ve aşama skill'leri. V1 (deneme düzeltmeleri) ve V2 (yürüyen iskelet) tamamlandı; V2'de tanım, blueprint, onaylar, plan, `job`/`run`/`merge` döngüsü ve `models.conf` var, kayıt D-65..D-82'dedir; durum kodu boyutu (D-81) insanın kararını bekliyor. v2 bunların üzerine tanım, blueprint, döngü ve paralel yürütmeyi kurar (`docs/design.md`). Buradaki her satır bir niyet ve verilmiş kararlardır; ayrıntılı spec sırası geldiğinde, önceki kilometre taşı birleştikten sonra yazılır. Gerçek kullanım denemesi bütün proje bitince yapılır.
 
 | No | Kilometre taşı | Ne teslim eder | Verilmiş kararlar |
 | --- | --- | --- | --- |

@@ -26,6 +26,16 @@ sw_copy_agents() {
 	done
 }
 
+# sw_copy_agents_plain SRC DEST: like sw_copy_agents, without the `model:`
+# line of the frontmatter, for tools that have no model field.
+sw_copy_agents_plain() {
+	for _f in "$1"/agents/*.md; do
+		[ -f "$_f" ] || continue
+		mkdir -p "$2"
+		awk 'NR == 1 { print; next } !closed && $0 == "---" { closed = 1 } closed || index($0, "model: ") != 1 { print }' "$_f" >"$2/${_f##*/}"
+	done
+}
+
 # sw_fm_value FILE KEY: the value of a frontmatter field, YAML quotes removed.
 sw_fm_value() {
 	_v=$(awk -v k="$2" 'NR == 1 { next } /^---$/ { exit } index($0, k ": ") == 1 { print substr($0, length(k) + 3); exit }' "$1")

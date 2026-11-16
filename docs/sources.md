@@ -26,21 +26,21 @@ Ne: Bir Claude Code skill'i (orkestratör), sekiz ajan, üç script (`job`, `gat
 
 | Fikir | softwary'deki yeri | Durum |
 | --- | --- | --- |
-| Orkestratör yalnızca koordine eder, kendisi dosya yazmaz | Döngü skill'i (design §6.4) | Planlı (V2) |
-| İş durumunu tek bir script yazar, geçersiz geçişi reddeder (`TRANSITIONS` tablosu) | `job` scripti, `transitions.json` | Planlı (V2) |
-| Her ajan dosya okur, tek dosya yazar, tek satır yanıt verir; ayrıntı dosyadadır, orkestratörün bağlamı küçük kalır | Ajan sözleşmesi | Planlı (V2) |
-| Kapı (`checks.sh`) incelemeden önce çalışır; kapıdan geçmeyen işi inceleyici görmez | `verify` | Kısmen: `verify` var, döngüde kapı sırası V2 |
+| Orkestratör yalnızca koordine eder, kendisi dosya yazmaz | Döngü skill'i (design §6.4) | Var (V2: `run` skill'i yalnızca `run`, `job`, `status` çalıştırır) |
+| İş durumunu tek bir script yazar, geçersiz geçişi reddeder (`TRANSITIONS` tablosu) | `job` scripti, `transitions.json` | Var (V2: tek yazar `sw_job_apply`, tablodan okunur) |
+| Her ajan dosya okur, tek dosya yazar, tek satır yanıt verir; ayrıntı dosyadadır, orkestratörün bağlamı küçük kalır | Ajan sözleşmesi | Var (V2: tek satır yanıt, ayrıntı dosyada) |
+| Kapı (`checks.sh`) incelemeden önce çalışır; kapıdan geçmeyen işi inceleyici görmez | `verify` | Var (V2: `job gate` PR'dan önce çalışır; kapıdan geçmeyen iş inceleyiciye gitmez) |
 | Kapı ana daldaki denetim kopyasıyla çalışır; dal kendisini yargılayan denetimi değiştiremez | Birleştirme scripti (design §4) | Planlı (V3) |
 | Korunan yollar (fabrikanın kendi denetimleri ve yapılandırması) | Korunan yollar (design §4) | Planlı (V3) |
 | Test korunmaz, ama zayıflatılmış ya da atlanmış test inceleyicide düşer | Test gevşetme denetimi | Planlı (V3) |
-| Risk ve yüzey (UI, güvenlik) inceleyicileri ve modelleri seçer; seçim prompt'ta değil yapılandırmadadır | `risk`, `models.conf` | Kısmen: `risk` var; yönlendirme V2 |
-| Approver birleştirir ya da somut bir soruyla escalate eder; insan PR'ı birleştirerek onaylar | Approver ajanı | Planlı (V2) |
-| Birleştirmeden önce ana dalla eşitle ve kapıyı yeniden çalıştır | Birleştirme kuyruğu | Planlı (V2, paralelde V4) |
-| Her iş bir PR'dır, `gh pr merge` ile birleşir; dal koruması ve zorunlu denetimler geçerlidir | Design §4 | Kısmen: CI şablonu ve dal ayarları var (V1); PR'ı döngü V2'de açar |
-| Durum dosyalardadır; oturum ölürse yeni çalıştırma her işi kaldığı yerden sürdürür | `.softwary/state/jobs/` | Planlı (V2) |
-| İş başına tur sınırı (`max_rounds`), sonra insan | `loop.conf` | Planlı (V2) |
-| İş başına maliyet ölçümü | Token bütçesi (D-50) | Planlı (V2) |
-| Kuyruk girdisi prompt'a değil, alıntılanmış veri olarak dosyaya girer | Güven ilkesi (design §7) | Planlı (V2) |
+| Risk ve yüzey (UI, güvenlik) inceleyicileri ve modelleri seçer; seçim prompt'ta değil yapılandırmadadır | `risk`, `models.conf` | Kısmen: `risk` ve `models.conf` var (V2); yüzeye göre seçim sonra |
+| Approver birleştirir ya da somut bir soruyla escalate eder; insan PR'ı birleştirerek onaylar | Approver ajanı | Var (V2: `decision.md`, `merge` ya da `job escalate`) |
+| Birleştirmeden önce ana dalla eşitle ve kapıyı yeniden çalıştır | Birleştirme scripti | Var (V2: sıralı, `merge` eşitler ve her koşulu yeni SHA'da hesaplar); paralelde kuyruk V4 |
+| Her iş bir PR'dır, `gh pr merge` ile birleşir; dal koruması ve zorunlu denetimler geçerlidir | Design §4 | Var (V2: `job pr`, `job ci`, `merge`; CI şablonu ve dal ayarları V1) |
+| Durum dosyalardadır; oturum ölürse yeni çalıştırma her işi kaldığı yerden sürdürür | `.softwary/state/jobs/` | Var (V2: iş ve koşu dosyaları, `run next` yarım işi sürdürür) |
+| İş başına tur sınırı (`max_rounds`), sonra insan | `loop.conf` | Var (V2: `max_rounds`, süre ve token sınırları) |
+| İş başına maliyet ölçümü | Token bütçesi (D-50) | Var (V2: `job tokens`, `max_job_tokens`, `max_run_tokens`) |
+| Kuyruk girdisi prompt'a değil, alıntılanmış veri olarak dosyaya girer | Güven ilkesi (design §7) | Kısmen: ajanlar girdiyi dosyadan okur; alıntılanmış veri biçimi sonra |
 
 Alınmayan: kuyruk olarak GitHub issue'ları (softwary'nin kuyruğu plan dosyasıdır; issue tracker'a bağımlılık hedef dışıdır), HTML dashboard, kod ve prompt metinleri (GPL).
 
@@ -50,14 +50,14 @@ Ne: Mühendislik ve yazı skill'leri. Bizi ilgilendirenler: `grill-me`/`grilling
 
 | Fikir | softwary'deki yeri | Durum |
 | --- | --- | --- |
-| Bütün dallar çözülene kadar, birer birer soru sorarak sorgulama | `discover`, `define` | Kısmen: `discover` var; derin sorgulama V2 (ince) ve V5 |
+| Bütün dallar çözülene kadar, birer birer soru sorarak sorgulama | `discover`, `define` | Kısmen: `discover` ve ince `define` (V2); derin sorgulama V5 |
 | Sözlük ve kararlar görüşme sürerken güncellenir | `CONTEXT.md`, ADR | Kısmen: şablonlar var |
-| Alan modelleme | Blueprint veri modeli | Planlı (V2 ince, V5 derin) |
-| Engelleme ilişkileri açık, uçtan uca ince iş blokları | Dilim `depends_on`, plan | Kısmen: dilim ve `depends_on` var; plan V2 |
+| Alan modelleme | Blueprint veri modeli | Kısmen: veri modeli ve `blueprint check` (V2); derin alan modelleme V5 |
+| Engelleme ilişkileri açık, uçtan uca ince iş blokları | Dilim `depends_on`, plan | Var (V2: `plan` skill'i, `NNN-S<n>` bağımlılıkları, `plan check`) |
 | Oturum devri | `handoff` | Planlı (V5) |
 | İnceleme iki eksenli: kod standartları ve spec'e uyum | `reviewer` | Kısmen |
-| Fabrika için "fren"ler: otomatik denetim, otomatik inceleme, insan incelemesi; tetikleyicileri yavaş açmak, her döngüyü birkaç denemede insana bağlamak | Kapılar, `reviewer`, tur sınırı | Kısmen: kapılar var; tur sınırı V2 |
-| Bir çalıştırma insanı beklemez, biter; insanın sonraki değişikliği yeni çalıştırmayı başlatır | Escalate ve devam (design §6.4) | Planlı (V2) |
+| Fabrika için "fren"ler: otomatik denetim, otomatik inceleme, insan incelemesi; tetikleyicileri yavaş açmak, her döngüyü birkaç denemede insana bağlamak | Kapılar, `reviewer`, tur sınırı | Var (V2: kapılar, tur sınırı, approver) |
+| Bir çalıştırma insanı beklemez, biter; insanın sonraki değişikliği yeni çalıştırmayı başlatır | Escalate ve devam (design §6.4) | Var (V2: `job escalate`, `job resume`, `run next` `waiting:`) |
 
 Alınmayan: issue tracker kurulumu ve triage etiketleri, TypeScript'e özgü skill'ler, uzak runner ve orkestratör altyapısı (softwary yerel çalışır, kendi sunucusu yoktur).
 
@@ -69,11 +69,11 @@ Ne: Süreç skill'leri: `brainstorming`, `writing-plans`, `executing-plans`, `su
 | --- | --- | --- |
 | Önce test, kırmızıyı görmeden kod yok | `implement`, `implementer` | Var |
 | Bitti demeden doğrulama çıktısı göster | Kural 2, `verify` | Var |
-| Dosya yolları ve doğrulama adımları olan plan | `docs/plans/`, plan aşaması | Kısmen: paketin kendi geliştirmesinde var; ürün için V2 |
-| Görev başına taze subagent, ardından inceleme | `implementer`, `reviewer` | Kısmen: tek dilim için var; döngüde V2 |
+| Dosya yolları ve doğrulama adımları olan plan | `docs/plans/`, plan aşaması | Var (V2: ürün için `plan` skill'i; paketin kendi planları `docs/plans/`) |
+| Görev başına taze subagent, ardından inceleme | `implementer`, `reviewer` | Var (V2: döngüde her iş temiz bağlamlı `implementer` ve `reviewer` çağrısıdır) |
 | Temiz test tabanıyla izole worktree | Paralel yürütme | Planlı (V4) |
 | Sistematik hata ayıklama (kök neden önce) | `diagnose` | Planlı (V7) |
-| İnceleme geri bildirimini körü körüne değil doğrulayarak almak | `implement` (değişiklik turu) | Planlı (V2) |
+| İnceleme geri bildirimini körü körüne değil doğrulayarak almak | `implement` (değişiklik turu) | Kısmen: `changes` kararı yeni tur açar (`job review`); ayrı skill yok |
 
 Alınmayan: "her yanıttan önce skill çağır" zorlaması (softwary aşamaları kapılarla bağlar, prompt baskısıyla değil); belge yolu `docs/superpowers/` (planlar `docs/plans/`'a taşındı).
 
@@ -83,7 +83,7 @@ Ne: Yaşam döngüsü skill'leri: fikir ve spec, planlama, artımlı uygulama, T
 
 | Fikir | softwary'deki yeri | Durum |
 | --- | --- | --- |
-| Yaşam döngüsü evreleri ve evre başına kapı | Hat (design §6) | Kısmen: v1 hattı var; tanım, döngü ve teslim V2–V7 |
+| Yaşam döngüsü evreleri ve evre başına kapı | Hat (design §6) | Kısmen: v1 hattı, tanım, blueprint, plan ve döngü var (V2); teslim V7 |
 | Kalite çıtası yazılı bir sözleşmedir; ajan onu sessizce indiremez (`constraint-driven-development`) | `commands.conf`, muafiyetler | Var: kapılar ve süreli muafiyetler (V1) |
 | Spec önce (`spec-driven-development`) | `specify`, `changes` kapısı | Var |
 | ADR'ler ve belgenin koddan sapmasının yakalanması | `adr` kapısı, drift | Kısmen: `adr` var; drift V7 |
@@ -107,12 +107,12 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 | Çalıştığını gerçek yapıt üzerinde kanıtla, vekile ya da öz bildirime güvenme | `verify`; kanıtın birleştirmede yeniden hesaplanması | Kısmen: `verify` var; yeniden hesaplama V3 |
 | Yalnızca bir çalıştırmayla kanıtlanan bulgular kalır (`interrogate`) | `reviewer` | Planlı (V3) |
 | Diff'in ötesindeki etki alanı ve güvenliğin tek bir olguyu çalıştırarak kanıtlanması (`blast-radius`) | `risk`, inceleme | Kısmen: `risk` var |
-| Geri alınabilir işte insanı bekleme | İlke 10 | Kısmen: ilke var; döngü V2 |
+| Geri alınabilir işte insanı bekleme | İlke 10 | Var (V2: döngü insanı beklemez, somut bir soruyla escalate eder) |
 | İşi her biri doğrulanabilir durumda biten küçük birimlere bölmek ve sırayı kendini kanıtlayacak şekilde dizmek | Dilimler, plan | Kısmen |
 | Paylaşılan durumu seri hale getirmeden önce ayırmak; işlemleri idempotent yapmak | Paralel yürütme, kilitler, çöküşten devam | Planlı (V4) |
 | Davranışı test et, gerçeklemeyi değil | `implement` | Planlı (skill metni) |
 | Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Planlı (V5) |
-| Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi | Planlı (V2) |
+| Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi (tek satır yanıt, ayrıntı dosyada) | Var (V2) |
 | **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Planlı (V5, V8; D-63) |
 
 ### pstack'in biçimsel doğrulama yaklaşımı

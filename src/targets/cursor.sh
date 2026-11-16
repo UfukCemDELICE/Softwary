@@ -6,4 +6,4 @@ set -eu
 . "$SOFTWARY_HOME/lib/target.sh"
 
 sw_copy_skills "$1" "$2/.cursor/skills"
-sw_copy_agents "$1" "$2/.cursor/agents"
+sw_copy_agents_plain "$1" "$2/.cursor/agents"

@@ -50,4 +50,25 @@ test_ac_m2_09_unreadable_spec() {
 	assert_match "$OUT" "^003 +\? +\? +\? +slices: none \(run \./softwary trace\)$"
 }
 
+# AC-V2-04: jobs are listed with state, round and minutes; the escalated ones
+# are repeated in a section of their own with their questions.
+test_ac_v2_04_status_jobs_and_escalations() {
+	setup_repo
+	snapshot >"$T/before"
+	sw status
+	assert_no_match "$OUT" "^job "
+	assert_no_match "$OUT" "waiting for you"
+	mkdir -p "$REPO/.softwary/state/jobs/001-S1" "$REPO/.softwary/state/jobs/001-S2"
+	printf 'state=gating\nround=2\nstarted=%s\ntokens=0\n' "$(($(date +%s) - 12 * 60))" >"$REPO/.softwary/state/jobs/001-S1/job"
+	printf 'state=escalated\nround=1\nstarted=%s\ntokens=0\n' "$(date +%s)" >"$REPO/.softwary/state/jobs/001-S2/job"
+	printf 'Which hash should passwords use?\n' >"$REPO/.softwary/state/jobs/001-S2/escalation"
+	sw status
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^job 001-S1 +gating +round 2 +1[23]m$"
+	assert_match "$OUT" "^job 001-S2 +escalated +round 1 +0m$"
+	assert_match "$OUT" "^waiting for you:$"
+	assert_match "$OUT" "^  001-S2: Which hash should passwords use\?$"
+	assert_no_match "$OUT" "^  001-S1:"
+}
+
 run_tests "$0"

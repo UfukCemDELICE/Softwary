@@ -18,10 +18,22 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/doctor.sh"
 # shellcheck source=src/lib/sync.sh
 . "$SOFTWARY_HOME/lib/sync.sh"
+# shellcheck source=src/lib/events.sh
+. "$SOFTWARY_HOME/lib/events.sh"
 # shellcheck source=src/lib/model.sh
 . "$SOFTWARY_HOME/lib/model.sh"
 # shellcheck source=src/lib/trace.sh
 . "$SOFTWARY_HOME/lib/trace.sh"
+# shellcheck source=src/lib/job.sh
+. "$SOFTWARY_HOME/lib/job.sh"
+# shellcheck source=src/lib/run.sh
+. "$SOFTWARY_HOME/lib/run.sh"
+# shellcheck source=src/lib/loopconf.sh
+. "$SOFTWARY_HOME/lib/loopconf.sh"
+# shellcheck source=src/lib/plan.sh
+. "$SOFTWARY_HOME/lib/plan.sh"
+# shellcheck source=src/lib/product.sh
+. "$SOFTWARY_HOME/lib/product.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/adr.sh
@@ -46,6 +58,36 @@ commands:
   model validate   check architecture/model/system.calm.json
   views [--check]  generate architecture/views/system.mmd from the model
                    (--check: report a missing or stale view, write nothing)
+  product check    check product/PRODUCT.md: sections, features, examples
+  blueprint check  check the model, the data model and that every product
+                   feature is delivered by a component
+  approve product|blueprint
+                   record the human's approval of the product definition or
+                   the blueprint (a digest of the files they bind)
+  plan check       check approvals, criterion-to-example links and the order
+                   of slices; includes trace
+  plan approve <spec>
+                   approve a draft spec when plan check is clean and the
+                   spec-analyst's analysis.md passes for this version of it
+  job start|gate <job>
+                   open the branch of a planned slice and take it into its
+                   first round; run the full verify on the job branch
+  job pr|ci|review|merged|show <job>
+                   push the branch and open the PR; check the PR's head and
+                   CI; read the review record; record a human's merge; print
+  job escalate <job> <question>
+                   hand the job to the human with one concrete question
+  job resume <job> <answer>, job abandon <job> <reason>
+                   continue an escalated job in a new round; give it up
+  run start|next|stop
+                   open the run (the checks it needs), print what to do next
+                   (start, resume, waiting, none or stop), close the run
+  merge <job>      recompute every condition on the commit to merge and merge
+                   the PR bound to it, or hand the job to the human
+  job event <job> <event> [detail]
+                   apply one transition of lib/transitions.json to a job
+  job tokens <job> <n>
+                   add n tokens to the job's and the run's totals
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -55,7 +97,7 @@ commands:
                    approved spec in the change (default base: integration_branch)
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: integration_branch)
-  status           summarise specs, slices and proposed ADRs
+  status           summarise approvals, specs, slices, proposed ADRs and jobs
   doctor           report installation and configuration problems
   upgrade <package-path>
                    replace the managed files with those of a newer package,
@@ -87,6 +129,34 @@ views)
 trace)
 	shift
 	sw_trace "$@"
+	;;
+approve)
+	shift
+	sw_approve "$@"
+	;;
+plan)
+	shift
+	sw_plan "$@"
+	;;
+job)
+	shift
+	sw_job "$@"
+	;;
+run)
+	shift
+	sw_run "$@"
+	;;
+merge)
+	shift
+	sw_merge_job "$@"
+	;;
+product)
+	shift
+	sw_product "$@"
+	;;
+blueprint)
+	shift
+	sw_blueprint "$@"
 	;;
 risk)
 	shift

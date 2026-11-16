@@ -1,0 +1,10 @@
+{
+  "entities": [
+    {
+      "id": "UNSET",
+      "name": "UNSET",
+      "fields": [{ "name": "UNSET", "type": "UNSET", "required": true }],
+      "relations": []
+    }
+  ]
+}

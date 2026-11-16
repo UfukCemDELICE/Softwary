@@ -144,6 +144,15 @@ sw_count() {
 	printf '%s\n' "$1" | grep -c . || :
 }
 
+# sw_slice_exists NNN-S<n>: true if that slice's file exists under specs/.
+sw_slice_exists() {
+	printf '%s\n' "$1" | grep -Eq '^[0-9]{3}-S[1-9][0-9]*$' || return 1
+	for _sx in "$SOFTWARY_ROOT"/specs/"${1%%-*}"-*/slices/"${1#*-}".md; do
+		[ -f "$_sx" ] && return 0
+	done
+	return 1
+}
+
 # sw_trace_slice SPECDIR FILE: checks one slice of the spec in SPECDIR.
 # Uses _drel, _sid, _status and _acs of the spec; adds to _owners and _tr_need.
 sw_trace_slice() {
@@ -159,8 +168,9 @@ sw_trace_slice() {
 	_v=$(sw_fm_get spec)
 	case $_v in '' | UNSET | "$_sid") ;; *) sw_tr_problem "$_lrel" "spec: '$_v' is not this slice's spec ($_sid)" ;; esac
 	sw_tr_enum "$_lrel" status "$SW_SLICE_STATUSES"
-	case $_status in approved | done) ;; *) sw_tr_problem "$_lrel" "spec $_sid is not approved" ;; esac
 	_lstatus=$(sw_fm_get status)
+	# The plan writes slices of a draft spec before it is approved: they stay planned.
+	case $_status in approved | done) ;; *) [ "$_lstatus" = planned ] || sw_tr_problem "$_lrel" "spec $_sid is not approved" ;; esac
 	for _a in $(sw_list "$(sw_fm_get acs)"); do
 		if ! printf '%s\n' "$_a" | grep -Eq "^AC-$_sid-[0-9][0-9]\$"; then
 			sw_tr_problem "$_lrel" "acs: '$_a' is not a criterion id of spec $_sid"
@@ -174,10 +184,12 @@ sw_trace_slice() {
 			esac
 		fi
 	done
+	# depends_on: S<n> (this spec) or NNN-S<n> (a slice of another spec).
 	for _d in $(sw_list "$(sw_fm_get depends_on)"); do
-		if [ "$_d" = "$_lname" ]; then
+		case $_d in S*) _dfull=$_sid-$_d ;; *) _dfull=$_d ;; esac
+		if [ "$_dfull" = "$_sid-$_lname" ]; then
 			sw_tr_problem "$_lrel" "depends_on: a slice cannot depend on itself"
-		elif [ ! -f "$1/slices/$_d.md" ]; then
+		elif ! sw_slice_exists "$_dfull"; then
 			sw_tr_problem "$_lrel" "depends_on: unknown slice '$_d'"
 		fi
 	done
@@ -360,12 +372,29 @@ sw_slice_counts() {
 		}'
 }
 
-# sw_status: one line per spec and per proposed ADR. Writes nothing.
+# sw_status_approvals: one line per approval, when the repository has a
+# product definition or an approvals.conf. Returns 2 for a malformed
+# approvals.conf (its problems are printed instead).
+sw_status_approvals() {
+	[ -f "$SOFTWARY_ROOT/$SW_PRODUCT_REL" ] || [ -f "$SOFTWARY_ROOT/$SW_APPROVALS_REL" ] || return 0
+	if ! _sa=$(sw_approvals_problems); then
+		printf '%s\n' "$_sa"
+		return 2
+	fi
+	for _sk in $SW_APPROVAL_KINDS; do
+		printf 'approval %s: %s\n' "$_sk" "$(sw_approval_state "$_sk")"
+	done
+}
+
+# sw_status: approvals, then one line per spec and per proposed ADR. Writes
+# nothing.
 sw_status() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary status\n' >&2
 		return 2
 	fi
+	_st_rc=0
+	sw_status_approvals || _st_rc=$?
 	_n=0
 	for _dir in "$SOFTWARY_ROOT"/specs/*/; do
 		_dir=${_dir%/}
@@ -392,5 +421,6 @@ sw_status() {
 		_b=${_f##*/}
 		printf 'ADR %-4s %-9s %s\n' "${_id:-${_b%%-*}}" proposed "$(sw_fm_get title)"
 	done
-	return 0
+	sw_status_jobs
+	return "$_st_rc"
 }
