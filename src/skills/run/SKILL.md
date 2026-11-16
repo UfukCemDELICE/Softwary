@@ -46,3 +46,12 @@ the scripts and the subagents do, and every agent replies with **one line**
 
 Never edit a spec, slice, review, config or state file yourself, and never
 weaken a check.
+
+## Excuses
+
+| Excuse | Reply |
+| --- | --- |
+| "The script refused; I will try it again." | Never retry a refused step. Report the refusal to the human. |
+| "CI is green, so I can merge by hand." | You never merge. The approver and the script decide. |
+| "The reviewer is slow; I will write the review." | Only the reviewer writes it, in a clean context. |
+| "Auto-merge is off, but the change is small." | Leave the PR to the human; say what `./softwary status` shows. |

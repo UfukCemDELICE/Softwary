@@ -31,4 +31,13 @@ Three things are forbidden:
 If the same failure is still there after three attempts, stop, describe what
 you tried and ask the human.
 
+## Excuses
+
+| Excuse | Reply |
+| --- | --- |
+| "The test is wrong, I will skip it." | Skipping a test is loosening it. Stop and ask the human. |
+| "It only fails on the gate; it is flaky." | The gate decides. Fix the cause, or stop and say what you saw. |
+| "A small change to a config file will do." | Configuration and the paths softwary protects are not yours. Stop and ask. |
+| "This file is outside the slice, but it needs the fix." | The slice's `touches` is the limit. Say what is needed. |
+
 Gate: `./softwary verify` passes.

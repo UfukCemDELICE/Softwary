@@ -193,4 +193,71 @@ test_ac_v2_15_agent_files() {
 	assert_contains "$SKILL" "max_job_tokens"
 }
 
+V3_FILES="$SKILLS/implement/SKILL.md $SKILLS/run/SKILL.md $SKILLS/setup/SKILL.md $SKILLS/review/SKILL.md $SKILLS/evaluate/SKILL.md $AGENTS/implementer.md $AGENTS/reviewer.md"
+
+# AC-V3-13: implement, implementer and run carry an excuse table: a heading
+# and at least three rows of excuse and reply.
+test_ac_v3_13_excuse_tables() {
+	for f in "$SKILLS/implement/SKILL.md" "$AGENTS/implementer.md" "$SKILLS/run/SKILL.md"; do
+		assert_contains "$f" "## Excuses"
+		rows=$(grep -c '^| ' "$f")
+		[ "$rows" -ge 5 ] || fail "${f#"$PKG_ROOT"/}: the excuse table has fewer than three rows ($((rows - 2)))"
+	done
+}
+
+# AC-V3-13: a finding of the reviewer carries evidence; no evidence, no
+# finding; the output of guard goes into the review.
+test_ac_v3_13_evidence_only_findings() {
+	for f in "$AGENTS/reviewer.md" "$PKG_ROOT/src/templates/artifacts/review.md"; do
+		assert_contains "$f" "evidence:"
+		assert_contains "$f" "no evidence"
+	done
+	assert_contains "$AGENTS/reviewer.md" "./softwary guard"
+	assert_contains "$AGENTS/reviewer.md" "do not write it"
+}
+
+# AC-V3-13: the evaluate skill prepares the cases, has each one reviewed in a
+# clean context, scores them and leaves the result to the human; it reaches
+# the three tools.
+test_ac_v3_13_evaluate_skill() {
+	f=$SKILLS/evaluate/SKILL.md
+	[ -f "$f" ] || fail "src/skills/evaluate/SKILL.md missing"
+	assert_contains "$f" "./softwary eval prepare"
+	assert_contains "$f" "./softwary eval score"
+	assert_contains "$f" "clean context"
+	assert_contains "$f" "reviewer"
+	assert_contains "$f" "eval.conf"
+	assert_contains "$f" "leave"
+	setup_repo
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	for d in .claude .cursor .agents; do
+		[ -s "$REPO/$d/skills/softwary-evaluate/SKILL.md" ] || fail "$d/skills/softwary-evaluate/SKILL.md missing"
+	done
+}
+
+# AC-V3-13: setup asks for test-skip.conf and for min_catch_percent.
+test_ac_v3_13_setup_asks() {
+	assert_contains "$SKILL" "test-skip.conf"
+	assert_contains "$SKILL" "min_catch_percent"
+	assert_contains "$PKG_ROOT/src/rules/core.md" "protected paths"
+}
+
+# AC-V3-13: none of them is longer than 80 lines or names a command that help
+# does not list.
+test_ac_v3_13_short_and_known_commands() {
+	known=$(sh "$PKG_ROOT/src/bin/softwary" help | awk '/^commands:/ { on = 1; next } on && /^  [a-z]/ { print $1 }' | sort -u)
+	for f in $V3_FILES; do
+		[ -f "$f" ] || fail "${f#"$PKG_ROOT"/} missing"
+		[ "$(wc -l <"$f" | tr -d ' ')" -le 80 ] || fail "${f#"$PKG_ROOT"/} is longer than 80 lines"
+		for c in $(commands_in "$f"); do
+			printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "${f#"$PKG_ROOT"/} uses unknown command: ./softwary $c"
+		done
+	done
+	for c in $(commands_in "$SKILLS/run/SKILL.md"); do
+		case $c in run | job | status) ;; *) fail "run uses ./softwary $c" ;; esac
+	done
+}
+
 run_tests "$0"

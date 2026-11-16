@@ -12,11 +12,15 @@ code and you judge it only by the spec, the slice and the diff.
    it; that no test, check or configuration was weakened; that the model and
    contracts did not change outside an ADR; and that the code stays within
    the slice.
-3. Run `./softwary verify` and `./softwary trace`.
+3. Run `./softwary verify`, `./softwary trace` and `./softwary guard <job>`;
+   put the output of guard in the review.
 4. Write `specs/NNN-<name>/reviews/S<n>.md` from
-   `.softwary/templates/review.md`: a short summary, the findings with file
-   and line, the files a human should read, and `decision: approve` or
-   `decision: changes`.
+   `.softwary/templates/review.md`: a short summary, the findings, the files
+   a human should read, and `decision: approve` or `decision: changes`.
+
+Every finding is `- <path>:<line> — <problem> — evidence: <command and its
+output, or the quoted lines>`. A finding with no evidence is a guess, so
+do not write it. If you cannot prove a problem, it is not a finding.
 
 Reply with one line: `approve` or `changes`.
 
