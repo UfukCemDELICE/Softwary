@@ -71,4 +71,28 @@ test_ac_v2_04_status_jobs_and_escalations() {
 	assert_no_match "$OUT" "^  001-S1:"
 }
 
+# AC-V4-14: status shows the worktree of a job, the merge queue, the drainer
+# and why a halted run stopped.
+test_ac_v4_14_status_parallel() {
+	setup_repo
+	mkdir -p "$REPO/.softwary/state/jobs/001-S1" "$REPO/.softwary/state/jobs/001-S2" "$REPO/.softwary/worktrees/001-S1"
+	printf 'gitdir: x\n' >"$REPO/.softwary/worktrees/001-S1/.git"
+	printf 'state=queued\nround=1\nstarted=%s\ntokens=0\n' "$(date +%s)" >"$REPO/.softwary/state/jobs/001-S1/job"
+	printf 'state=implementing\nround=1\nstarted=%s\ntokens=0\n' "$(date +%s)" >"$REPO/.softwary/state/jobs/001-S2/job"
+	printf '001-S1\n' >"$REPO/.softwary/state/queue"
+	sleep 30 &
+	holder=$!
+	mkdir -p "$REPO/.softwary/state/locks/merge"
+	printf 'pid=%s host=%s time=%s\n' "$holder" "$(uname -n)" "$(date +%s)" >"$REPO/.softwary/state/locks/merge/owner"
+	printf 'started=%s\ntokens=0\nhalted=integration red after 001-S1 (revert PR #4)\n' "$(date +%s)" >"$REPO/.softwary/state/run"
+	sw status
+	kill "$holder"
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^job 001-S1 +queued +round 1 +0m .softwary/worktrees/001-S1$"
+	assert_match "$OUT" "^job 001-S2 +implementing +round 1 +0m$"
+	assert_match "$OUT" "^queue: 001-S1$"
+	assert_match "$OUT" "^drainer: pid $holder on $(uname -n) since "
+	assert_match "$OUT" "^run halted: integration red after 001-S1 \(revert PR #4\)$"
+}
+
 run_tests "$0"

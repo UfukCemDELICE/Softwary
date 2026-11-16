@@ -30,6 +30,9 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    may use, or `NONE: <reason>`. `min_catch_percent` is the share of the
    evaluation's broken changes the reviewer must catch before merges happen
    without a human; propose 90 and ask. They start `UNSET`; `doctor` fails until set.
+   `concurrency` (1 to 3, default 3) is how many jobs run at once. Also ask for
+   `bootstrap` in `commands.conf`: the command that prepares a fresh worktree
+   (install dependencies), or `NONE: <reason>`; the loop will not start with it `UNSET`.
    `.softwary/config/models.conf` names the model of each subagent; keep it
    unless the human wants another.
 6. `.softwary/config/risk.conf`: ask for the `default` tier (R1, R2 or R3) and
