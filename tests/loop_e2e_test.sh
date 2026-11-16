@@ -34,6 +34,9 @@ test_ac_v2_16_empty_repo_to_two_merged_slices() {
 	assert_eq "$RC" 0 "approve blueprint"
 	add_plan
 	rm -r "$REPO/specs/002-tasks"
+	for n in 1 2; do
+		fm_set "$REPO/specs/001-login/slices/S$n.md" touches "src/api, tests"
+	done
 	fm_set "$REPO/specs/001-login/spec.md" status draft
 	digest=$(git -C "$REPO" hash-object "specs/001-login/spec.md")
 	printf -- '---\nspec: 001\ndigest: %s\ndecision: pass\n---\n\n# Analysis of 001\n' "$digest" >"$REPO/specs/001-login/analysis.md"

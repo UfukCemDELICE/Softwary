@@ -35,6 +35,8 @@ merge_repo() {
 	sw approve blueprint
 	add_plan
 	conf_set test_paths tests
+	risk_set 'src/pay/*' R3
+	[ -z "${MERGE_TOUCHES-}" ] || fm_set "$REPO/$SLICE_REL" touches "$MERGE_TOUCHES"
 	mkdir -p "$REPO/tests"
 	printf '# covers AC-001-01\n' >"$REPO/tests/test_login.py"
 	add_origin
@@ -142,8 +144,9 @@ test_ac_v2_12_each_refusal() {
 	[ -z "$(git -C "$REPO" status --porcelain)" ] || fail "the aborted merge left the tree dirty"
 
 	restore
-	printf '\n' >>"$REPO/product/PRODUCT.md"
-	commit_all "product edited"
+	other_push product/PRODUCT.md "$(cat "$REPO/product/PRODUCT.md")
+
+edited on main"
 	refused "product approval is stale"
 
 	restore
@@ -152,13 +155,13 @@ test_ac_v2_12_each_refusal() {
 	refused "the slice is not done with an approving review"
 
 	restore
-	risk_set 'specs/*' R3
-	commit_all "risky"
+	other_push .softwary/config/risk.conf "default = R1
+specs/* = R3"
 	refused "risk tier is R3"
 
 	restore
-	conf_set test false
-	commit_all "red test"
+	sed 's/^test = .*/test = false/' "$REPO/.softwary/config/commands.conf" >"$T/commands.conf"
+	other_push .softwary/config/commands.conf "$(cat "$T/commands.conf")"
 	refused "verify fails"
 	[ -s "$REPO/$JOBS_REL/$JOB/merge.log" ] || fail "merge.log missing"
 
@@ -193,6 +196,70 @@ test_ac_v2_12_sync_creates_new_sha() {
 	assert_contains "$T/gh.log" "pr checks 1 --watch"
 	[ -f "$REPO/news.txt" ] || fail "main does not have the news"
 	assert_eq "$(job_get state)" merged "state"
+}
+
+# AC-V3-06: a guard violation after the sync refuses the merge with the first
+# violation and the count of the rest; verify does not run, gh does not merge.
+test_ac_v3_06_merge_refuses_guard() {
+	MERGE_TOUCHES="src/api/login.py, tests/"
+	merge_repo
+	mkdir -p "$REPO/lib"
+	printf 'x\n' >"$REPO/lib/other.txt"
+	printf 'y\n' >"$REPO/lib/second.txt"
+	commit_all "outside touches"
+	refused "guard: outside touches: lib/other.txt (+1 more)"
+	[ ! -e "$REPO/$JOBS_REL/$JOB/merge.log" ] || fail "verify ran"
+
+	restore
+	mkdir -p "$REPO/docs"
+	printf 'x\n' >"$REPO/docs/CODEOWNERS"
+	commit_all "protected"
+	refused "guard: protected: docs/CODEOWNERS"
+
+	# the job turns its own test command into `true`: the protected path
+	# is refused before that command can be trusted or run.
+	restore
+	conf_set test "touch $T/verify-ran"
+	commit_all "commands.conf"
+	refused "guard: protected: .softwary/config/commands.conf"
+	[ ! -e "$T/verify-ran" ] || fail "the job's own test command ran"
+	[ ! -e "$REPO/$JOBS_REL/$JOB/merge.log" ] || fail "verify ran"
+
+	restore
+	rm "$REPO/tests/test_login.py"
+	commit_all "test deleted"
+	refused "guard: test deleted: tests/test_login.py"
+
+	restore
+	conf_del test_paths
+	commit_all "no test_paths"
+	sw merge $JOB
+	assert_eq "$RC" 1 "exit code when guard cannot run"
+	assert_contains "$REPO/$JOBS_REL/$JOB/escalation" "merge refused: guard could not run"
+}
+
+# AC-V3-06: what the sync brought in from the integration branch, even a
+# protected path, is not the job's change.
+test_ac_v3_06_sync_paths_not_counted() {
+	merge_repo
+	other_push docs/CODEOWNERS "@owner"
+	other_push news.txt "news"
+	sw merge $JOB
+	assert_eq "$RC" 0 "exit code"
+	assert_eq "$(job_get state)" merged "state"
+	assert_contains "$T/gh.log" "pr merge 1 --squash --match-head-commit"
+}
+
+# AC-V3-08: the spec says R1, but the diff touches a path that risk.conf puts
+# in R3: a human merges.
+test_ac_v3_08_r3_from_paths() {
+	MERGE_TOUCHES="src/api/login.py, src/pay/"
+	merge_repo
+	mkdir -p "$REPO/src/pay"
+	printf 'code\n' >"$REPO/src/pay/charge.py"
+	commit_all "pay"
+	assert_eq "$(sed -n 's/^risk: //p' "$REPO/specs/001-login/spec.md")" R1 "the spec's own risk"
+	refused "risk tier is R3 (a human merges)"
 }
 
 run_tests "$0"
