@@ -36,6 +36,8 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/product.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
+# shellcheck source=src/lib/guard.sh
+. "$SOFTWARY_HOME/lib/guard.sh"
 # shellcheck source=src/lib/adr.sh
 . "$SOFTWARY_HOME/lib/adr.sh"
 # shellcheck source=src/lib/changes.sh
@@ -88,6 +90,10 @@ commands:
                    apply one transition of lib/transitions.json to a job
   job tokens <job> <n>
                    add n tokens to the job's and the run's totals
+  guard <job> [--base <ref>]
+                   report protected paths, paths outside the slice's touches
+                   and loosened tests in the job's diff (default base:
+                   integration_branch)
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -161,6 +167,10 @@ blueprint)
 risk)
 	shift
 	sw_risk "$@"
+	;;
+guard)
+	shift
+	sw_guard "$@"
 	;;
 status)
 	shift

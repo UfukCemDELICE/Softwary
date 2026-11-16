@@ -57,6 +57,22 @@ sw_plan_unordered() {
 		}'
 }
 
+# sw_plan_touches_problems REL TOUCHES: the problems (one "REL: ..." line
+# each) of a slice's touches: it is empty, or an entry leaves the repository.
+sw_plan_touches_problems() {
+	_pt_n=0
+	while IFS= read -r _pt_e; do
+		[ -n "$_pt_e" ] || continue
+		_pt_n=$((_pt_n + 1))
+		case $_pt_e in
+		/* | .. | ../* | */.. | */../*) printf "%s: touches: '%s' is outside the repository\n" "$1" "$_pt_e" ;;
+		esac
+	done <<EOF
+$(sw_list "$2")
+EOF
+	[ "$_pt_n" -gt 0 ] || printf '%s: touches is empty\n' "$1"
+}
+
 # sw_plan_problems [SPECDIR]: prints the problems of the plan, one per line;
 # with SPECDIR (a directory name under specs/) only those that concern that
 # spec, and the approvals. Returns 0 clean, 1 problems.
@@ -79,7 +95,9 @@ sw_plan_problems() {
 		_pl_id=${_pl_dn%%-*}
 		sw_fm_read "$_pl_dir/spec.md"
 		_pl_status=$(sw_fm_get status)
+		_pl_chk=0
 		if { [ -z "$_pl_only" ] || [ "$_pl_only" = "$_pl_dn" ]; } && { [ "$_pl_status" = draft ] || [ "$_pl_status" = approved ]; }; then
+			_pl_chk=1
 			_pl_rel=specs/$_pl_dn/spec.md
 			_pl_links=$(sw_plan_criteria "$_pl_dir/spec.md")
 			while read -r _pl_ac _pl_ex; do
@@ -111,6 +129,11 @@ LINKS
 			_pl_nodes="${_pl_nodes}N $_pl_id-$_pl_sn
 "
 			sw_fm_read "$_pl_sf"
+			if [ "$_pl_chk" -eq 1 ]; then
+				_pl_tp=$(sw_plan_touches_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$(sw_fm_get touches)")
+				[ -z "$_pl_tp" ] || _pl_out="${_pl_out}$_pl_tp
+"
+			fi
 			for _pl_d in $(sw_list "$(sw_fm_get depends_on)"); do
 				case $_pl_d in S*) _pl_d=$_pl_id-$_pl_d ;; esac
 				_pl_edges="${_pl_edges}E $_pl_id-$_pl_sn $_pl_d
