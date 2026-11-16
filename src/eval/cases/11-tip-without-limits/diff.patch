@@ -1,0 +1,73 @@
+diff --git a/specs/002-tip/slices/S1.md b/specs/002-tip/slices/S1.md
+index 96af228..e8b1175 100644
+--- a/specs/002-tip/slices/S1.md
++++ b/specs/002-tip/slices/S1.md
+@@ -5,7 +5,7 @@ goal: Add a tip and split the total with it
+ acs: AC-002-01, AC-002-02, AC-002-03
+ depends_on: 001-S1
+ touches: src/tip.sh, src/split.sh, tests/
+-status: in-progress
++status: review
+ ---
+ 
+ # S1: Tip
+diff --git a/src/split.sh b/src/split.sh
+index 3d13c98..dc85de0 100644
+--- a/src/split.sh
++++ b/src/split.sh
+@@ -23,3 +23,10 @@ split_even() {
+ 		_se_i=$((_se_i + 1))
+ 	done
+ }
++
++# split_with_tip TOTAL PEOPLE PERCENT: adds the tip (see tip.sh) to TOTAL, then
++# splits the result as split_even does.
++split_with_tip() {
++	_st_total=$(add_tip "$1" "$3") || return $?
++	split_even "$_st_total" "$2"
++}
+diff --git a/src/tip.sh b/src/tip.sh
+new file mode 100644
+index 0000000..53aa813
+--- /dev/null
++++ b/src/tip.sh
+@@ -0,0 +1,8 @@
++# shellcheck shell=sh
++# Tips. Amounts are whole cents.
++
++# add_tip TOTAL PERCENT: prints TOTAL plus PERCENT percent of it, rounded to
++# the nearest cent, halves rounding up.
++add_tip() {
++	echo $(($1 + ($1 * $2 + 50) / 100))
++}
+diff --git a/tests/tip_test.sh b/tests/tip_test.sh
+new file mode 100644
+index 0000000..3728ea5
+--- /dev/null
++++ b/tests/tip_test.sh
+@@ -0,0 +1,25 @@
++# shellcheck shell=sh
++# shellcheck disable=SC2154,SC2329 # root and assert_eq come from run.sh; tests are called by it
++# shellcheck source=/dev/null
++. "$root/src/tip.sh"
++# shellcheck source=/dev/null
++. "$root/src/split.sh"
++
++# AC-002-01
++test_tip_is_added_and_rounded_half_up() {
++	assert_eq "$(add_tip 1000 15)" 1150
++	assert_eq "$(add_tip 1001 15)" 1151
++	assert_eq "$(add_tip 1010 15)" 1162
++	assert_eq "$(add_tip 1000 0)" 1000
++}
++
++# AC-002-02: the limits of the percent are checked where the tip is typed in.
++
++# AC-002-03
++test_split_with_tip_adds_up() {
++	sum=0
++	for s in $(split_with_tip 1010 3 15); do
++		sum=$((sum + s))
++	done
++	assert_eq "$sum" 1162
++}

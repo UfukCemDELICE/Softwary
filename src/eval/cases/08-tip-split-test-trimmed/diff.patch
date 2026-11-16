@@ -1,0 +1,108 @@
+diff --git a/specs/002-tip/slices/S1.md b/specs/002-tip/slices/S1.md
+index 96af228..e8b1175 100644
+--- a/specs/002-tip/slices/S1.md
++++ b/specs/002-tip/slices/S1.md
+@@ -5,7 +5,7 @@ goal: Add a tip and split the total with it
+ acs: AC-002-01, AC-002-02, AC-002-03
+ depends_on: 001-S1
+ touches: src/tip.sh, src/split.sh, tests/
+-status: in-progress
++status: review
+ ---
+ 
+ # S1: Tip
+diff --git a/src/split.sh b/src/split.sh
+index 3d13c98..dc85de0 100644
+--- a/src/split.sh
++++ b/src/split.sh
+@@ -23,3 +23,10 @@ split_even() {
+ 		_se_i=$((_se_i + 1))
+ 	done
+ }
++
++# split_with_tip TOTAL PEOPLE PERCENT: adds the tip (see tip.sh) to TOTAL, then
++# splits the result as split_even does.
++split_with_tip() {
++	_st_total=$(add_tip "$1" "$3") || return $?
++	split_even "$_st_total" "$2"
++}
+diff --git a/src/tip.sh b/src/tip.sh
+new file mode 100644
+index 0000000..756078b
+--- /dev/null
++++ b/src/tip.sh
+@@ -0,0 +1,19 @@
++# shellcheck shell=sh
++# Tips. Amounts are whole cents.
++
++# add_tip TOTAL PERCENT: prints TOTAL plus PERCENT percent of it, rounded to
++# the nearest cent, halves rounding up. A percent that is not a whole number
++# from 0 to 100 is refused with status 2.
++add_tip() {
++	case $2 in
++	'' | *[!0-9]* | 0?*)
++		echo "tip: percent must be a whole number from 0 to 100" >&2
++		return 2
++		;;
++	esac
++	if [ "$2" -gt 100 ]; then
++		echo "tip: percent must be a whole number from 0 to 100" >&2
++		return 2
++	fi
++	echo $(($1 + ($1 * $2 + 50) / 100))
++}
+diff --git a/tests/split_test.sh b/tests/split_test.sh
+index f55b5d9..7c6dfbc 100644
+--- a/tests/split_test.sh
++++ b/tests/split_test.sh
+@@ -12,11 +12,6 @@ test_shares_add_up() {
+ 	assert_eq "$sum" 1001
+ }
+ 
+-# AC-001-02
+-test_remainder_goes_to_first() {
+-	assert_eq "$(split_even 100 3 | paste -sd' ' -)" "34 33 33"
+-}
+-
+ # AC-001-03
+ test_zero_people_refused() {
+ 	split_even 100 0 2>/dev/null
+diff --git a/tests/tip_test.sh b/tests/tip_test.sh
+new file mode 100644
+index 0000000..f5a22ab
+--- /dev/null
++++ b/tests/tip_test.sh
+@@ -0,0 +1,33 @@
++# shellcheck shell=sh
++# shellcheck disable=SC2154,SC2329 # root and assert_eq come from run.sh; tests are called by it
++# shellcheck source=/dev/null
++. "$root/src/tip.sh"
++# shellcheck source=/dev/null
++. "$root/src/split.sh"
++
++# AC-002-01
++test_tip_is_added_and_rounded_half_up() {
++	assert_eq "$(add_tip 1000 15)" 1150
++	assert_eq "$(add_tip 1001 15)" 1151
++	assert_eq "$(add_tip 1010 15)" 1162
++	assert_eq "$(add_tip 1000 0)" 1000
++}
++
++# AC-002-02
++test_tip_percent_is_checked() {
++	add_tip 1000 101 2>/dev/null
++	assert_eq "$?" 2
++	add_tip 1000 abc 2>/dev/null
++	assert_eq "$?" 2
++	add_tip 1000 "" 2>/dev/null
++	assert_eq "$?" 2
++}
++
++# AC-002-03
++test_split_with_tip_adds_up() {
++	sum=0
++	for s in $(split_with_tip 1010 3 15); do
++		sum=$((sum + s))
++	done
++	assert_eq "$sum" 1162
++}

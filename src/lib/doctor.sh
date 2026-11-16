@@ -240,6 +240,8 @@ EOF
 	sw_doctor_conf loop.conf "${SW_LOOP_ERRORS-}"
 	sw_models_load || :
 	sw_doctor_conf models "${SW_MODELS_ERRORS-}"
+	sw_testskip_load || :
+	sw_doctor_conf test-skip "${SW_TS_ERRORS-}"
 
 	if [ -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ]; then
 		sw_line "model" PASS

@@ -23,5 +23,14 @@ architecture model or a contract: that needs the architect stage, so reply
 stop and reply `advice: <the question, what you tried>`. You do not review
 your own work.
 
+## Excuses
+
+| Excuse | Reply |
+| --- | --- |
+| "The test is wrong, I will skip it." | Skipping is loosening. Reply `blocked: <the test and why>`. |
+| "It only fails on the gate; it is flaky." | The gate decides. Fix the cause or reply `advice: <question>`. |
+| "A small change to a config file will do." | Protected paths are not yours: `blocked: <what is needed>`. |
+| "This file is outside the slice, but it needs the fix." | `touches` is the limit: `blocked: <what is needed>`. |
+
 Reply with one line and nothing else: `done`, `blocked: <reason>` or
 `advice: <question>`. Details belong in the commit and the slice notes.

@@ -32,6 +32,7 @@ last_event() {
 loop_repo() {
 	setup_repo
 	conf_all true
+	conf_set test_paths tests
 	[ -z "${1-}" ] || conf_set test "$1"
 	add_product
 	add_blueprint
@@ -165,6 +166,51 @@ test_ac_v2_08_gate_preconditions() {
 	sw job gate $JOB
 	assert_eq "$RC" 1 "exit code in the wrong state"
 	assert_contains "$OUT" "not gating"
+}
+
+# AC-V3-05: a guard violation is gate_fail at once: verify does not run, there
+# is no retry, the event carries the first violation and the gate log all.
+test_ac_v3_05_gate_guard_fails_without_verify() {
+	# shellcheck disable=SC2016 # the script is written as is, to expand when it runs
+	printf 'echo run >>%s/count\n' "$T" >"$T/count.sh"
+	gate_repo "sh $T/count.sh"
+	mkdir -p "$REPO/lib"
+	printf 'x\n' >"$REPO/lib/other.txt"
+	printf '# changed\n' >>"$REPO/.github/CODEOWNERS"
+	commit_all "violations"
+	sw job gate $JOB
+	assert_eq "$RC" 0 "exit code"
+	assert_eq "$(job_get state)" implementing "state"
+	assert_eq "$(job_get round)" 2 "round"
+	[ ! -e "$T/count" ] || fail "verify ran despite the violation"
+	[ ! -e "$REPO/$JOBS_REL/$JOB/gate-1.log.retry" ] || fail "the gate was retried"
+	assert_eq "$(last_event | jq -r .event)" gate_fail "event"
+	assert_eq "$(last_event | jq -r .detail)" "guard: protected: .github/CODEOWNERS" "detail is the first violation"
+	assert_contains "$REPO/$JOBS_REL/$JOB/gate-1.log" "guard: protected: .github/CODEOWNERS"
+	assert_contains "$REPO/$JOBS_REL/$JOB/gate-1.log" "guard: outside touches: lib/other.txt"
+}
+
+# AC-V3-05: a guard that cannot run (configuration) is exit 2 and changes nothing.
+test_ac_v3_05_gate_guard_config_error() {
+	gate_repo true
+	conf_del test_paths
+	commit_all "no test_paths"
+	sw job gate $JOB
+	assert_eq "$RC" 2 "exit code"
+	assert_contains "$OUT" "test_paths"
+	assert_eq "$(job_get state)" gating "state"
+}
+
+# AC-V3-05: a clean diff is the old gate: guard first, then verify.
+test_ac_v3_05_gate_passes_after_guard() {
+	gate_repo true
+	mkdir -p "$REPO/src/api"
+	printf 'x\n' >"$REPO/src/api/login.py"
+	fm_set "$REPO/specs/001-login/slices/S1.md" status in-progress
+	commit_all "work"
+	sw job gate $JOB
+	assert_eq "$RC" 0 "exit code"
+	assert_eq "$(job_get state)" pr "state"
 }
 
 # AC-V2-11: the round after max_rounds is an escalation, not a round.

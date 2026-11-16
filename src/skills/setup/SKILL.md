@@ -14,7 +14,10 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    confirm it, and ask outright for any you cannot find. Use `NONE: <reason>`
    only with a reason the human gave you. Set `test_paths` to the test
    directories and `src_paths` to the source directories (every change under
-   them needs a spec).
+   them needs a spec). Also ask which markers of the test framework skip a
+   test or focus a run, and write them as patterns in
+   `.softwary/config/test-skip.conf` (or `NONE: <reason>` if there is no
+   framework yet); `guard` reports every added line that matches one.
 3. Ask for the two branches and set them in `commands.conf`:
    `integration_branch` (where finished work is merged, through pull
    requests; changes are checked against it) and `production_branch` (what
@@ -24,7 +27,9 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
 5. `.softwary/config/loop.conf`: the limits of the loop. Keep the defaults
    if the human agrees (3 rounds, 45 minutes a job, 240 minutes a run) and ask
    for `max_job_tokens` and `max_run_tokens`: how many tokens a job and a run
-   may use, or `NONE: <reason>`. They start `UNSET`; `doctor` fails until set.
+   may use, or `NONE: <reason>`. `min_catch_percent` is the share of the
+   evaluation's broken changes the reviewer must catch before merges happen
+   without a human; propose 90 and ask. They start `UNSET`; `doctor` fails until set.
    `.softwary/config/models.conf` names the model of each subagent; keep it
    unless the human wants another.
 6. `.softwary/config/risk.conf`: ask for the `default` tier (R1, R2 or R3) and

@@ -65,6 +65,7 @@ setup_repo() {
 	fi
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
 	loop_conf
+	skip_conf
 	if [ "$_sync" -eq 1 ]; then
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
@@ -98,11 +99,47 @@ max_run_minutes = 240
 concurrency = 1
 max_job_tokens = NONE: tests do not count tokens
 max_run_tokens = NONE: tests do not count tokens
+min_catch_percent = 90
 LOOP
+}
+
+# add_eval [CAUGHT BROKEN]: writes a valid eval.conf for the repo's reviewer
+# (the digest is the one `eval score` computes: the reviewer's agent files and
+# model). The default is a perfect score, 10 of 10.
+add_eval() {
+	_ev_f=$REPO/.softwary/config/eval.conf
+	mkdir -p "$REPO/.softwary/config"
+	{
+		printf 'caught = %s\n' "${1:-10}"
+		printf 'broken = %s\n' "${2:-10}"
+		printf 'false_alarms = 0\nclean = 2\n'
+		printf 'digest = %s\n' "$(eval_digest)"
+		printf 'date = 2026-11-16\n'
+	} >"$_ev_f"
+}
+
+# eval_digest: the digest of the reviewer, computed the way eval score does.
+eval_digest() {
+	{
+		for _f in .softwary/agents/reviewer.md .softwary/local/agents/reviewer.md; do
+			[ -f "$REPO/$_f" ] || continue
+			printf '%s %s\n' "$(git -C "$REPO" hash-object -- "$_f")" "$_f"
+		done
+		printf 'model %s\n' "$(sed -n 's/^reviewer = //p' "$REPO/.softwary/config/models.conf")"
+	} | git -C "$REPO" hash-object --stdin
 }
 
 loop_set() {
 	file_set "$REPO/$LOOP_CONF_REL" "$1" "$2"
+}
+
+# skip_conf: writes a test-skip.conf with two patterns (V3).
+skip_conf() {
+	mkdir -p "$REPO/.softwary/config"
+	cat >"$REPO/.softwary/config/test-skip.conf" <<'SKIP'
+\.skip\(
+\.only\(
+SKIP
 }
 
 # add_product: copies the sample product definition into the repo.

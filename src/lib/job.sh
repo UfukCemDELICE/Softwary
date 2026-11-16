@@ -323,8 +323,9 @@ sw_job_on_branch() {
 	sw_job_clean || { printf 'job %s: working tree is not clean\n' "$1"; return 2; }
 }
 
-# sw_job_gate JOB: the full verify on the job branch; one retry tells a flaky
-# test from a failing one.
+# sw_job_gate JOB: guard, then the full verify on the job branch; one retry of
+# the verify tells a flaky test from a failing one. A guard violation is
+# deterministic: it is gate_fail at once, with no verify and no retry.
 sw_job_gate() {
 	_jg_job=$1
 	[ -f "$(sw_job_file "$_jg_job")" ] || { printf 'job: unknown job %s\n' "$_jg_job"; return 2; }
@@ -333,6 +334,13 @@ sw_job_gate() {
 	sw_job_on_branch "$_jg_job" || return 2
 	_jg_base=$(sw_job_verify_base "$(sw_job_integration)")
 	_jg_log=$SOFTWARY_ROOT/$SW_JOBS_REL/$_jg_job/gate-$(sw_job_get "$_jg_job" round).log
+	_jg_rc=0
+	sh "$SOFTWARY_HOME/bin/softwary" guard "$_jg_job" --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
+	[ "$_jg_rc" -ne 2 ] || { cat "$_jg_log"; return 2; }
+	if [ "$_jg_rc" -ne 0 ]; then
+		sw_job_apply "$_jg_job" gate_fail "$(head -n 1 "$_jg_log")"
+		return $?
+	fi
 	_jg_rc=0
 	sh "$SOFTWARY_HOME/bin/softwary" verify --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
 	if [ "$_jg_rc" -eq 0 ]; then

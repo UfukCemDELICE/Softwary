@@ -56,12 +56,27 @@ sw_merge_job() {
 	fi
 	sw_job_push "$_mg_job" >/dev/null || { sw_merge_refuse "$_mg_job" "push failed"; return 1; }
 	_mg_sha=$(git -C "$SOFTWARY_ROOT" rev-parse HEAD)
-	# 3. approvals
+	# 3. guard: protected paths, touches and loosened tests, before anything
+	# the job could have changed (verify, approvals) is trusted
+	_mg_ref=$(sw_job_verify_base "$_mg_base")
+	_mg_grc=0
+	_mg_g=$(sh "$SOFTWARY_HOME/bin/softwary" guard "$_mg_job" --base "$_mg_ref" 2>&1) || _mg_grc=$?
+	if [ "$_mg_grc" -eq 2 ]; then
+		sw_merge_refuse "$_mg_job" "guard could not run: $(printf '%s\n' "$_mg_g" | head -n 1)"
+		return 1
+	elif [ "$_mg_grc" -ne 0 ]; then
+		_mg_first=$(printf '%s\n' "$_mg_g" | head -n 1)
+		_mg_more=$(($(sw_count "$_mg_g") - 2))
+		[ "$_mg_more" -le 0 ] || _mg_first="$_mg_first (+$_mg_more more)"
+		sw_merge_refuse "$_mg_job" "$_mg_first"
+		return 1
+	fi
+	# 4. approvals
 	for _mg_k in $SW_APPROVAL_KINDS; do
 		_mg_a=$(sw_approval_state "$_mg_k") || _mg_a=malformed
 		[ "$_mg_a" = approved ] || { sw_merge_refuse "$_mg_job" "$_mg_k approval is $_mg_a"; return 1; }
 	done
-	# 4. the slice is done and its review approves
+	# 5. the slice is done and its review approves
 	sw_fm_read "$_mg_sfile"
 	_mg_ss=$(sw_fm_get status)
 	_mg_rd=
@@ -73,25 +88,34 @@ sw_merge_job() {
 		sw_merge_refuse "$_mg_job" "the slice is not done with an approving review"
 		return 1
 	fi
-	# 5. risk
-	_mg_ref=$(sw_job_verify_base "$_mg_base")
+	# 6. risk (a tier of the job's own paths counts as much as the spec's)
 	_mg_risk=$(sh "$SOFTWARY_HOME/bin/softwary" risk "${_mg_job%%-*}" --base "$_mg_ref" 2>&1) || _mg_risk="risk: could not be computed"
 	case $(printf '%s\n' "$_mg_risk" | tail -n 1) in
 	"risk "*R3) sw_merge_refuse "$_mg_job" "risk tier is R3 (a human merges)"; return 1 ;;
 	"risk "*R[12]) ;;
 	*) sw_merge_refuse "$_mg_job" "risk could not be computed"; return 1 ;;
 	esac
-	# 6. the full verify
+	# 7. the full verify
 	if ! sh "$SOFTWARY_HOME/bin/softwary" verify --base "$_mg_ref" >"$_mg_dir/merge.log" 2>&1; then
 		sw_merge_refuse "$_mg_job" "verify fails (see $SW_JOBS_REL/$_mg_job/merge.log)"
 		return 1
 	fi
-	# 7. the PR's head is this commit and its checks pass
+	# 8. the PR's head is this commit and its checks pass
 	if ! sw_job_pr_green "$_mg_job" "$_mg_sha" "$_mg_sha"; then
 		sw_merge_refuse "$_mg_job" "$SW_JOB_WHY"
 		return 1
 	fi
-	# 8. merge exactly this commit
+	# 9. the evaluation of the reviewer must be current and meet the threshold,
+	# or the merge is left to the human
+	_mg_ev=$(sw_eval_state)
+	case $_mg_ev in
+	ok*) ;;
+	*)
+		sw_merge_refuse "$_mg_job" "auto-merge is off (evaluation $_mg_ev); merge the PR yourself and run ./softwary job merged $_mg_job"
+		return 1
+		;;
+	esac
+	# 10. merge exactly this commit
 	if ! gh pr merge "$(sw_job_get "$_mg_job" pr)" --squash --match-head-commit "$_mg_sha" >"$_mg_dir/merge-gh.log" 2>&1; then
 		sw_merge_refuse "$_mg_job" "gh pr merge failed"
 		return 1
