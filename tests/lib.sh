@@ -65,6 +65,7 @@ setup_repo() {
 	fi
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
 	loop_conf
+	skip_conf
 	if [ "$_sync" -eq 1 ]; then
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
@@ -103,6 +104,15 @@ LOOP
 
 loop_set() {
 	file_set "$REPO/$LOOP_CONF_REL" "$1" "$2"
+}
+
+# skip_conf: writes a test-skip.conf with two patterns (V3).
+skip_conf() {
+	mkdir -p "$REPO/.softwary/config"
+	cat >"$REPO/.softwary/config/test-skip.conf" <<'SKIP'
+\.skip\(
+\.only\(
+SKIP
 }
 
 # add_product: copies the sample product definition into the repo.

@@ -182,4 +182,129 @@ test_ac_v3_07_plan_check_touches() {
 	assert_no_match "$OUT" "touches"
 }
 
+# rebase_base MESSAGE: commits the working tree as the new base: main (local
+# and origin) moves to it and the job branch stands on it.
+rebase_base() {
+	commit_all "$1"
+	git -C "$REPO" branch -f main HEAD
+	git -C "$REPO" push -q --no-verify -f origin main
+	git -C "$REPO" fetch -q origin
+}
+
+# AC-V3-03: a deleted file under test_paths is reported; other deletions are not.
+test_ac_v3_03_test_deleted() {
+	guard_repo
+	put tests/test_extra.py "assert True"
+	put src/api/gone.py "x"
+	rebase_base "more files"
+	set_touches "src/api/login.py, src/api/gone.py, tests/"
+	rm "$REPO/tests/test_extra.py" "$REPO/src/api/gone.py"
+	commit_all "delete"
+	sw guard $JOB --base main
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^guard: test deleted: tests/test_extra\.py$"
+	assert_no_match "$OUT" "src/api/gone"
+	assert_no_match "$OUT" "criterion dropped"
+}
+
+# AC-V3-03: a criterion id that the base's tests carry and HEAD's do not is
+# reported, over several test_paths; an id that only moved is not.
+test_ac_v3_03_criterion_dropped() {
+	guard_repo
+	conf_set test_paths "tests spec_tests"
+	put tests/test_a.py "# covers AC-001-01
+# covers AC-001-02"
+	put spec_tests/t_b.py "# covers AC-001-03"
+	put docs/other.md "AC-001-04 is mentioned outside the tests"
+	rebase_base "tests"
+	set_touches "src/api/login.py, tests/, spec_tests/"
+	put tests/test_a.py "# covers AC-001-01 only"
+	put spec_tests/t_b.py "nothing"
+	put tests/test_c.py "# covers AC-001-01"
+	commit_all "drop"
+	sw guard $JOB --base main
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^guard: criterion dropped: AC-001-02$"
+	assert_match "$OUT" "^guard: criterion dropped: AC-001-03$"
+	assert_no_match "$OUT" "AC-001-01|AC-001-04"
+	assert_match "$OUT" "^guard: 2 problem\(s\)$"
+}
+
+# AC-V3-03: an added line that matches test-skip.conf is reported with its
+# file and text; a marker that was already there, one removed, and one
+# outside test_paths are not.
+test_ac_v3_03_skip_marker_added() {
+	guard_repo
+	put tests/test_login.py "# covers AC-001-01
+old.skip('already there')"
+	rebase_base "base"
+	set_touches "src/api/login.py, tests/"
+	put tests/test_login.py "# covers AC-001-01
+old.skip('already there')
+y.skip('flaky')"
+	put tests/test_new.py "it.only('focus')"
+	put src/api/login.py "z.skip('not a test')"
+	commit_all "markers"
+	sw guard $JOB --base main
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^guard: skip marker: tests/test_login\.py: y\.skip\('flaky'\)$"
+	assert_match "$OUT" "^guard: skip marker: tests/test_new\.py: it\.only\('focus'\)$"
+	assert_no_match "$OUT" "already there|not a test"
+	assert_match "$OUT" "^guard: 2 problem\(s\)$"
+}
+
+# AC-V3-04: test-skip.conf must have a pattern or NONE with a reason; a bad
+# or missing file, and unset test_paths, are configuration errors (2), and
+# doctor reports the file on a line of its own.
+test_ac_v3_04_test_skip_conf() {
+	guard_repo
+	skip_file=$REPO/.softwary/config/test-skip.conf
+	printf '# only a comment\n\n' >"$skip_file"
+	sw doctor
+	assert_match "$OUT" "^test-skip +FAIL \(.*no patterns: add your test framework's skip and focus markers, or NONE: <reason>"
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "no patterns"
+	printf '\\.skip\\(\n(unclosed\n' >"$skip_file"
+	sw doctor
+	assert_match "$OUT" "^test-skip +FAIL \(.*test-skip\.conf:2: invalid pattern"
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "invalid pattern"
+	assert_contains "$OUT" "test-skip.conf:2: invalid pattern"
+	printf 'NONE\n' >"$skip_file"
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "NONE without a reason"
+	printf 'NONE: no test framework yet\n\\.skip\\(\n' >"$skip_file"
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "NONE next to patterns"
+	printf 'NONE: no test framework yet\n' >"$skip_file"
+	sw doctor
+	assert_match "$OUT" "^test-skip +PASS"
+	put tests/test_login.py "# covers AC-001-01
+x.skip('ignored under NONE')"
+	rebase_base "marker"
+	set_touches "src/api/login.py, tests/"
+	put tests/test_login.py "# covers AC-001-01
+x.skip('ignored under NONE')
+y.skip('too')"
+	commit_all "marker"
+	sw guard $JOB --base main
+	assert_eq "$RC" 0 "NONE turns the marker check off"
+	rm "$skip_file"
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "missing file"
+	sw doctor
+	assert_match "$OUT" "^test-skip +FAIL"
+	skip_conf
+	conf_del test_paths
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "test_paths not set"
+	assert_contains "$OUT" "test_paths"
+	conf_set test_paths UNSET
+	sw guard $JOB --base main
+	assert_eq "$RC" 2 "test_paths UNSET"
+	conf_set test_paths tests
+	sw guard $JOB --base main
+	assert_eq "$RC" 1 "the marker is reported once the file is right"
+}
+
 run_tests "$0"

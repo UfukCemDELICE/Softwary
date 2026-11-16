@@ -11,6 +11,8 @@
 # anything else is exactly that path. The project cannot change this list.
 SW_PROTECTED=".softwary/ .github/ CODEOWNERS docs/CODEOWNERS softwary product/ architecture/model/ architecture/data/ architecture/contracts/"
 
+SW_TESTSKIP_REL=.softwary/config/test-skip.conf
+
 sw_guard_usage() {
 	printf 'usage: ./softwary guard <job> [--base <ref>]\n' >&2
 }
@@ -51,6 +53,54 @@ sw_guard_touches_of() {
 	sw_list "$(sw_fm_get touches)"
 }
 
+# sw_testskip_load: parses test-skip.conf. Sets SW_TS_PATTERNS (one ERE per
+# line), SW_TS_NONE (1 for `NONE: <reason>`) and SW_TS_ERRORS (one
+# "REL[:LINE]: problem" per line). Returns 0 when the file is usable, else 2.
+sw_testskip_load() {
+	SW_TS_PATTERNS='' SW_TS_NONE=0 SW_TS_ERRORS=''
+	_ts_f=$SOFTWARY_ROOT/$SW_TESTSKIP_REL
+	if [ ! -f "$_ts_f" ]; then
+		SW_TS_ERRORS="$SW_TESTSKIP_REL: file not found; rerun install.sh
+"
+		return 2
+	fi
+	_ts_n=0
+	while IFS= read -r _ts_l || [ -n "$_ts_l" ]; do
+		_ts_n=$((_ts_n + 1))
+		_ts_l=$(sw_trim "$(printf '%s' "$_ts_l" | tr -d '\r')")
+		case $_ts_l in '' | '#'*) continue ;; esac
+		case $_ts_l in
+		NONE | NONE:*)
+			if [ -z "$(sw_none_reason "$_ts_l")" ]; then
+				SW_TS_ERRORS="${SW_TS_ERRORS}$SW_TESTSKIP_REL:$_ts_n: 'NONE' needs a reason: 'NONE: <reason>'
+"
+			else
+				SW_TS_NONE=1
+			fi
+			continue
+			;;
+		esac
+		_ts_rc=0
+		printf '' | grep -E -e "$_ts_l" >/dev/null 2>&1 || _ts_rc=$?
+		if [ "$_ts_rc" -eq 2 ]; then
+			SW_TS_ERRORS="${SW_TS_ERRORS}$SW_TESTSKIP_REL:$_ts_n: invalid pattern '$_ts_l'
+"
+			continue
+		fi
+		SW_TS_PATTERNS="${SW_TS_PATTERNS}$_ts_l
+"
+	done <"$_ts_f"
+	if [ "$SW_TS_NONE" -eq 1 ] && [ -n "$SW_TS_PATTERNS" ]; then
+		SW_TS_ERRORS="${SW_TS_ERRORS}$SW_TESTSKIP_REL: NONE must be the only entry (remove the patterns or the NONE line)
+"
+	fi
+	if [ -z "$SW_TS_ERRORS" ] && [ "$SW_TS_NONE" -eq 0 ] && [ -z "$SW_TS_PATTERNS" ]; then
+		SW_TS_ERRORS="$SW_TESTSKIP_REL: no patterns: add your test framework's skip and focus markers, or NONE: <reason>
+"
+	fi
+	[ -z "$SW_TS_ERRORS" ]
+}
+
 # sw_guard JOB [--base REF]
 sw_guard() {
 	_gd_job=
@@ -82,6 +132,7 @@ sw_guard() {
 	fi
 	sw_base_commit "$_gd_ref" guard || return 2
 	_gd_mb=$SW_BASE_COMMIT
+	sw_guard_config || return 2
 	_gd_changed=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only "$_gd_mb" HEAD --)
 	_gd_out=
 	sw_guard_run
@@ -100,9 +151,25 @@ sw_guard_add() {
 "
 }
 
+# sw_guard_config: test_paths and test-skip.conf must be usable. Sets
+# _gd_tp. Prints the reason and returns 2 when they are not.
+sw_guard_config() {
+	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
+	_gd_tp=
+	! sw_conf_has test_paths || _gd_tp=$(sw_conf_get test_paths)
+	case $_gd_tp in
+	'' | UNSET | NONE*)
+		printf 'guard: test_paths is not set in %s\n' "$SW_CONF_REL"
+		return 2
+		;;
+	esac
+	sw_testskip_load || { printf '%s' "$SW_TS_ERRORS"; return 2; }
+}
+
 # sw_guard_run: the checks, on the variables of sw_guard.
 sw_guard_run() {
 	sw_guard_paths
+	sw_guard_tests
 }
 
 # sw_guard_paths: protected paths and paths outside touches.
@@ -137,4 +204,45 @@ TOUCHES
 	done <<CHANGED
 $_gd_changed
 CHANGED
+}
+
+# sw_guard_tests: deleted test files, criterion ids that left the tests and
+# added lines that match a skip or focus marker, all under test_paths.
+sw_guard_tests() {
+	set -f
+	# shellcheck disable=SC2086 # test_paths is a space-separated list of paths
+	set -- $_gd_tp
+	set +f
+	_gd_del=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only --diff-filter=D "$_gd_mb" HEAD -- "$@")
+	while IFS= read -r _gd_p; do
+		[ -z "$_gd_p" ] || sw_guard_add "test deleted" "$_gd_p"
+	done <<DELETED
+$_gd_del
+DELETED
+	_gd_ids='AC-[A-Z0-9]+-[0-9]{2}'
+	_gd_old=$(git -C "$SOFTWARY_ROOT" grep -h -o -E "$_gd_ids" "$_gd_mb" -- "$@" | sort -u)
+	_gd_new=$(git -C "$SOFTWARY_ROOT" grep -h -o -E "$_gd_ids" HEAD -- "$@" | sort -u)
+	while IFS= read -r _gd_id; do
+		[ -n "$_gd_id" ] || continue
+		printf '%s\n' "$_gd_new" | grep -Fqx -e "$_gd_id" || sw_guard_add "criterion dropped" "$_gd_id"
+	done <<OLD
+$_gd_old
+OLD
+	[ "$SW_TS_NONE" -eq 0 ] || return 0
+	_gd_pf=$(mktemp "${TMPDIR:-/tmp}/softwary-guard.XXXXXX") || return 2
+	printf '%s' "$SW_TS_PATTERNS" >"$_gd_pf"
+	_gd_added=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff -U0 --no-renames "$_gd_mb" HEAD -- "$@" | tr -d '\r' | awk '
+		/^diff --git / { hdr = 1; next }
+		/^@@/ { hdr = 0; next }
+		hdr && /^\+\+\+ / { f = substr($0, 7); next }
+		!hdr && /^\+/ { print f "\t" substr($0, 2) }')
+	while IFS='	' read -r _gd_p _gd_l; do
+		[ -n "$_gd_p" ] || continue
+		if printf '%s\n' "$_gd_l" | grep -Eq -f "$_gd_pf"; then
+			sw_guard_add "skip marker" "$_gd_p: $(sw_trim "$_gd_l")"
+		fi
+	done <<ADDED
+$_gd_added
+ADDED
+	rm -f "$_gd_pf"
 }
