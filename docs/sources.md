@@ -30,9 +30,9 @@ Ne: Bir Claude Code skill'i (orkestratör), sekiz ajan, üç script (`job`, `gat
 | İş durumunu tek bir script yazar, geçersiz geçişi reddeder (`TRANSITIONS` tablosu) | `job` scripti, `transitions.json` | Var (V2: tek yazar `sw_job_apply`, tablodan okunur) |
 | Her ajan dosya okur, tek dosya yazar, tek satır yanıt verir; ayrıntı dosyadadır, orkestratörün bağlamı küçük kalır | Ajan sözleşmesi | Var (V2: tek satır yanıt, ayrıntı dosyada) |
 | Kapı (`checks.sh`) incelemeden önce çalışır; kapıdan geçmeyen işi inceleyici görmez | `verify` | Var (V2: `job gate` PR'dan önce çalışır; kapıdan geçmeyen iş inceleyiciye gitmez) |
-| Kapı ana daldaki denetim kopyasıyla çalışır; dal kendisini yargılayan denetimi değiştiremez | Birleştirme scripti (design §4) | Planlı (V3) |
-| Korunan yollar (fabrikanın kendi denetimleri ve yapılandırması) | Korunan yollar (design §4) | Planlı (V3) |
-| Test korunmaz, ama zayıflatılmış ya da atlanmış test inceleyicide düşer | Test gevşetme denetimi | Planlı (V3) |
+| Kapı ana daldaki denetim kopyasıyla çalışır; dal kendisini yargılayan denetimi değiştiremez | Birleştirme scripti (design §4) | Var (V3: korunan yol denetimi `verify`'dan önce gelir; kapı ve birleştirme entegrasyon dalındaki yapılandırma ve denetimlerle çalışır, D-89) |
+| Korunan yollar (fabrikanın kendi denetimleri ve yapılandırması) | Korunan yollar (design §4) | Var (V3: `guard`, D-85) |
+| Test korunmaz, ama zayıflatılmış ya da atlanmış test inceleyicide düşer | Test gevşetme denetimi | Var (V3: `guard` silinen test, kaybolan kriter kimliği ve `test-skip.conf` işaretleri, D-87) |
 | Risk ve yüzey (UI, güvenlik) inceleyicileri ve modelleri seçer; seçim prompt'ta değil yapılandırmadadır | `risk`, `models.conf` | Kısmen: `risk` ve `models.conf` var (V2); yüzeye göre seçim sonra |
 | Approver birleştirir ya da somut bir soruyla escalate eder; insan PR'ı birleştirerek onaylar | Approver ajanı | Var (V2: `decision.md`, `merge` ya da `job escalate`) |
 | Birleştirmeden önce ana dalla eşitle ve kapıyı yeniden çalıştır | Birleştirme scripti | Var (V2: sıralı, `merge` eşitler ve her koşulu yeni SHA'da hesaplar); paralelde kuyruk V4 |
@@ -89,7 +89,7 @@ Ne: Yaşam döngüsü skill'leri: fikir ve spec, planlama, artımlı uygulama, T
 | ADR'ler ve belgenin koddan sapmasının yakalanması | `adr` kapısı, drift | Kısmen: `adr` var; drift V7 |
 | Taze bağlamda karşıt görüşlü inceleme (`doubt-driven-development`) | `reviewer`, `spec-analyst` | Kısmen |
 | İnce, doğrulanabilir artımlar (`incremental-implementation`) | Dilimler | Var |
-| "Bahane tabloları" (ajanın kapıyı atlatmak için kullandığı gerekçeler ve karşılıkları) | Skill metinleri | Planlı (V3) |
+| "Bahane tabloları" (ajanın kapıyı atlatmak için kullandığı gerekçeler ve karşılıkları) | Skill metinleri | Var (V3: `implement`, `implementer`, `run` ve `evaluate`'te `## Excuses`, D-95) |
 | Teslimde gözlemlenebilirlik, kademeli yayın, geri alma planı | `ship` | Planlı (V7) |
 
 Alınmayan: tarayıcı ve ön yüz skill'leri (stack'e özgü), performans optimizasyonu.
@@ -104,8 +104,8 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 | --- | --- | --- |
 | İlkeler küçük, ayrı, birleştirilebilir dosyalardır | `src/rules/` | Kısmen: tek dosya (`core.md`) |
 | Tekrar eden bir düzeltmeyi metin olarak değil yapı olarak (lint, kontrol, script) kodlamak | İlke 1 (talimat değil kapı) | Var |
-| Çalıştığını gerçek yapıt üzerinde kanıtla, vekile ya da öz bildirime güvenme | `verify`; kanıtın birleştirmede yeniden hesaplanması | Kısmen: `verify` var; yeniden hesaplama V3 |
-| Yalnızca bir çalıştırmayla kanıtlanan bulgular kalır (`interrogate`) | `reviewer` | Planlı (V3) |
+| Çalıştığını gerçek yapıt üzerinde kanıtla, vekile ya da öz bildirime güvenme | `verify`; kanıtın birleştirmede yeniden hesaplanması | Var (V3: `merge` `guard`, risk ve `verify`'ı birleştirilen SHA'da yeniden hesaplar) |
+| Yalnızca bir çalıştırmayla kanıtlanan bulgular kalır (`interrogate`) | `reviewer` | Var (V3: kanıtsız bulgu yazılmaz, `evidence:` alanı, D-95) |
 | Diff'in ötesindeki etki alanı ve güvenliğin tek bir olguyu çalıştırarak kanıtlanması (`blast-radius`) | `risk`, inceleme | Kısmen: `risk` var |
 | Geri alınabilir işte insanı bekleme | İlke 10 | Var (V2: döngü insanı beklemez, somut bir soruyla escalate eder) |
 | İşi her biri doğrulanabilir durumda biten küçük birimlere bölmek ve sırayı kendini kanıtlayacak şekilde dizmek | Dilimler, plan | Kısmen |

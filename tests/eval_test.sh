@@ -199,6 +199,8 @@ test_ac_v3_11_score_writes_conf() {
 	assert_match "$conf" "^digest = [0-9a-f]{40,64}$"
 	assert_match "$conf" "^date = [0-9]{4}-[0-9]{2}-[0-9]{2}$"
 	assert_match "$OUT" "caught $((broken - 1)) of $broken"
+	sw status
+	assert_match "$OUT" "^evaluation: ok 90$"
 	before=$(sed -n 's/^digest = //p' "$conf")
 	printf '\nA new instruction.\n' >>"$REPO/.softwary/agents/reviewer.md"
 	sw eval score "$T/ev"
