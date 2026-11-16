@@ -4,8 +4,10 @@
 # guard <job> [--base <ref>] recomputes, from the committed diff of a job
 # branch, what a merging script must not take on trust: a change to a
 # protected path, a path outside the slice's `touches`, and a loosened test.
-# `job gate` and `merge` call it; so can a reviewer. Exit: 0 no problem,
-# 1 problems (one `guard: <kind>: <detail>` line each), 2 usage or setup.
+# `job gate` and `merge` call it; so can a reviewer. The job's branch is
+# softwary/<job> when that branch exists (the main checkout need not be on it),
+# else HEAD. Exit: 0 no problem, 1 problems (one `guard: <kind>: <detail>`
+# line each), 2 usage or setup.
 
 # The protected paths: a trailing '/' is a directory (everything below it),
 # anything else is exactly that path. The project cannot change this list.
@@ -130,10 +132,14 @@ sw_guard() {
 		sw_default_base guard || return 2
 		_gd_ref=$SW_DEFAULT_BASE
 	fi
-	sw_base_commit "$_gd_ref" guard || return 2
+	_gd_head=HEAD
+	if git -C "$SOFTWARY_ROOT" rev-parse -q --verify "refs/heads/softwary/$_gd_job" >/dev/null 2>&1; then
+		_gd_head=refs/heads/softwary/$_gd_job
+	fi
+	sw_base_commit "$_gd_ref" guard "$_gd_head" || return 2
 	_gd_mb=$SW_BASE_COMMIT
 	sw_guard_config || return 2
-	_gd_changed=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only "$_gd_mb" HEAD --)
+	_gd_changed=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only "$_gd_mb" "$_gd_head" --)
 	_gd_out=
 	sw_guard_run
 	if [ -z "$_gd_out" ]; then
@@ -178,7 +184,8 @@ sw_guard_paths() {
 	_gd_tf=$(mktemp "${TMPDIR:-/tmp}/softwary-guard.XXXXXX") || return 2
 	# The slice is read as the plan had it at the base: a job cannot widen
 	# its own touches.
-	if ! git -C "$SOFTWARY_ROOT" show "$_gd_mb:$_gd_srel" >"$_gd_tf" 2>/dev/null; then
+	if ! git -C "$SOFTWARY_ROOT" show "$_gd_mb:$_gd_srel" >"$_gd_tf" 2>/dev/null &&
+		! git -C "$SOFTWARY_ROOT" show "$_gd_head:$_gd_srel" >"$_gd_tf" 2>/dev/null; then
 		cat "$SW_JOB_SLICEFILE" >"$_gd_tf"
 	fi
 	_gd_touches=$(sw_guard_touches_of "$_gd_tf")
@@ -213,7 +220,7 @@ sw_guard_tests() {
 	# shellcheck disable=SC2086 # test_paths is a space-separated list of paths
 	set -- $_gd_tp
 	set +f
-	_gd_del=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only --diff-filter=D "$_gd_mb" HEAD -- "$@")
+	_gd_del=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-only --diff-filter=D "$_gd_mb" "$_gd_head" -- "$@")
 	while IFS= read -r _gd_p; do
 		[ -z "$_gd_p" ] || sw_guard_add "test deleted" "$_gd_p"
 	done <<DELETED
@@ -221,7 +228,7 @@ $_gd_del
 DELETED
 	_gd_ids='AC-[A-Z0-9]+-[0-9]{2}'
 	_gd_old=$(git -C "$SOFTWARY_ROOT" grep -h -o -E "$_gd_ids" "$_gd_mb" -- "$@" | sort -u)
-	_gd_new=$(git -C "$SOFTWARY_ROOT" grep -h -o -E "$_gd_ids" HEAD -- "$@" | sort -u)
+	_gd_new=$(git -C "$SOFTWARY_ROOT" grep -h -o -E "$_gd_ids" "$_gd_head" -- "$@" | sort -u)
 	while IFS= read -r _gd_id; do
 		[ -n "$_gd_id" ] || continue
 		printf '%s\n' "$_gd_new" | grep -Fqx -e "$_gd_id" || sw_guard_add "criterion dropped" "$_gd_id"
@@ -231,7 +238,7 @@ OLD
 	[ "$SW_TS_NONE" -eq 0 ] || return 0
 	_gd_pf=$(mktemp "${TMPDIR:-/tmp}/softwary-guard.XXXXXX") || return 2
 	printf '%s' "$SW_TS_PATTERNS" >"$_gd_pf"
-	_gd_added=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff -U0 --no-renames "$_gd_mb" HEAD -- "$@" | tr -d '\r' | awk '
+	_gd_added=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff -U0 --no-renames "$_gd_mb" "$_gd_head" -- "$@" | tr -d '\r' | awk '
 		/^diff --git / { hdr = 1; next }
 		/^@@/ { hdr = 0; next }
 		hdr && /^\+\+\+ / { f = substr($0, 7); next }

@@ -6,17 +6,18 @@
 
 EVENTS_REL=.softwary/state/events.log
 
-# implement N: what the implementer does for slice S<N> of spec 001: the
-# slice in progress, a test that names the criterion, the code, the slice in
-# review, one commit on the job branch.
+# implement N: what the implementer does for slice S<N> of spec 001 in the
+# job's worktree: the slice in progress, a test that names the criterion, the
+# code, the slice in review, one commit on the job branch.
 implement() {
+	wt=$(job_wt "001-S$1")
 	slice=specs/001-login/slices/S$1.md
-	fm_set "$REPO/$slice" status in-progress
-	mkdir -p "$REPO/tests" "$REPO/src/api"
-	printf '# covers AC-001-0%s\n' "$1" >"$REPO/tests/test_login_$1.py"
-	printf 'code %s\n' "$1" >"$REPO/src/api/login_$1.py"
-	fm_set "$REPO/$slice" status review
-	commit_all "implement S$1"
+	fm_set "$wt/$slice" status in-progress
+	mkdir -p "$wt/tests" "$wt/src/api"
+	printf '# covers AC-001-0%s\n' "$1" >"$wt/tests/test_login_$1.py"
+	printf 'code %s\n' "$1" >"$wt/src/api/login_$1.py"
+	fm_set "$wt/$slice" status review
+	commit_in "$wt" "implement S$1"
 }
 
 # loop_repo [--no-eval]: product, blueprint and plan approved, an origin, a
@@ -64,8 +65,7 @@ through_review() {
 	assert_eq "$RC" 0 "pr $job"
 	sw job ci "$job"
 	assert_eq "$RC" 0 "ci $job"
-	mkdir -p "$REPO/specs/001-login/reviews"
-	printf -- '---\nslice: S%s\ndecision: approve\n---\n\n# Review of S%s\n' "$n" "$n" >"$REPO/specs/001-login/reviews/S$n.md"
+	review_job "$job"
 	sw job review "$job"
 	assert_eq "$RC" 0 "review $job"
 	printf -- '---\ndecision: merge\n---\n\nReady.\n' >"$REPO/.softwary/state/jobs/$job/decision.md"
@@ -91,7 +91,7 @@ test_ac_v2_16_empty_repo_to_two_merged_slices() {
 		assert_eq "$(git -C "$REPO" show "origin/main:specs/001-login/slices/S$n.md" | sed -n 's/^status: //p')" "done" "S$n on the integration branch"
 		assert_eq "$(sed -n 's/^state=//p' "$REPO/.softwary/state/jobs/001-S$n/job")" merged "state of 001-S$n"
 	done
-	each='start implemented gate_pass pr_opened ci_pass review_approve merged'
+	each='start implemented gate_pass pr_opened ci_pass review_approve enqueue merged'
 	want="approve_product approve_blueprint plan_approve run_start"
 	for n in 1 2; do want="$want $each"; done
 	assert_eq "$(jq -r .event "$REPO/$EVENTS_REL" | paste -sd' ' -)" "$want" "event sequence"

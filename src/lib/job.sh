@@ -2,11 +2,13 @@
 # softwary: `job`. Sourced by bin/softwary. POSIX sh.
 #
 # A job is one slice (NNN-S<n>) on its way to the integration branch. Its
-# state lives in .softwary/state/jobs/<job>/job (key=value lines: state,
-# round, started, tokens, branch, pr); the only writer of `state` is
-# sw_job_apply, which follows lib/transitions.json and logs every change in
-# the event log. The run (.softwary/state/run: started, tokens, stopped)
-# bounds the jobs together.
+# state lives in $SW_STATE_ROOT/.softwary/state/jobs/<job>/job (key=value
+# lines: state, round, started, tokens, branch, pr, merge_sha); the only writer
+# of `state` is sw_job_apply, which follows lib/transitions.json and logs every
+# change in the event log. The run (.softwary/state/run: started, tokens,
+# stopped, halted) bounds the jobs together. Every write of these files runs
+# under the state lock (lock.sh). The job's own work happens in its worktree
+# (worktree.sh).
 
 SW_JOBS_REL=.softwary/state/jobs
 SW_RUN_REL=.softwary/state/run
@@ -23,6 +25,10 @@ sw_kvf_get() {
 }
 
 sw_kvf_put() {
+	sw_state_locked sw_kvf_put_raw "$@"
+}
+
+sw_kvf_put_raw() {
 	mkdir -p "$(dirname "$1")" || return 2
 	[ -f "$1" ] || : >"$1"
 	_kp_k=$2 _kp_v=$3 awk '
@@ -32,8 +38,18 @@ sw_kvf_put() {
 		END { if (!done) print k "=" v }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
 
+# sw_kvf_del FILE KEY: removes KEY from a state file.
+sw_kvf_del() {
+	sw_state_locked sw_kvf_del_raw "$@"
+}
+
+sw_kvf_del_raw() {
+	[ -f "$1" ] || return 0
+	_kd_k=$2 awk 'index($0, ENVIRON["_kd_k"] "=") != 1' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+}
+
 sw_job_file() {
-	printf '%s' "$SOFTWARY_ROOT/$SW_JOBS_REL/$1/job"
+	printf '%s' "$SW_STATE_ROOT/$SW_JOBS_REL/$1/job"
 }
 
 sw_job_get() {
@@ -51,11 +67,17 @@ sw_job_valid_id() {
 
 # sw_run_open: true while a run is open (started and not stopped).
 sw_run_open() {
-	[ -f "$SOFTWARY_ROOT/$SW_RUN_REL" ] && [ -z "$(sw_kvf_get "$SOFTWARY_ROOT/$SW_RUN_REL" stopped)" ]
+	[ -f "$SW_STATE_ROOT/$SW_RUN_REL" ] && [ -z "$(sw_kvf_get "$SW_STATE_ROOT/$SW_RUN_REL" stopped)" ]
 }
 
 sw_run_get() {
-	sw_kvf_get "$SOFTWARY_ROOT/$SW_RUN_REL" "$1"
+	sw_kvf_get "$SW_STATE_ROOT/$SW_RUN_REL" "$1"
+}
+
+# sw_run_halted: true while the run is open and halted (the integration
+# branch went red after a merge; see queue.sh).
+sw_run_halted() {
+	sw_run_open && [ -n "$(sw_run_get halted)" ]
 }
 
 # sw_job_target FROM EVENT: prints "<to> <round>" of the table's transition
@@ -108,9 +130,15 @@ sw_job_budget() {
 # sw_job_apply JOB EVENT [DETAIL]: the one function that changes a job's state.
 # Applies the table's transition, or escalates the job when a limit is
 # exceeded (the limits are not checked for escalate, resume, abandon and
-# human_merged). Returns 0 applied (an escalation counts), 1 no such
-# transition (nothing changes), 2 unknown job or unusable loop.conf.
+# human_merged, enqueue and merged: a job that is queued or merged is not
+# turned back by the clock). Returns 0 applied (an escalation counts), 1 no
+# such transition (nothing changes), 2 unknown job, unusable loop.conf or a
+# state lock that cannot be had. The whole change is one state section.
 sw_job_apply() {
+	sw_state_locked sw_job_apply_locked "$@"
+}
+
+sw_job_apply_locked() {
 	_ja_job=$1
 	_ja_ev=$2
 	_ja_detail=${3-}
@@ -134,7 +162,7 @@ sw_job_apply() {
 	_ja_round=${_ja_round:-0}
 	_ja_started=
 	case $_ja_ev in
-	escalate | resume | abandon | human_merged) ;;
+	escalate | resume | abandon | human_merged | enqueue | merged) ;;
 	*)
 		if [ -n "$(sw_job_target "$_ja_from" escalate)" ]; then
 			_ja_over=$(sw_job_budget "$_ja_job")
@@ -161,40 +189,46 @@ sw_job_apply() {
 	sw_job_put "$_ja_job" round "$_ja_round" || return 2
 	[ -z "$_ja_started" ] || sw_job_put "$_ja_job" started "$_ja_started"
 	if [ "$_ja_to" = escalated ] && [ -n "$_ja_detail" ]; then
-		printf '%s\n' "$_ja_detail" >"$SOFTWARY_ROOT/$SW_JOBS_REL/$_ja_job/escalation"
+		printf '%s\n' "$_ja_detail" >"$SW_STATE_ROOT/$SW_JOBS_REL/$_ja_job/escalation"
 	fi
 	sw_event "$_ja_job" "$_ja_ev" "$_ja_from" "$_ja_to" "$_ja_detail" || return 2
 	printf 'job %s: %s -> %s%s\n' "$_ja_job" "$_ja_from" "$_ja_to" "${_ja_detail:+ ($_ja_detail)}"
 }
 
-# sw_job_locate JOB: sets SW_JOB_SPEC (directory name under specs/), SW_JOB_SLICE
-# (S<n>) and SW_JOB_SLICEFILE; returns 1 when the job names no slice.
+# sw_job_locate JOB [ROOT]: sets SW_JOB_SPEC (directory name under specs/),
+# SW_JOB_SLICE (S<n>) and SW_JOB_SLICEFILE, looking in ROOT (default: the tree
+# being checked); returns 1 when the job names no slice.
 sw_job_locate() {
 	sw_job_valid_id "$1" || return 1
-	SW_JOB_SPEC=$(sw_plan_spec_dir "${1%%-*}") || return 1
+	_jl_save=$SOFTWARY_ROOT
+	_jl_root=${2:-$SOFTWARY_ROOT}
+	SOFTWARY_ROOT=$_jl_root
+	SW_JOB_SPEC=$(sw_plan_spec_dir "${1%%-*}") || { SOFTWARY_ROOT=$_jl_save; return 1; }
+	SOFTWARY_ROOT=$_jl_save
 	SW_JOB_SLICE=${1#*-}
-	SW_JOB_SLICEFILE=$SOFTWARY_ROOT/specs/$SW_JOB_SPEC/slices/$SW_JOB_SLICE.md
+	SW_JOB_SLICEFILE=$_jl_root/specs/$SW_JOB_SPEC/slices/$SW_JOB_SLICE.md
 	[ -f "$SW_JOB_SLICEFILE" ]
 }
 
 # sw_job_integration: prints the integration branch (commands.conf).
 sw_job_integration() {
-	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
+	sw_conf_load "$SW_STATE_ROOT/$SW_CONF_REL"
 	sw_conf_is_unset integration_branch && return 1
 	sw_conf_get integration_branch
 }
 
+# sw_job_branch_now / sw_job_clean: the main checkout's branch and tree.
 sw_job_branch_now() {
-	git -C "$SOFTWARY_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null
+	git -C "$SW_STATE_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null
 }
 
 sw_job_clean() {
-	[ -z "$(git -C "$SOFTWARY_ROOT" status --porcelain 2>/dev/null)" ]
+	[ -z "$(git -C "$SW_STATE_ROOT" status --porcelain 2>/dev/null)" ]
 }
 
 # sw_job_active: prints the jobs that are neither final nor waiting for a human.
 sw_job_active() {
-	for _jx in "$SOFTWARY_ROOT/$SW_JOBS_REL"/*/job; do
+	for _jx in "$SW_STATE_ROOT/$SW_JOBS_REL"/*/job; do
 		[ -f "$_jx" ] || continue
 		_jx_s=$(sw_kvf_get "$_jx" state)
 		sw_job_terminal "$_jx_s" && continue
@@ -206,7 +240,7 @@ sw_job_active() {
 
 # sw_job_waiting: prints the jobs that wait for a human (escalated).
 sw_job_waiting() {
-	for _jw in "$SOFTWARY_ROOT/$SW_JOBS_REL"/*/job; do
+	for _jw in "$SW_STATE_ROOT/$SW_JOBS_REL"/*/job; do
 		[ -f "$_jw" ] || continue
 		[ "$(sw_kvf_get "$_jw" state)" = escalated ] || continue
 		_jw=${_jw%/job}
@@ -237,26 +271,31 @@ sw_job_unmet() {
 	done
 }
 
-# sw_status_jobs: one line per job (state, round, minutes since it started),
-# then the questions of the jobs that wait for a human. Nothing without jobs.
+# sw_status_jobs: one line per job (state, round, minutes since it started and,
+# when the job has one, its worktree), the merge queue and its drainer, a halted
+# run and the questions of the jobs that wait for a human. Nothing without jobs.
 sw_status_jobs() {
 	_sj_any=0
 	_sj_now=$(date +%s)
-	for _sj in "$SOFTWARY_ROOT/$SW_JOBS_REL"/*/job; do
+	for _sj in "$SW_STATE_ROOT/$SW_JOBS_REL"/*/job; do
 		[ -f "$_sj" ] || continue
 		_sj_any=1
 		_sj_id=${_sj%/job}
 		_sj_id=${_sj_id##*/}
 		_sj_s=$(sw_kvf_get "$_sj" started)
-		printf 'job %s %-13s round %s %sm\n' "$_sj_id" "$(sw_kvf_get "$_sj" state)" "$(sw_kvf_get "$_sj" round)" \
-			"$(((_sj_now - ${_sj_s:-$_sj_now}) / 60))"
+		_sj_w=
+		! sw_wt_exists "$_sj_id" || _sj_w=" $SW_WT_REL/$_sj_id"
+		printf 'job %s %-13s round %s %sm%s\n' "$_sj_id" "$(sw_kvf_get "$_sj" state)" "$(sw_kvf_get "$_sj" round)" \
+			"$(((_sj_now - ${_sj_s:-$_sj_now}) / 60))" "$_sj_w"
 	done
 	[ "$_sj_any" -eq 1 ] || return 0
+	sw_queue_show
+	! sw_run_halted || printf 'run halted: %s\n' "$(sw_run_get halted)"
 	_sj_w=$(sw_job_waiting)
 	[ -n "$_sj_w" ] || return 0
 	printf 'waiting for you:\n'
 	for _sj_id in $_sj_w; do
-		_sj_q=$SOFTWARY_ROOT/$SW_JOBS_REL/$_sj_id/escalation
+		_sj_q=$SW_STATE_ROOT/$SW_JOBS_REL/$_sj_id/escalation
 		printf '  %s: %s\n' "$_sj_id" "$([ -f "$_sj_q" ] && head -n 1 "$_sj_q" || printf '(no question recorded)')"
 	done
 }
@@ -266,90 +305,71 @@ sw_job_refuse() {
 	return 1
 }
 
-# sw_job_start JOB: opens softwary/<job> and takes the job into its first round.
+# sw_job_start JOB: admits the job (admit.sh), opens its worktree and branch
+# softwary/<job>, runs `bootstrap` there and takes the job into its first
+# round. A job left in `ready` is taken up where it stopped.
 sw_job_start() {
 	_js_job=$1
 	sw_job_locate "$_js_job" || { printf 'job start: no slice %s\n' "$_js_job"; return 2; }
 	_js_base=$(sw_job_integration) || { printf 'job start: integration_branch is not set in %s\n' "$SW_CONF_REL"; return 2; }
-	_js_spec=$SW_JOB_SPEC
-	_js_sfile=$SW_JOB_SLICEFILE
-	[ ! -e "$(sw_job_file "$_js_job")" ] || { sw_job_refuse "$_js_job" "the job already exists"; return 1; }
-	sw_run_open || { sw_job_refuse "$_js_job" "no open run (./softwary run start)"; return 1; }
-	_js_act=$(sw_job_active)
-	[ -z "$_js_act" ] || { sw_job_refuse "$_js_job" "another job is active: $(printf '%s' "$_js_act" | paste -sd' ' -)"; return 1; }
-	[ "$(sw_job_branch_now)" = "$_js_base" ] || { sw_job_refuse "$_js_job" "not on the integration branch $_js_base"; return 1; }
-	sw_job_clean || { sw_job_refuse "$_js_job" "working tree is not clean"; return 1; }
-	if git -C "$SOFTWARY_ROOT" remote get-url origin >/dev/null 2>&1; then
-		git -C "$SOFTWARY_ROOT" pull -q --ff-only origin "$_js_base" >/dev/null 2>&1 ||
-			{ sw_job_refuse "$_js_job" "could not fast-forward $_js_base from origin"; return 1; }
+	_js_b=$(sw_wt_bootstrap_cmd) || { printf '%s\n' "$_js_b"; return 2; }
+	_js_rc=0
+	sw_state_locked sw_admit_locked "$_js_job" "$_js_base" || _js_rc=$?
+	[ "$_js_rc" -eq 0 ] || return "$_js_rc"
+	if [ "$SW_ADMIT" = resume ]; then
+		sw_wt_resume "$_js_job" "$_js_base" || return 2
 	fi
-	if git -C "$SOFTWARY_ROOT" rev-parse -q --verify "refs/heads/softwary/$_js_job" >/dev/null 2>&1; then
-		sw_job_refuse "$_js_job" "branch softwary/$_js_job exists"
+	if ! sw_wt_bootstrap "$_js_job"; then
+		sw_state_locked sw_job_unstart "$_js_job"
+		# shellcheck disable=SC2153 # SW_LOGS_REL is set in worktree.sh
+		printf 'job %s: bootstrap failed (see %s/bootstrap-%s.log)\n' "$_js_job" "$SW_LOGS_REL" "$_js_job"
 		return 1
 	fi
-	sw_fm_read "$_js_sfile"
-	[ "$(sw_fm_get status)" = planned ] || { sw_job_refuse "$_js_job" "slice is not planned"; return 1; }
-	sw_fm_read "$SOFTWARY_ROOT/specs/$_js_spec/spec.md"
-	[ "$(sw_fm_get status)" = approved ] || { sw_job_refuse "$_js_job" "spec ${_js_job%%-*} is not approved"; return 1; }
-	_js_un=$(sw_job_unmet "$_js_job" "$_js_sfile")
-	[ -z "$_js_un" ] || { sw_job_refuse "$_js_job" "dependency $_js_un is not done"; return 1; }
-	for _js_k in $SW_APPROVAL_KINDS; do
-		_js_a=$(sw_approval_state "$_js_k") || { sw_job_refuse "$_js_job" "approvals.conf is malformed"; return 1; }
-		[ "$_js_a" = approved ] || { sw_job_refuse "$_js_job" "$_js_k approval is $_js_a"; return 1; }
-	done
-	git -C "$SOFTWARY_ROOT" checkout -q -b "softwary/$_js_job" || return 2
-	mkdir -p "$SOFTWARY_ROOT/$SW_JOBS_REL/$_js_job" || return 2
-	sw_job_put "$_js_job" state ready
-	sw_job_put "$_js_job" round 0
-	sw_job_put "$_js_job" started "$(date +%s)"
-	sw_job_put "$_js_job" tokens 0
-	sw_job_put "$_js_job" branch "softwary/$_js_job"
 	sw_job_apply "$_js_job" start "softwary/$_js_job"
+}
+
+# sw_job_unstart JOB: takes back a job that never got to its first round.
+sw_job_unstart() {
+	sw_wt_remove_locked "$1" branch
+	rm -rf "${SW_STATE_ROOT:?}/$SW_JOBS_REL/${1:?}"
 }
 
 # sw_job_verify_base BASE: the ref verify compares with.
 sw_job_verify_base() {
-	if git -C "$SOFTWARY_ROOT" rev-parse -q --verify "refs/remotes/origin/$1" >/dev/null 2>&1; then
+	if git -C "$SW_STATE_ROOT" rev-parse -q --verify "refs/remotes/origin/$1" >/dev/null 2>&1; then
 		printf 'origin/%s\n' "$1"
 	else
 		printf '%s\n' "$1"
 	fi
 }
 
-# sw_job_on_branch JOB: returns 2 (with a message) unless the job's branch is
-# checked out in a clean tree.
-sw_job_on_branch() {
-	[ "$(sw_job_branch_now)" = "softwary/$1" ] || { printf 'job %s: not on branch softwary/%s\n' "$1" "$1"; return 2; }
-	sw_job_clean || { printf 'job %s: working tree is not clean\n' "$1"; return 2; }
-}
-
-# sw_job_gate JOB: guard, then the full verify on the job branch; one retry of
-# the verify tells a flaky test from a failing one. A guard violation is
-# deterministic: it is gate_fail at once, with no verify and no retry.
+# sw_job_gate JOB: guard, then the full verify on the job's worktree; one
+# retry of the verify tells a flaky test from a failing one. A guard violation
+# is deterministic: it is gate_fail at once, with no verify and no retry.
 sw_job_gate() {
 	_jg_job=$1
 	[ -f "$(sw_job_file "$_jg_job")" ] || { printf 'job: unknown job %s\n' "$_jg_job"; return 2; }
 	_jg_st=$(sw_job_get "$_jg_job" state)
 	[ "$_jg_st" = gating ] || { sw_job_refuse "$_jg_job" "state is $_jg_st, not gating"; return 1; }
-	sw_job_on_branch "$_jg_job" || return 2
+	sw_wt_check "$_jg_job" || return 2
 	_jg_base=$(sw_job_verify_base "$(sw_job_integration)")
-	_jg_log=$SOFTWARY_ROOT/$SW_JOBS_REL/$_jg_job/gate-$(sw_job_get "$_jg_job" round).log
+	_jg_log=$SW_STATE_ROOT/$SW_JOBS_REL/$_jg_job/gate-$(sw_job_get "$_jg_job" round).log
 	_jg_rc=0
-	sh "$SOFTWARY_HOME/bin/softwary" guard "$_jg_job" --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
+	sw_wt_softwary "$_jg_job" guard "$_jg_job" --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
 	[ "$_jg_rc" -ne 2 ] || { cat "$_jg_log"; return 2; }
 	if [ "$_jg_rc" -ne 0 ]; then
 		sw_job_apply "$_jg_job" gate_fail "$(head -n 1 "$_jg_log")"
 		return $?
 	fi
 	_jg_rc=0
-	sh "$SOFTWARY_HOME/bin/softwary" verify --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
+	sw_wt_softwary "$_jg_job" verify --base "$_jg_base" >"$_jg_log" 2>&1 || _jg_rc=$?
 	if [ "$_jg_rc" -eq 0 ]; then
 		sw_job_apply "$_jg_job" gate_pass
 		return $?
 	fi
 	[ "$_jg_rc" -ne 2 ] || { cat "$_jg_log"; return 2; }
 	_jg_rc=0
-	sh "$SOFTWARY_HOME/bin/softwary" verify --base "$_jg_base" >"$_jg_log.retry" 2>&1 || _jg_rc=$?
+	sw_wt_softwary "$_jg_job" verify --base "$_jg_base" >"$_jg_log.retry" 2>&1 || _jg_rc=$?
 	if [ "$_jg_rc" -eq 0 ]; then
 		sw_job_apply "$_jg_job" escalate "$SW_GATE_FLAKY"
 	else
@@ -359,11 +379,15 @@ sw_job_gate() {
 
 # sw_job_tokens JOB N: adds N to the job's and the run's token totals.
 sw_job_tokens() {
+	sw_state_locked sw_job_tokens_locked "$@"
+}
+
+sw_job_tokens_locked() {
 	[ -f "$(sw_job_file "$1")" ] || { printf 'job: unknown job %s\n' "$1"; return 2; }
 	sw_positive_int "$2" || { printf 'usage: ./softwary job tokens <job> <n>\n' >&2; return 2; }
 	sw_job_put "$1" tokens $(($(sw_job_get "$1" tokens) + $2))
 	if sw_run_open; then
-		sw_kvf_put "$SOFTWARY_ROOT/$SW_RUN_REL" tokens $(($(sw_run_get tokens) + $2))
+		sw_kvf_put "$SW_STATE_ROOT/$SW_RUN_REL" tokens $(($(sw_run_get tokens) + $2))
 	fi
 	_jt_st=$(sw_job_get "$1" state)
 	sw_event "$1" tokens "$_jt_st" "$_jt_st" "$2" || return 2
@@ -381,10 +405,10 @@ sw_job_known() {
 	[ -f "$(sw_job_file "$1")" ] || { printf 'job: unknown job %s\n' "$1"; return 2; }
 }
 
-# sw_job_push JOB: pushes the job's branch (the script gates itself, so the
-# git hooks are skipped).
+# sw_job_push JOB: pushes the job's branch from its worktree (the script gates
+# itself, so the git hooks are skipped).
 sw_job_push() {
-	if ! _jpo=$(git -C "$SOFTWARY_ROOT" push -q --no-verify -u origin "softwary/$1" 2>&1); then
+	if ! _jpo=$(git -C "$(sw_wt_path "$1")" push -q --no-verify -u origin "softwary/$1" 2>&1); then
 		printf 'job %s: push failed: %s\n' "$1" "$_jpo"
 		return 1
 	fi
@@ -395,7 +419,7 @@ sw_job_pr() {
 	_jp_job=$1
 	sw_job_known "$_jp_job" || return 2
 	sw_job_state_is "$_jp_job" pr || return 1
-	[ "$(sw_job_branch_now)" = "softwary/$_jp_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jp_job" "$_jp_job"; return 2; }
+	sw_wt_check "$_jp_job" || return 2
 	_jp_base=$(sw_job_integration) || { printf 'job pr: integration_branch is not set\n'; return 2; }
 	sw_job_push "$_jp_job" || return 1
 	_jp_n=$(sw_job_get "$_jp_job" pr)
@@ -425,20 +449,21 @@ sw_job_pr_green() {
 		SW_JOB_WHY="PR head is not ${3:-HEAD}"
 		return 1
 	fi
-	if ! gh pr checks "$_jq_n" --watch >"$SOFTWARY_ROOT/$SW_JOBS_REL/$1/ci.log" 2>&1; then
+	if ! gh pr checks "$_jq_n" --watch >"$SW_STATE_ROOT/$SW_JOBS_REL/$1/ci.log" 2>&1; then
 		SW_JOB_WHY="CI checks are not green"
 		return 1
 	fi
 }
 
-# sw_job_ci JOB: ci_pass when the PR's head is HEAD and its checks pass.
+# sw_job_ci JOB: ci_pass when the PR's head is the worktree's HEAD and its
+# checks pass.
 sw_job_ci() {
 	_jc_job=$1
 	sw_job_known "$_jc_job" || return 2
 	sw_job_state_is "$_jc_job" ci || return 1
-	[ "$(sw_job_branch_now)" = "softwary/$_jc_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jc_job" "$_jc_job"; return 2; }
+	sw_wt_check "$_jc_job" || return 2
 	[ -n "$(sw_job_get "$_jc_job" pr)" ] || { sw_job_refuse "$_jc_job" "no PR recorded"; return 1; }
-	if sw_job_pr_green "$_jc_job" "$(git -C "$SOFTWARY_ROOT" rev-parse HEAD)"; then
+	if sw_job_pr_green "$_jc_job" "$(git -C "$(sw_wt_path "$_jc_job")" rev-parse HEAD)"; then
 		sw_job_apply "$_jc_job" ci_pass
 	else
 		sw_job_apply "$_jc_job" ci_fail "$SW_JOB_WHY"
@@ -454,22 +479,24 @@ sw_fm_status_set() {
 		{ print }' "$1" >"$1.tmp" && cat "$1.tmp" >"$1" && rm -f "$1.tmp"
 }
 
-# sw_job_review JOB: reads the slice's review record; approve makes the slice
-# done, both commit and push the record before the transition.
+# sw_job_review JOB: reads the slice's review record in the job's worktree;
+# approve makes the slice done, both commit and push the record before the
+# transition.
 sw_job_review() {
 	_jr_job=$1
 	sw_job_known "$_jr_job" || return 2
 	sw_job_state_is "$_jr_job" reviewing || return 1
-	sw_job_locate "$_jr_job" || return 2
+	sw_wt_check "$_jr_job" loose || return 2
+	_jr_wt=$(sw_wt_path "$_jr_job")
+	sw_job_locate "$_jr_job" "$_jr_wt" || return 2
 	_jr_rel=specs/$SW_JOB_SPEC/reviews/$SW_JOB_SLICE.md
-	[ -f "$SOFTWARY_ROOT/$_jr_rel" ] || { sw_job_refuse "$_jr_job" "no review record ($_jr_rel)"; return 1; }
-	sw_fm_read "$SOFTWARY_ROOT/$_jr_rel"
+	[ -f "$_jr_wt/$_jr_rel" ] || { sw_job_refuse "$_jr_job" "no review record ($_jr_rel)"; return 1; }
+	sw_fm_read "$_jr_wt/$_jr_rel"
 	_jr_dec=$(sw_fm_get decision)
 	if [ -n "$(sw_fm_errors)" ] || [ "$(sw_fm_get slice)" != "$SW_JOB_SLICE" ] || ! sw_in_list "$_jr_dec" "$SW_REVIEW_DECISIONS"; then
 		sw_job_refuse "$_jr_job" "the review record $_jr_rel is invalid (slice: $SW_JOB_SLICE, decision: approve or changes)"
 		return 1
 	fi
-	[ "$(sw_job_branch_now)" = "softwary/$_jr_job" ] || { printf 'job %s: not on branch softwary/%s\n' "$_jr_job" "$_jr_job"; return 2; }
 	_jr_files=$_jr_rel
 	_jr_msg="$_jr_job: review requested changes"
 	if [ "$_jr_dec" = approve ]; then
@@ -478,9 +505,9 @@ sw_job_review() {
 		_jr_msg="$_jr_job: review approved"
 	fi
 	# shellcheck disable=SC2086 # two repo-relative paths without whitespace
-	git -C "$SOFTWARY_ROOT" add -- $_jr_files || return 2
-	if ! git -C "$SOFTWARY_ROOT" diff --cached --quiet; then
-		git -C "$SOFTWARY_ROOT" commit -q --no-verify -m "$_jr_msg" || { printf 'job %s: commit failed\n' "$_jr_job"; return 2; }
+	git -C "$_jr_wt" add -- $_jr_files || return 2
+	if ! git -C "$_jr_wt" diff --cached --quiet; then
+		git -C "$_jr_wt" commit -q --no-verify -m "$_jr_msg" || { printf 'job %s: commit failed\n' "$_jr_job"; return 2; }
 	fi
 	sw_job_push "$_jr_job" || return 1
 	sw_job_apply "$_jr_job" "review_$_jr_dec" "$_jr_dec"
@@ -491,8 +518,19 @@ sw_job_review() {
 sw_job_text() {
 	sw_job_known "$1" || return 2
 	[ -n "$3" ] || { sw_job_usage; return 2; }
+	sw_state_locked sw_job_text_locked "$@"
+}
+
+sw_job_text_locked() {
 	sw_job_apply "$1" "$2" "$3" || return $?
-	[ -z "$4" ] || printf '%s\n' "$3" >"$SOFTWARY_ROOT/$SW_JOBS_REL/$1/$4"
+	[ -z "$4" ] || printf '%s\n' "$3" >"$SW_STATE_ROOT/$SW_JOBS_REL/$1/$4"
+}
+
+# sw_job_abandon JOB REASON: gives the job up; its worktree goes, its branch
+# stays for the human to look at.
+sw_job_abandon() {
+	sw_job_text "$1" abandon "$2" "" || return $?
+	sw_wt_remove "$1"
 }
 
 # sw_job_merged JOB: a human merged the PR (an R3 change, or a refused merge).
@@ -503,16 +541,17 @@ sw_job_merged() {
 	[ -n "$_jm_n" ] || { sw_job_refuse "$1" "no PR recorded"; return 1; }
 	_jm_st=$(gh pr view "$_jm_n" --json state --jq .state 2>/dev/null) || _jm_st=
 	[ "$_jm_st" = MERGED ] || { sw_job_refuse "$1" "PR #$_jm_n is ${_jm_st:-not readable}, not MERGED"; return 1; }
-	sw_job_apply "$1" human_merged "PR #$_jm_n"
+	sw_job_apply "$1" human_merged "PR #$_jm_n" || return $?
+	sw_wt_remove "$1" branch
 }
 
 # sw_job_show JOB: the job file, the open question and the last events.
 sw_job_show() {
 	sw_job_known "$1" || return 2
 	cat "$(sw_job_file "$1")"
-	_jh_q=$SOFTWARY_ROOT/$SW_JOBS_REL/$1/escalation
+	_jh_q=$SW_STATE_ROOT/$SW_JOBS_REL/$1/escalation
 	[ "$(sw_job_get "$1" state)" != escalated ] || [ ! -f "$_jh_q" ] || printf 'question: %s\n' "$(cat "$_jh_q")"
-	[ ! -f "$SOFTWARY_ROOT/$SW_EVENTS_REL" ] || jq -c --arg j "$1" 'select(.job == $j)' "$SOFTWARY_ROOT/$SW_EVENTS_REL" | tail -n 5
+	[ ! -f "$SW_STATE_ROOT/$SW_EVENTS_REL" ] || jq -c --arg j "$1" 'select(.job == $j)' "$SW_STATE_ROOT/$SW_EVENTS_REL" | tail -n 5
 	return 0
 }
 
@@ -552,7 +591,10 @@ sw_job() {
 		;;
 	escalate) sw_job_text "$_jj" escalate "$*" "" ;;
 	resume) sw_job_text "$_jj" resume "$*" answer ;;
-	abandon) sw_job_text "$_jj" abandon "$*" "" ;;
+	abandon)
+		[ -n "$*" ] || { sw_job_usage; return 2; }
+		sw_job_abandon "$_jj" "$*"
+		;;
 	*)
 		sw_job_usage
 		return 2

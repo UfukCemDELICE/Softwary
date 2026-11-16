@@ -26,8 +26,8 @@ job_in() {
 
 # write_review DECISION [SLICE]: the reviewer's record for slice S1.
 write_review() {
-	mkdir -p "$REPO/specs/001-login/reviews"
-	printf -- '---\nslice: %s\ndecision: %s\n---\n\n# Review of S1\n' "${2:-S1}" "$1" >"$REPO/$REVIEW_REL"
+	mkdir -p "$(job_wt $JOB)/specs/001-login/reviews"
+	printf -- '---\nslice: %s\ndecision: %s\n---\n\n# Review of S1\n' "${2:-S1}" "$1" >"$(job_wt $JOB)/$REVIEW_REL"
 }
 
 # job_repo STATE: the job started on its branch with a fake gh and an origin,
@@ -75,7 +75,7 @@ test_ac_v2_09_pr_preconditions() {
 	sw job pr $JOB
 	assert_eq "$RC" 1 "exit code in the wrong state"
 	job_in pr
-	git -C "$REPO" checkout -q main
+	git -C "$(job_wt $JOB)" checkout -q -b other
 	sw job pr $JOB
 	assert_eq "$RC" 2 "exit code on the wrong branch"
 	[ ! -s "$T/gh.log" ] || fail "gh was called"
@@ -119,11 +119,11 @@ test_ac_v2_10_review_missing_invalid() {
 	write_review approve S2
 	sw job review $JOB
 	assert_eq "$RC" 1 "exit code with another slice"
-	printf 'no front matter\n' >"$REPO/$REVIEW_REL"
+	printf 'no front matter\n' >"$(job_wt $JOB)/$REVIEW_REL"
 	sw job review $JOB
 	assert_eq "$RC" 1 "exit code with no front matter"
 	assert_eq "$(job_get state)" reviewing "state"
-	assert_eq "$(git -C "$REPO" log -1 --format=%s)" "base" "no commit was made"
+	assert_eq "$(git -C "$(job_wt $JOB)" log -1 --format=%s)" "base" "no commit was made"
 }
 
 # AC-V2-10: approve marks the slice done, commits the record and the slice, pushes.
@@ -132,12 +132,14 @@ test_ac_v2_10_review_approve_commits_done() {
 	write_review approve
 	sw job review $JOB
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(sed -n 's/^status: //p' "$REPO/$SLICE_REL")" "done" "slice status"
-	assert_eq "$(git -C "$REPO" log -1 --format=%s)" "$JOB: review approved" "commit"
-	assert_eq "$(git -C "$REPO" show --name-only --format= HEAD | sort | paste -sd' ' -)" "$REVIEW_REL $SLICE_REL" "committed files"
-	assert_eq "$(origin_tip)" "$(git -C "$REPO" rev-parse HEAD)" "origin's branch"
+	wt=$(job_wt $JOB)
+	assert_eq "$(sed -n 's/^status: //p' "$wt/$SLICE_REL")" "done" "slice status"
+	assert_eq "$(git -C "$wt" log -1 --format=%s)" "$JOB: review approved" "commit"
+	assert_eq "$(git -C "$wt" show --name-only --format= HEAD | sort | paste -sd' ' -)" "$REVIEW_REL $SLICE_REL" "committed files"
+	assert_eq "$(origin_tip)" "$(git -C "$wt" rev-parse HEAD)" "origin's branch"
 	assert_eq "$(job_get state)" approving "state"
-	[ -z "$(git -C "$REPO" status --porcelain)" ] || fail "the tree is not clean"
+	[ -z "$(git -C "$wt" status --porcelain)" ] || fail "the tree is not clean"
+	assert_eq "$(sed -n 's/^status: //p' "$REPO/$SLICE_REL")" planned "slice status in the main checkout"
 }
 
 # AC-V2-10: changes commits the record and starts the next round.
@@ -146,9 +148,10 @@ test_ac_v2_10_review_changes_new_round() {
 	write_review changes
 	sw job review $JOB
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(sed -n 's/^status: //p' "$REPO/$SLICE_REL")" planned "slice status"
-	assert_eq "$(git -C "$REPO" log -1 --format=%s)" "$JOB: review requested changes" "commit"
-	assert_eq "$(origin_tip)" "$(git -C "$REPO" rev-parse HEAD)" "origin's branch"
+	wt=$(job_wt $JOB)
+	assert_eq "$(sed -n 's/^status: //p' "$wt/$SLICE_REL")" planned "slice status"
+	assert_eq "$(git -C "$wt" log -1 --format=%s)" "$JOB: review requested changes" "commit"
+	assert_eq "$(origin_tip)" "$(git -C "$wt" rev-parse HEAD)" "origin's branch"
 	assert_eq "$(job_get state)" implementing "state"
 	assert_eq "$(job_get round)" 2 "round"
 }
@@ -186,6 +189,8 @@ test_ac_v2_08_human_merged() {
 	sw job merged $JOB
 	assert_eq "$RC" 0 "exit code with a merged PR"
 	assert_eq "$(job_get state)" merged "state"
+	[ ! -e "$(job_wt $JOB)" ] || fail "the worktree of a merged job is still there"
+	! git -C "$REPO" rev-parse -q --verify "refs/heads/softwary/$JOB" >/dev/null || fail "the local branch of a merged job is still there"
 	assert_eq "$(last_event | jq -r .event)" human_merged "event"
 	assert_contains "$T/gh.log" "pr view 1 --json state"
 }

@@ -23,6 +23,12 @@ write_decision() {
 	printf -- '---\ndecision: %s\n---\n\nLooks right.\n' "$1" >"$REPO/$JOBS_REL/$JOB/decision.md"
 }
 
+# wt: the job's worktree (the job's files are there; the main checkout stays on
+# the integration branch).
+wt() {
+	job_wt $JOB
+}
+
 # merge_repo: a job in `approving` on its pushed branch, with a PR, a green CI,
 # an approving review and a decision to merge. The world is then copied, so
 # each refusal starts from the same place (see restore).
@@ -48,8 +54,7 @@ merge_repo() {
 	sw job gate $JOB
 	sw job pr $JOB
 	sw job ci $JOB
-	mkdir -p "$REPO/specs/001-login/reviews"
-	printf -- '---\nslice: S1\ndecision: approve\n---\n\n# Review of S1\n' >"$REPO/$REVIEW_REL"
+	review_job $JOB
 	sw job review $JOB
 	assert_eq "$(job_get state)" approving "state before merge"
 	write_decision merge
@@ -68,7 +73,6 @@ restore() {
 	cp -R "$T/world/origin.git" "$T/origin.git"
 	cp -R "$T/world/gh" "$T/gh"
 	: >"$T/gh.log"
-	git -C "$REPO" checkout -q softwary/$JOB
 }
 
 # other_push FILE TEXT: someone else pushes FILE with TEXT to origin's main.
@@ -117,9 +121,11 @@ refused() {
 # integration branch, the slice done there, the job merged.
 test_ac_v2_12_merge_happy_path() {
 	merge_repo
-	sha=$(git -C "$REPO" rev-parse HEAD)
+	sha=$(git -C "$(wt)" rev-parse HEAD)
 	sw merge $JOB
 	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^merged: $JOB $sha$"
+	[ ! -e "$(wt)" ] || fail "the worktree of a merged job is still there"
 	assert_contains "$T/gh.log" "pr merge 1 --squash --match-head-commit $sha"
 	assert_eq "$(git -C "$REPO" branch --show-current)" main "branch"
 	assert_eq "$(sed -n 's/^status: //p' "$REPO/$SLICE_REL")" "done" "slice status on main"
@@ -139,10 +145,10 @@ test_ac_v2_12_merge_preconditions() {
 	sw merge $JOB
 	assert_eq "$RC" 1 "exit code with an escalate decision"
 	write_decision merge
-	touch "$REPO/junk"
+	touch "$(wt)/junk"
 	sw merge $JOB
 	assert_eq "$RC" 2 "exit code with a dirty tree"
-	rm "$REPO/junk"
+	rm "$(wt)/junk"
 	sed 's/^state=.*/state=ci/' "$REPO/$JOBS_REL/$JOB/job" >"$T/j" && mv "$T/j" "$REPO/$JOBS_REL/$JOB/job"
 	sw merge $JOB
 	assert_eq "$RC" 1 "exit code in another state"
@@ -161,7 +167,7 @@ test_ac_v2_12_each_refusal() {
 	restore
 	other_push "$SLICE_REL" "conflicting"
 	refused "conflict with main"
-	[ -z "$(git -C "$REPO" status --porcelain)" ] || fail "the aborted merge left the tree dirty"
+	[ -z "$(git -C "$(wt)" status --porcelain)" ] || fail "the aborted merge left the tree dirty"
 
 	restore
 	other_push product/PRODUCT.md "$(cat "$REPO/product/PRODUCT.md")
@@ -170,8 +176,8 @@ edited on main"
 	refused "product approval is stale"
 
 	restore
-	printf -- '---\nslice: S1\ndecision: changes\n---\n' >"$REPO/$REVIEW_REL"
-	commit_all "review changed"
+	printf -- '---\nslice: S1\ndecision: changes\n---\n' >"$(wt)/$REVIEW_REL"
+	commit_in "$(wt)" "review changed"
 	refused "the slice is not done with an approving review"
 
 	restore
@@ -206,7 +212,7 @@ specs/* = R3"
 # the PR head and CI are checked on that commit, and the merge is bound to it.
 test_ac_v2_12_sync_creates_new_sha() {
 	merge_repo
-	old=$(git -C "$REPO" rev-parse HEAD)
+	old=$(git -C "$(wt)" rev-parse HEAD)
 	other_push news.txt "news"
 	sw merge $JOB
 	assert_eq "$RC" 0 "exit code"
@@ -223,36 +229,36 @@ test_ac_v2_12_sync_creates_new_sha() {
 test_ac_v3_06_merge_refuses_guard() {
 	MERGE_TOUCHES="src/api/login.py, tests/"
 	merge_repo
-	mkdir -p "$REPO/lib"
-	printf 'x\n' >"$REPO/lib/other.txt"
-	printf 'y\n' >"$REPO/lib/second.txt"
-	commit_all "outside touches"
+	mkdir -p "$(wt)/lib"
+	printf 'x\n' >"$(wt)/lib/other.txt"
+	printf 'y\n' >"$(wt)/lib/second.txt"
+	commit_in "$(wt)" "outside touches"
 	refused "guard: outside touches: lib/other.txt (+1 more)"
 	[ ! -e "$REPO/$JOBS_REL/$JOB/merge.log" ] || fail "verify ran"
 
 	restore
-	mkdir -p "$REPO/docs"
-	printf 'x\n' >"$REPO/docs/CODEOWNERS"
-	commit_all "protected"
+	mkdir -p "$(wt)/docs"
+	printf 'x\n' >"$(wt)/docs/CODEOWNERS"
+	commit_in "$(wt)" "protected"
 	refused "guard: protected: docs/CODEOWNERS"
 
 	# the job turns its own test command into `true`: the protected path
 	# is refused before that command can be trusted or run.
 	restore
-	conf_set test "touch $T/verify-ran"
-	commit_all "commands.conf"
+	file_set "$(wt)/.softwary/config/commands.conf" test "touch $T/verify-ran"
+	commit_in "$(wt)" "commands.conf"
 	refused "guard: protected: .softwary/config/commands.conf"
 	[ ! -e "$T/verify-ran" ] || fail "the job's own test command ran"
 	[ ! -e "$REPO/$JOBS_REL/$JOB/merge.log" ] || fail "verify ran"
 
 	restore
-	rm "$REPO/tests/test_login.py"
-	commit_all "test deleted"
+	rm "$(wt)/tests/test_login.py"
+	commit_in "$(wt)" "test deleted"
 	refused "guard: test deleted: tests/test_login.py"
 
 	restore
-	conf_del test_paths
-	commit_all "no test_paths"
+	sed '/^test_paths/d' "$(wt)/.softwary/config/commands.conf" >"$T/commands.conf" && cp "$T/commands.conf" "$(wt)/.softwary/config/commands.conf"
+	commit_in "$(wt)" "no test_paths"
 	sw merge $JOB
 	assert_eq "$RC" 1 "exit code when guard cannot run"
 	assert_contains "$REPO/$JOBS_REL/$JOB/escalation" "merge refused: guard could not run"
@@ -275,9 +281,9 @@ test_ac_v3_06_sync_paths_not_counted() {
 test_ac_v3_08_r3_from_paths() {
 	MERGE_TOUCHES="src/api/login.py, src/pay/"
 	merge_repo
-	mkdir -p "$REPO/src/pay"
-	printf 'code\n' >"$REPO/src/pay/charge.py"
-	commit_all "pay"
+	mkdir -p "$(wt)/src/pay"
+	printf 'code\n' >"$(wt)/src/pay/charge.py"
+	commit_in "$(wt)" "pay"
 	assert_eq "$(sed -n 's/^risk: //p' "$REPO/specs/001-login/spec.md")" R1 "the spec's own risk"
 	refused "risk tier is R3 (a human merges)"
 }

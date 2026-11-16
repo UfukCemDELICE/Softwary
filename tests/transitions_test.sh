@@ -41,8 +41,8 @@ test_ac_v2_07_table_is_well_formed() {
 
 # AC-V2-07: the table is the one D-72 describes (a deleted or changed row fails here).
 test_ac_v2_07_table_is_the_decided_one() {
-	want='approving escalate escalated -
-approving merged merged -
+	want='approving enqueue queued -
+approving escalate escalated -
 ci ci_fail implementing next
 ci ci_pass reviewing -
 ci escalate escalated -
@@ -56,13 +56,15 @@ implementing escalate escalated -
 implementing implemented gating -
 pr escalate escalated -
 pr pr_opened ci -
+queued escalate escalated -
+queued merged merged -
 ready start implementing next
 reviewing escalate escalated -
 reviewing review_approve approving -
 reviewing review_changes implementing next'
 	got=$(jq -r '.transitions[] | "\(.from) \(.event) \(.to) \(.round // "-")"' "$TABLE" | LC_ALL=C sort)
 	assert_eq "$got" "$(printf '%s\n' "$want" | LC_ALL=C sort)" "transitions"
-	assert_eq "$(jq -r '.states | join(" ")' "$TABLE")" "ready implementing gating pr ci reviewing approving merged escalated abandoned" "states"
+	assert_eq "$(jq -r '.states | join(" ")' "$TABLE")" "ready implementing gating pr ci reviewing approving queued merged escalated abandoned" "states"
 	assert_eq "$(jq -r '.terminal | join(" ")' "$TABLE")" "merged abandoned" "terminal"
 }
 

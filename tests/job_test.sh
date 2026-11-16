@@ -60,7 +60,7 @@ test_ac_v2_08_start_refusals() {
 	open_run
 	mkdir -p "$REPO/$JOBS_REL/002-S1"
 	printf 'state=ci\nround=1\n' >"$REPO/$JOBS_REL/002-S1/job"
-	refuse_start $JOB "another job is active: 002-S1"
+	refuse_start $JOB "concurrency limit 1 reached (002-S1)"
 	rm -r "$REPO/$JOBS_REL/002-S1"
 	git -C "$REPO" checkout -q -b other
 	refuse_start $JOB "not on the integration branch main"
@@ -98,7 +98,8 @@ test_ac_v2_08_start_opens_branch() {
 	printf 'state=escalated\nround=2\n' >"$REPO/$JOBS_REL/002-S1/job"
 	sw job start $JOB
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(git -C "$REPO" branch --show-current)" softwary/$JOB "branch"
+	assert_eq "$(git -C "$(job_wt $JOB)" branch --show-current)" softwary/$JOB "branch of the worktree"
+	assert_eq "$(git -C "$REPO" branch --show-current)" main "branch of the main checkout"
 	assert_eq "$(job_get state)" implementing "state"
 	assert_eq "$(job_get round)" 1 "round"
 	assert_eq "$(job_get branch)" softwary/$JOB "branch in the job file"
@@ -153,15 +154,16 @@ test_ac_v2_08_gate_flaky() {
 # AC-V2-08: the gate wants the job's branch, a clean tree and the gating state.
 test_ac_v2_08_gate_preconditions() {
 	gate_repo true
-	touch "$REPO/junk"
+	wt=$(job_wt $JOB)
+	touch "$wt/junk"
 	sw job gate $JOB
 	assert_eq "$RC" 2 "exit code with a dirty tree"
 	assert_eq "$(job_get state)" gating "state"
-	rm "$REPO/junk"
-	git -C "$REPO" checkout -q main
+	rm "$wt/junk"
+	git -C "$wt" checkout -q -b other
 	sw job gate $JOB
 	assert_eq "$RC" 2 "exit code on the wrong branch"
-	git -C "$REPO" checkout -q softwary/$JOB
+	git -C "$wt" checkout -q softwary/$JOB
 	sw job event $JOB escalate why
 	sw job gate $JOB
 	assert_eq "$RC" 1 "exit code in the wrong state"
@@ -174,10 +176,11 @@ test_ac_v3_05_gate_guard_fails_without_verify() {
 	# shellcheck disable=SC2016 # the script is written as is, to expand when it runs
 	printf 'echo run >>%s/count\n' "$T" >"$T/count.sh"
 	gate_repo "sh $T/count.sh"
-	mkdir -p "$REPO/lib"
-	printf 'x\n' >"$REPO/lib/other.txt"
-	printf '# changed\n' >>"$REPO/.github/CODEOWNERS"
-	commit_all "violations"
+	wt=$(job_wt $JOB)
+	mkdir -p "$wt/lib"
+	printf 'x\n' >"$wt/lib/other.txt"
+	printf '# changed\n' >>"$wt/.github/CODEOWNERS"
+	commit_in "$wt" "violations"
 	sw job gate $JOB
 	assert_eq "$RC" 0 "exit code"
 	assert_eq "$(job_get state)" implementing "state"
@@ -193,8 +196,9 @@ test_ac_v3_05_gate_guard_fails_without_verify() {
 # AC-V3-05: a guard that cannot run (configuration) is exit 2 and changes nothing.
 test_ac_v3_05_gate_guard_config_error() {
 	gate_repo true
-	conf_del test_paths
-	commit_all "no test_paths"
+	wt=$(job_wt $JOB)
+	sed '/^test_paths/d' "$wt/.softwary/config/commands.conf" >"$T/commands.conf" && cp "$T/commands.conf" "$wt/.softwary/config/commands.conf"
+	commit_in "$wt" "no test_paths"
 	sw job gate $JOB
 	assert_eq "$RC" 2 "exit code"
 	assert_contains "$OUT" "test_paths"
@@ -204,10 +208,11 @@ test_ac_v3_05_gate_guard_config_error() {
 # AC-V3-05: a clean diff is the old gate: guard first, then verify.
 test_ac_v3_05_gate_passes_after_guard() {
 	gate_repo true
-	mkdir -p "$REPO/src/api"
-	printf 'x\n' >"$REPO/src/api/login.py"
-	fm_set "$REPO/specs/001-login/slices/S1.md" status in-progress
-	commit_all "work"
+	wt=$(job_wt $JOB)
+	mkdir -p "$wt/src/api"
+	printf 'x\n' >"$wt/src/api/login.py"
+	fm_set "$wt/specs/001-login/slices/S1.md" status in-progress
+	commit_in "$wt" "work"
 	sw job gate $JOB
 	assert_eq "$RC" 0 "exit code"
 	assert_eq "$(job_get state)" pr "state"
