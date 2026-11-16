@@ -2,7 +2,7 @@
 
 Dosyalar: `merge.tla` (model), `merge.cfg` (kodun yaptığı protokol), `merge-<hata>.cfg` (sekiz bozulmuş varyant). Çalıştırma: `sh tests/tlc.sh docs/formal/merge.cfg`; test: `sh tests/formal_test.sh` (Java ve `tla2tools` 1.8.0 gerekir, jar'ın SHA-256'sı `tests/tlc.sh`'te sabittir: `7e53aa636dac8a3cb0533f343115c0548e03fc0ce5edc7739becf58d3d0fb84f`; yoksa test başarısız olur, yalnızca `SW_SKIP_FORMAL=<gerekçe>` onu gerekçesiyle görünür biçimde atlar). TLC paketin değil bu reponun geliştirme bağımlılığıdır.
 
-Son doğrulandığı commit: `<KOD-COMMIT>` (kod: `src/lib/lock.sh`, `admit.sh`, `worktree.sh`, `merge.sh`, `queue.sh`, `run.sh`, `job.sh`). TLC: `TLC2 Version 2026.11.15.002146 (rev: bc1b506)`, 4 işçi.
+Son doğrulandığı commit: `3b87b51` (kod: `src/lib/lock.sh`, `admit.sh`, `worktree.sh`, `merge.sh`, `queue.sh`, `run.sh`, `job.sh`). TLC: `TLC2 Version 2026.11.15.002146 (rev: bc1b506)`, 4 işçi.
 
 ## Değişmezler: düz cümle ve zarar
 

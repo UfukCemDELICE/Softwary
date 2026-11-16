@@ -100,6 +100,30 @@ test_ac_v4_09_merge_waits_for_the_drainer() {
 	assert_eq "$(sw_queue_text)" "" "queue"
 }
 
+# AC-V4-09: the drainer gives the merge lock up in the very section in which it
+# sees the queue empty (not when the process exits), and keeps it while a job
+# waits in the queue.
+test_ac_v4_09_empty_queue_releases_in_the_same_section() {
+	setup_repo
+	conf_all true
+	mkdir -p "$REPO/$JOBS_REL/001-S1"
+	printf 'state=queued\nround=1\nstarted=1\ntokens=0\n' >"$REPO/$JOBS_REL/001-S1/job"
+	cat >"$T/next.sh" <<'NEXT'
+SOFTWARY_ROOT=$1 SW_STATE_ROOT=$1 SOFTWARY_HOME=$2
+for f in lock events job queue; do . "$2/lib/$f.sh"; done
+sw_lock_try merge || exit 2
+sw_state_locked sw_queue_next
+printf '%s %s\n' "$SW_QUEUE_NEXT" "$([ -d "$1/.softwary/state/locks/merge" ] && echo held || echo free)"
+printf '' >"$1/.softwary/state/queue"
+sw_state_locked sw_queue_next
+printf '%s %s\n' "$SW_QUEUE_NEXT" "$([ -d "$1/.softwary/state/locks/merge" ] && echo held || echo free)"
+NEXT
+	printf '001-S1\n' >"$REPO/.softwary/state/queue"
+	sh "$T/next.sh" "$REPO" "$REPO/.softwary" >"$OUT" 2>&1
+	assert_eq "$(cat "$OUT")" "head held
+empty free" "the lock after each section"
+}
+
 # AC-V4-09: a job in the queue whose conditions do not hold goes to the human
 # and leaves the queue; the next one is merged; queue drain says 1, and the
 # merge of a job that is itself refused says 1.
