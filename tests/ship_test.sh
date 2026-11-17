@@ -261,7 +261,7 @@ test_ac_v7_02_computed_sections() {
 	risk=$(awk '/^## Risk$/ { on = 1; next } /^## / { on = 0 } on' "$f")
 	printf '%s\n' "$risk" | grep -q '^- highest tier: R3$' || fail "the highest tier is not R3: $risk"
 	printf '%s\n' "$risk" | grep -q '^  - src/pay/charge.sh (src/pay/\*)$' || fail "the R3 path is not listed: $risk"
-	printf '%s\n' "$risk" | grep -q 'src/app.sh' && fail "a path that is not R3 is listed: $risk"
+	printf '%s\n' "$risk" | grep -q 'lib/x.sh' && fail "a path that is not R3 is listed: $risk"
 	waivers=$(awk '/^## Waivers and findings$/ { on = 1; next } /^## / { on = 0 } on' "$f")
 	printf '%s\n' "$waivers" | grep -q "^- waiver lint: until $FAR (.* days left): legacy lint debt$" || fail "the waiver is not listed: $waivers"
 	drift=$(awk '/^## Drift$/ { on = 1; next } /^## / { on = 0 } on' "$f")

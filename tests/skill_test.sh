@@ -405,4 +405,90 @@ test_ac_v6_12_blueprint_from_code() {
 	done
 }
 
+# only_commands FILE WORDS: the ./softwary commands the file uses are among WORDS.
+only_commands() {
+	_oc_f=$1
+	shift
+	for _oc_c in $(commands_in "$_oc_f"); do
+		case " $* " in *" $_oc_c "*) ;; *) fail "${_oc_f#"$PKG_ROOT"/} uses ./softwary $_oc_c" ;; esac
+	done
+}
+
+# AC-V7-11: ship, diagnose and maintain reach the three tools, are within 80
+# lines and name only commands that help lists.
+test_ac_v7_11_distributed_short_and_known_commands() {
+	setup_repo
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	known=$(sh "$PKG_ROOT/src/bin/softwary" help | awk '/^commands:/ { on = 1; next } on && /^  [a-z]/ { print $1 }' | sort -u)
+	for s in ship diagnose maintain; do
+		f=$SKILLS/$s/SKILL.md
+		[ -f "$f" ] || fail "src/skills/$s/SKILL.md missing"
+		for d in .claude .cursor .agents; do
+			[ -s "$REPO/$d/skills/softwary-$s/SKILL.md" ] || fail "$d/skills/softwary-$s/SKILL.md missing"
+		done
+		[ "$(wc -l <"$f" | tr -d ' ')" -le 80 ] || fail "${f#"$PKG_ROOT"/} is longer than 80 lines"
+		for c in $(commands_in "$f"); do
+			printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "${f#"$PKG_ROOT"/} uses unknown command: ./softwary $c"
+		done
+	done
+	for c in ship repro drift; do
+		printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "help does not list $c"
+	done
+	sw sync --check
+	assert_eq "$RC" 0 "sync --check exit code"
+}
+
+# AC-V7-11: ship prepares, has the person's sections written, checks and opens
+# the pull request; the merge and the deploy are left to the human.
+test_ac_v7_11_ship_text() {
+	f=$SKILLS/ship/SKILL.md
+	for t in "./softwary ship prepare" "./softwary ship check" "./softwary ship pr" "./softwary next" "\`Observability\`" "\`Rollout\`" "\`Rollback\`" \
+		"You never merge it and you never run" "merging it and deploying are" "drift has undecided or expired items" "\`maintain\`" "never invent it" "## Excuses"; do
+		assert_contains "$f" "$t"
+	done
+	only_commands "$f" next ship
+	! grep -F -e "./softwary deploy" -e "pr merge" "$f" >/dev/null || fail "ship merges or deploys"
+	rows=$(grep -c '^| ' "$f")
+	[ "$rows" -ge 5 ] || fail "the excuse table has fewer than three rows"
+}
+
+# AC-V7-11: diagnose writes the test that reproduces the bug first and sees it
+# red, finds the cause with evidence, binds the fix to the example the bug
+# breaks, sends behaviour no example describes to the human and fixes no code.
+test_ac_v7_11_diagnose_text() {
+	f=$SKILLS/diagnose/SKILL.md
+	for t in "Reproduce first" "you must see it red" "Find the root cause with evidence" "A guess does not go into a spec" "\`EX-F<n>-NN\`" \
+		"send them to \`define\`" "\`repro: <test file>\`" "./softwary plan check" "./softwary plan approve" "./softwary repro <job>" \
+		"A red test must not reach the" "You write no code that fixes it" "never edit the code that is wrong" "## Excuses"; do
+		assert_contains "$f" "$t"
+	done
+	only_commands "$f" plan repro doctor
+}
+
+# AC-V7-11: maintain runs drift and asks the human to decide each item, one at
+# a time, writing the answer with a date and a reason; it decides nothing.
+test_ac_v7_11_maintain_text() {
+	f=$SKILLS/maintain/SKILL.md
+	for t in "./softwary drift" "architecture/drift.md" "one at a time" "\`accept\`" "\`blueprint\`" "\`fix <spec number>\`" "never invent them" "stale decision" \
+		"Only the human decides" ".softwary/templates/drift.md" "Every decision is the human's" "## Excuses"; do
+		assert_contains "$f" "$t"
+	done
+	only_commands "$f" drift
+}
+
+# AC-V7-11: run reports that ship is the human's step and never opens it; plan
+# knows the repro field.
+test_ac_v7_11_run_and_plan_texts() {
+	assert_contains "$SKILLS/run/SKILL.md" "with the \`ship\` skill"
+	assert_contains "$SKILLS/run/SKILL.md" "theirs, never yours"
+	for c in $(commands_in "$SKILLS/run/SKILL.md"); do
+		case $c in run | job | queue | status) ;; *) fail "run uses ./softwary $c" ;; esac
+	done
+	assert_contains "$SKILLS/plan/SKILL.md" "repro: <test files>"
+	assert_contains "$SKILLS/plan/SKILL.md" "\`diagnose\`"
+	assert_contains "$PKG_ROOT/src/templates/artifacts/slice.md" "repro (optional"
+}
+
 run_tests "$0"
