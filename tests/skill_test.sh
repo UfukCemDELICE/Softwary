@@ -64,14 +64,14 @@ test_ac_v1_08_setup_branch_protection() {
 }
 
 # AC-V1-08: an empty repository gets no model and is pointed at define and
-# blueprint; in an existing one the baseline ADR lists each component's paths.
+# blueprint. (V6: in an existing one the paths each component is drawn from
+# are listed by blueprint's ADR, not by setup: see AC-V6-10 and AC-V6-12.)
 test_ac_v1_08_setup_empty_and_existing_repo() {
 	assert_contains "$SKILL" "empty repository"
 	assert_contains "$SKILL" "do not draft a model"
 	assert_contains "$SKILL" "\`define\`"
 	assert_contains "$SKILL" "\`blueprint\`"
 	assert_contains "$SKILL" ".gitkeep"
-	assert_contains "$SKILL" "the paths each component is drawn from"
 }
 
 # AC-V1-08: while iterating, implement runs verify --fast; before review the
@@ -364,6 +364,44 @@ test_ac_v5_12_short_known_commands_no_gone_stages() {
 	done
 	for f in "$SKILLS"/*/SKILL.md "$AGENTS"/*.md "$PKG_ROOT/src/rules/core.md"; do
 		! grep -E '`(discover|architect|specify|slice)`' "$f" >/dev/null || fail "${f#"$PKG_ROOT"/} names a stage that is gone"
+	done
+}
+
+# AC-V6-10: in a repository with code setup draws no model and writes no
+# baseline ADR; it runs verify and asks, for every project check that fails,
+# whether to fix it or to waive it (a date, a reason and the scoped command),
+# never inventing them, and names define and blueprint as the next steps.
+test_ac_v6_10_setup_existing_repo_text() {
+	for t in "./softwary verify" "./softwary verify --fast" "stops at \`model\`" "waive" ".softwary/config/waivers.conf" "<YYYY-MM-DD>: <reason>" "<key>_files" "{files}" "NONE: <reason>" \
+		"never invent them" "do not draw the model" "do not write a baseline" "\`blueprint\` does both" "\`define\` (what the product does today)"; do
+		assert_contains "$SKILL" "$t"
+	done
+	! grep -F -e "baseline-model" -e "draft the model from the code" -e "Start from \`.softwary/templates/system.calm.json\`" "$SKILL" >/dev/null ||
+		fail "setup still draws the model of existing code"
+	! grep -F "accept the baseline ADR" "$SKILL" >/dev/null || fail "setup still hands over a baseline ADR"
+}
+
+# AC-V6-11: define starts from the behaviour that exists: it reads the code,
+# the documents and the tests, puts every feature and example to the human one
+# at a time with a recommended answer, and keeps what is new apart.
+test_ac_v6_11_define_from_code() {
+	f=$SKILLS/define/SKILL.md
+	for t in "Code already exists" "the README" "the tests" "one feature at a time" "recommended answer" "describe today's behaviour" \
+		"separate feature" "Never infer"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V6-12: blueprint draws the model from the code: active components, real
+# coverage, an ADR that lists the paths each component is drawn from, and a
+# finding (a table with a date and a reason that the human gives) where the
+# code breaks an invariant, never a weakened invariant.
+test_ac_v6_12_blueprint_from_code() {
+	f=$SKILLS/blueprint/SKILL.md
+	for t in "Code already exists" "draw it from the code" "\`status: active\`" "not \`planned\`" "0001-model-from-code.md" "\`status: proposed\`" \
+		"the paths each component is drawn from" "that is a finding" "do not weaken the invariant or the model" "Ask the human for the date" \
+		"## Findings" "| Invariant | Until | Reason |" "FINDING"; do
+		assert_contains "$f" "$t"
 	done
 }
 

@@ -4,8 +4,14 @@
 to <name>.tla (the model), <name>.cfg (the model as it should be) and
 <name>-<variant>.cfg (one broken variant for each invariant). Keep the six
 section headings. A state machine's every event is an action below, named
-exactly like the TLA+ action. Only the Invariants table is bound by the
-blueprint approval: a human reads those sentences. -->
+exactly like the TLA+ action. The Invariants table is bound by the blueprint
+approval: a human reads those sentences.
+
+Optional: when the code this model describes already breaks an invariant, do
+not weaken the invariant or the model. Add a section "## Findings" to the
+record, a table with the columns | Invariant | Until | Reason | and a row for
+each invariant. The date is YYYY-MM-DD; the finding is reported until then and fails after it.
+The table is bound by the blueprint approval too. -->
 
 ## Invariants
 

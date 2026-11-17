@@ -75,7 +75,7 @@ Her birleştirme gerekçesiyle `decision.md`'ye ve olay günlüğüne yazılır.
 | Sözlük | `CONTEXT.md` | Görüşmede güncellenir |
 | Blueprint, bağlayıcı | `architecture/model/system.calm.json` (bileşenler, ilişkiler), `architecture/data/model.json` (varlıklar, alanlar, ilişkiler), `architecture/contracts/` (OpenAPI) | İnsan (`approve blueprint`) |
 | Blueprint, bilgilendirici | `architecture/flows/*.json` (çok bileşenli akışlar), `architecture/states/*.json` (durumlu varlıklar); Mermaid görünümleri `views` ile üretilir | Yok; döngü güncelleyebilir |
-| Biçimsel belirtim | `architecture/formal/<ad>.tla` ve `.cfg` (TLA+ modeli), `architecture/formal/<ad>.md` (her değişmezin düz cümlesi ve zararı, kapsadığı dosya ve fonksiyonlar, sınırlar ve varsayımlar, son doğrulandığı commit, bozulmuş varyant kaydı); R3 saf algoritmalar için isteğe bağlı kanıt (Lean) | Değişmez cümleleri bağlayıcıdır: insan (`approve blueprint`); model ve kapsam kaydı döngüde güncellenebilir |
+| Biçimsel belirtim | `architecture/formal/<ad>.tla` ve `.cfg` (TLA+ modeli), `architecture/formal/<ad>.md` (her değişmezin düz cümlesi ve zararı, kapsadığı dosya ve fonksiyonlar, sınırlar ve varsayımlar, son doğrulandığı commit, bozulmuş varyant kaydı); R3 saf algoritmalar için isteğe bağlı kanıt (Lean) | Değişmez cümleleri ve varsa `## Findings` tablosu bağlayıcıdır: insan (`approve blueprint`); model ve kapsam kaydı döngüde güncellenebilir |
 | Karar (ADR) | `architecture/decisions/NNNN-ad.md` | Bağlayıcı kısmı değiştirirse insan |
 | Spec | `specs/NNN-ad/spec.md`: kabul kriterleri `PRODUCT.md`'deki örneklere bağlanır | Otomatik (§6.3) |
 | Dilim | `specs/NNN-ad/slices/Sx.md`: `depends_on`, `touches` | Yok |
@@ -123,7 +123,7 @@ Sınırlar ve gözlem (`.softwary/config/loop.conf`, varsayılanlar insan onayl�
 - **Ajan izinleri.** Arka plan ajanlarının ağ, `gh` ve gizli bilgi erişimi kısıtlanır; yalnızca kendi dalına push eder.
 - **Biçimsel doğrulama (ürün).** Yaklaşım pstack'ten (`docs/sources.md` §5, insan kararı D-63): biçimsel doğrulama, hatanın en pahalı ve testlerin en zayıf olduğu yere uygulanır ve araç soruya göre seçilir.
   - *Ne zaman:* blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış. Olayların kötü bir sırada olup olamayacağı sorusu TLA+ modeli ve model denetleyici (TLC) ile cevaplanır. R3 riskli, saf algoritmik bir çekirdeğin (para hesabı, yetki kuralı, ayrıştırıcı) her girdi için doğruluğu gerekiyorsa kanıt asistanı (Lean) isteğe bağlıdır; zorunlu değildir, çünkü maliyeti her projeye uymaz.
-  - *Kurallar (kapı):* her değişmezin düz bir cümlesi ve zararı vardır ve insan bunları blueprint onayında onaylar. Model koda sadıktır: her parçası bir dosyaya ve fonksiyona işaret eder, koddaki bölünmez adım modelde de bölünmezdir. Her değişmez bozulmuş bir varyantta başarısız gösterilir; hiç başarısız olmamış denetim kanıt sayılmaz. Mevcut kod bir değişmezi bozuyorsa bu bir bulgudur; değişmez ya da model geçsin diye zayıflatılmaz (korunan yol, §4). Kapsam dürüsttür: sınırlar, varsayımlar ve dışarıda kalanlar yazılır.
+  - *Kurallar (kapı):* her değişmezin düz bir cümlesi ve zararı vardır ve insan bunları blueprint onayında onaylar. Model koda sadıktır: her parçası bir dosyaya ve fonksiyona işaret eder, koddaki bölünmez adım modelde de bölünmezdir. Her değişmez bozulmuş bir varyantta başarısız gösterilir; hiç başarısız olmamış denetim kanıt sayılmaz. Mevcut kod bir değişmezi bozuyorsa bu bir bulgudur; değişmez ya da model geçsin diye zayıflatılmaz (korunan yol, §4). Bulgu, kaydın `## Findings` tablosunda değişmez, bitiş tarihi ve gerekçeyle yazılan süreli bir muafiyettir (§3 ilke 4): `formal check` onu `FINDING` olarak ve ihlalin en kısa yoluyla gösterir, tarih geçince başarısız olur; `status` ve `handoff` kalan günleriyle listeler. Kapsam dürüsttür: sınırlar, varsayımlar ve dışarıda kalanlar yazılır.
   - *Sürekli:* `model_check` belirtim olan projede zorunludur ve her `verify`'da çalışır; kısa ve tek komuttur. Kapsam kaydındaki dosyalar son doğrulanan commit'ten beri değiştiyse `model_check` bunu bildirir ve sapma denetimi her belirtimi şu sonuçlardan birine bağlar: uyumlu, güncellendi, hata (model kodu doğru anlatıyor, kod kuralı bozuyor), engelli. Eskimiş bir modelin geçmesi en tehlikeli durumdur, çünkü kanıt gibi görünür.
   - *Sınır:* belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz. Bu boşluk iki yolla daraltılır: model denetleyicinin bulduğu her karşı örnek gerçek koda karşı adım adım test olarak yeniden oynatılır (oynamazsa önce model yanlış sayılır), ve kabul testleri belirtimin durum ve geçişlerinden türetilir.
   - *Araç:* TLC Java gerektirir; belirtimi olan projede `bootstrap` ve CI'ın kurulum adımı onu kurar. Alloy veri modeli kısıtları için isteğe bağlıdır.
@@ -194,6 +194,8 @@ Skill'ler, hook'lar ve CI yalnızca sözleşme isimlerini kullanır. Gerçek kom
 
 Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNSET` (zorunlu anahtarda hata) ya da `NONE: <gerekçe>` (atlanır, gerekçe raporda görünür). `test_paths` ve `src_paths` komut değil ayardır.
 
+Muaf tutulabilir her denetimin (`format_check lint typecheck test build security contract_check arch_check model_check`) isteğe bağlı bir `<anahtar>_files` karşılığı vardır: aynı denetimin yalnızca değişen dosyalardaki hali. Değeri `{files}` yer tutucusunu taşıyan bir komut ya da `NONE: <gerekçe>`'dir; `{files}` geçmeyen komut yapılandırma hatasıdır. Muafiyeti olan bir anahtarın `<anahtar>_files`'ı ayarlı olmalıdır (`doctor` ve `run start` aksi hâlde başarısızdır): muafiyet döngüyü kör bırakmaz.
+
 Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`. Her biri ilgili kilometre taşında eklenir.
 
 `verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri (`sync`, `model`, `views`, `trace`, sonra entegrasyon dalına ya da `--base`'e karşı `adr` ve `changes`; henüz commit yoksa bu ikisi `SKIP (no commits yet)`), biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. `--fast` yalnızca biçim, lint ve tip denetimlerini çalıştırır. Çıktı ajanın okuması içindir:
@@ -201,7 +203,7 @@ Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `change
 - Kontrol başına tek satır: `PASS`, `FAIL` ya da `SKIP (gerekçe)`.
 - Hatada çıktının yalnızca son satırları basılır, tam kayıt `.softwary/state/logs/` altına yazılır.
 - Çıkış kodları: `0` geçti, `1` başarısız, `2` yapılandırma eksik.
-- Süresi dolmamış bir muafiyeti olan başarısız kontrol `WAIVED (<gerekçe>, until <tarih>)` satırıyla görünür ve sonucu kırmızı yapmaz (§3 ilke 4). Süresi dolmuş muafiyet `FAIL`'i değiştirmez, satıra `waiver expired <tarih>` ekler; geçen bir kontrolün muafiyeti `PASS (waiver no longer needed)` gösterir. Muafiyet yalnızca proje denetimlerine verilir, paket denetimlerine verilemez.
+- Süresi dolmamış bir muafiyeti olan başarısız kontrol `WAIVED (<gerekçe>, until <tarih>)` satırıyla görünür ve sonucu kırmızı yapmaz (§3 ilke 4); ardından `<anahtar> (changed files)` satırı gelir: `--base` ile (ve `--fast`'te entegrasyon dalına karşı) kontrol `<anahtar>_files` komutuyla işin değiştirdiği dosyalarda yeniden çalışır ve orada geçmek zorundadır (iş kapısı ve birleştirme `--base` ile çalıştığı için bunu da uygular; bayraksız `verify` `SKIP (no base)` yazar). Süresi dolmuş muafiyet `FAIL`'i değiştirmez, satıra `waiver expired <tarih>` ekler; geçen bir kontrolün muafiyeti `PASS (waiver no longer needed)` gösterir. Muafiyet yalnızca proje denetimlerine verilir, paket denetimlerine verilemez.
 - `doctor` proje komutlarını çalıştırmaz: yapılandırılmış anahtar `PASS (configured, not run)` yazar.
 
 ## 12. Araç dağıtımı
@@ -222,7 +224,7 @@ Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı destek
 - Kaynaklardan yalnızca fikir alınır, metin ya da kod alınmaz (zazencodes GPL-3.0).
 - Döngü worktree'den entegrasyon dalına (`main`) PR ile birleştirir; üretim dalı (`master`) ayrıdır ve ona alma insan onayıyla yapılır.
 - Onay güven sınırı içerik özetleridir (tamper-evident); daha güçlü sınır sonraya bırakıldı.
-- İlk hedef boş repodur; mevcut repo proje tamamlanınca eklenir.
+- İlk hedef boş repodur; mevcut repo V6'da eklendi: `setup` kırmızı proje denetimlerini düzeltme ya da süreli muafiyet olarak insana sorar, `define` ve `blueprint` var olan koddan başlar.
 - GitHub PR ve CI döngünün zorunlu parçasıdır; CI şablonu GitHub Actions içindir.
 - R3 ve korunan yol değişiklikleri her zaman insana gelir. Bütçe varsayılanları §6.4'tedir; kullanıcı abonelikle çalıştığı için maliyet token ile sınırlanır.
 - Opus kritik planlamayı ve incelemeyi, Sonnet uygulamayı yapar; Sonnet gerektiğinde Opus'u danışman olarak kullanır.

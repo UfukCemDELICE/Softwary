@@ -173,6 +173,9 @@ sw_handoff() {
 		printf '\n## Approvals\n\n'
 		_ho_ap=$(sw_status_approvals 2>&1)
 		if [ -n "$_ho_ap" ]; then printf '%s\n' "$_ho_ap"; else printf '(no product definition yet)\n'; fi
+		printf '\n## Waivers and findings\n\n'
+		_ho_wv=$(sw_status_waivers 2>&1)
+		if [ -n "$_ho_wv" ]; then printf '%s\n' "$_ho_wv"; else printf '(none)\n'; fi
 		printf '\n## Jobs\n\n'
 		_ho_jobs=$(sw_status_jobs 2>&1)
 		if [ -n "$_ho_jobs" ]; then printf '%s\n' "$_ho_jobs"; else printf '(no jobs)\n'; fi

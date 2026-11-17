@@ -18,6 +18,19 @@ sw_run_time() {
 # the integration branch passes the full verify again.
 sw_run_start() {
 	_rs_b=$(sw_wt_bootstrap_cmd) || { printf '%s\n' "$_rs_b"; return 2; }
+	# A waived check is checked on the files of every change: no waiver
+	# without its scoped command (the substitution above loaded the
+	# configuration in a subshell only).
+	sw_conf_load "$SW_STATE_ROOT/$SW_CONF_REL"
+	_rs_sp=$(sw_scoped_problems)
+	_rs_sm=$(sw_scoped_missing)
+	if [ -n "$_rs_sp" ] || [ -n "$_rs_sm" ]; then
+		[ -z "$_rs_sp" ] || printf '%s\n' "$_rs_sp"
+		for _rs_k in $_rs_sm; do
+			printf 'run start: %s_files is not set in %s (required: %s has a waiver)\n' "$_rs_k" "$SW_CONF_REL" "$_rs_k"
+		done
+		return 2
+	fi
 	if sw_run_open; then
 		sw_state_locked sw_run_housekeeping
 		if sw_run_halted; then

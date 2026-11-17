@@ -75,6 +75,10 @@ EOF
 		else
 			sw_line "waiver $_wk" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
 		fi
+		# A waived check must be checked on the files of every change.
+		if [ "${SW_CONF_FOUND:-0}" -eq 1 ] && sw_conf_is_unset "${_wk}_files"; then
+			sw_doctor_fail "${_wk}_files" "required: $_wk has a waiver"
+		fi
 	done
 }
 
@@ -204,6 +208,14 @@ sw_doctor() {
 				[ -n "$_err" ] && sw_doctor_fail "commands.conf" "$_err"
 			done <<EOF
 $SW_CONF_ERRORS
+EOF
+		fi
+		_sp=$(sw_scoped_problems)
+		if [ -n "$_sp" ]; then
+			while IFS= read -r _err; do
+				[ -n "$_err" ] && sw_doctor_fail "commands.conf" "$_err"
+			done <<EOF
+$_sp
 EOF
 		fi
 		# doctor never runs the project's commands: verify does.

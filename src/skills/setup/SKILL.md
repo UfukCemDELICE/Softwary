@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up softwary in this repository. Fills the configuration and the branches, drafts a baseline model and ADR for existing code, places the CI template, and finishes when doctor passes. Use right after install.sh or when ./softwary doctor reports problems.
+description: Set up softwary in this repository. Fills the configuration and the branches, asks the human to fix or waive every project check that is red in existing code, places the CI template, and finishes when doctor passes. Use right after install.sh or when ./softwary doctor reports problems.
 ---
 
 # Setup
@@ -41,16 +41,22 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    `src_paths` directory with a `.gitkeep` file so it exists. The `model` line
    of `doctor` stays FAIL until the model is written; tell the human the next
    steps are `define` (the product) and then `blueprint` (the model).
-8. A repository with code, and no `architecture/model/system.calm.json`:
-   draft the model from the code. Start from
-   `.softwary/templates/system.calm.json`, describe only components you can
-   see, set their `paths`, `risk` and `status`, then run
-   `./softwary model validate` and `./softwary views` until both pass. Record
-   the draft as the baseline: copy `.softwary/templates/adr.md` to
-   `architecture/decisions/0001-baseline-model.md`, list in it
-   the paths each component is drawn from, set `status: proposed` and
-   `affects: architecture/model/system.calm.json`. Never set an ADR to
-   `accepted`; only a human does.
+8. A repository with code: do not draw the model and do not write a baseline
+   ADR here: `blueprint` does both, from the code (its ADR is
+   `.softwary/templates/adr.md`, `status: proposed`). Find the checks that
+   fail with `./softwary verify --base <integration branch>`; without a model
+   it stops at `model` (exit 2), so then run `./softwary verify --fast` and the
+   command of every other key in `commands.conf` yourself, from the
+   repository root. Every project check that fails was debt before softwary
+   came. Ask the human, for each one: fix it now, or
+   waive it. A waiver is a line `<key> = <YYYY-MM-DD>: <reason>` in
+   `.softwary/config/waivers.conf`; after the date the check fails again. A
+   waived check also runs on the files of every change, so ask for
+   `<key>_files` in `commands.conf`: the same check with `{files}` where the
+   changed files go (the linter on given files), or `NONE: <reason>` when it
+   cannot run on files. The date, the reason and the command are the
+   human's; never invent them. Run `verify` again until each failing check
+   is fixed or waived.
 9. Copy `.softwary/templates/softwary.yml` to `.github/workflows/softwary.yml`.
    Replace both `branches: [UNSET]` with the integration branch, and the
    `Install tools` step with the commands that install what `commands.conf`
@@ -59,11 +65,13 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    only if the human wants owners; then ask for them and replace every
    `UNSET`.
 11. Run `./softwary sync`, then `./softwary doctor`. Repeat from the failing
-    line until it reports no problems (in an empty repository, until only
-    `model` is left).
-12. Tell the human what is left for them: accept the baseline ADR if there is
-    one, commit the result, and protect the integration branch: require pull
-    requests and require the `softwary` status check to pass;
+    line until it reports no problems (until only `model` is left, when the
+    repository has no model yet).
+12. Tell the human what is left for them: commit the result, and protect the
+    integration branch: require pull requests and
+    require the `softwary` status check to pass;
     do not require a human review, since merges are gated by the checks.
+    The next steps are `define` (what the product does today) and then
+    `blueprint` (the model, from the code).
 
 Do not edit generated files, and do not weaken a check to get `doctor` to pass.

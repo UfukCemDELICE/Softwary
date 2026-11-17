@@ -428,6 +428,9 @@ sw_status() {
 		_b=${_f##*/}
 		printf 'ADR %-4s %-9s %s\n' "${_id:-${_b%%-*}}" proposed "$(sw_fm_get title)"
 	done
+	printf 'Waivers and findings:\n'
+	_st_wv=$(sw_status_waivers)
+	if [ -n "$_st_wv" ]; then printf '%s\n' "$_st_wv" | sed 's/^/  /'; else printf '  (none)\n'; fi
 	sw_status_eval
 	sw_status_jobs
 	return "$_st_rc"

@@ -105,6 +105,10 @@ test_ac_v1_04_doctor_lists_waivers() {
 	sw doctor
 	assert_eq "$RC" 0 "exit code without waivers"
 	assert_match "$OUT" "^waivers +PASS \(none\)$"
+	# V6: a waived check needs its scoped command (<key>_files), or doctor
+	# has one more problem to report; this test is about the waiver lines.
+	conf_set security_files 'true {files}'
+	conf_set lint_files 'true {files}'
 	write_waivers <<'EOF'
 security = 2999-12-31: CVE triage
 lint = 2000-01-01: old rules
