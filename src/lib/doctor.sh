@@ -75,6 +75,10 @@ EOF
 		else
 			sw_line "waiver $_wk" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
 		fi
+		# A waived check must be checked on the files of every change.
+		if [ "${SW_CONF_FOUND:-0}" -eq 1 ] && sw_conf_is_unset "${_wk}_files"; then
+			sw_doctor_fail "${_wk}_files" "required: $_wk has a waiver"
+		fi
 	done
 }
 
