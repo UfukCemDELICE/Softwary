@@ -158,13 +158,15 @@ commands:
                    example no test names) and the decision the human took for
                    each in architecture/drift.md; 1 while one is undecided or
                    expired
-  ship prepare|check
-                   prepare the proposal to take integration_branch to
-                   production_branch: the tip passes the gate, the drift is
-                   decided, and the release note is written to
-                   .softwary/state/releases/<sha>.md (what to watch, how to
-                   roll out and how to roll back are for a person to write);
-                   check that the note is of today's tip and filled in
+  ship prepare|check|pr
+                   take integration_branch to production_branch, as a pull
+                   request that a person merges: prepare checks that the tip
+                   passes the gate and the drift is decided, and writes the
+                   release note to .softwary/state/releases/<sha>.md (what to
+                   watch, how to roll out and how to roll back are for a
+                   person to write); check that the note is of today's tip
+                   and filled in; pr opens the pull request with the note as
+                   its body (never merges it, never deploys)
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the

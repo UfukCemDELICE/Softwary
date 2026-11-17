@@ -211,6 +211,21 @@ ROWS
 	assert_match "$OUT" "^drift: 0 item\(s\), 0 undecided$"
 }
 
+# AC-V7-08: two rows for one item are not a decision: which of them holds is
+# not clear, so the item stays undecided.
+test_ac_v7_08_duplicate_rows() {
+	drift_repo
+	printf 'x\n' >"$REPO/src/a.sh"
+	commit_all "extra"
+	write_drift <<ROWS
+| uncovered src/a.sh | accept | $FAR | the first |
+| uncovered src/a.sh | blueprint | $FAR | the second |
+ROWS
+	sw drift
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^drift: uncovered src/a\\.sh: undecided \\(more than one decision row\\)$"
+}
+
 # AC-V7-08: a table with other columns, or no table, decides nothing.
 test_ac_v7_08_no_table_decides_nothing() {
 	drift_repo

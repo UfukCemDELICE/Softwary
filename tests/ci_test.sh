@@ -146,7 +146,8 @@ test_ac_v1_06_codeowners_checked_when_present() {
 # verified against its base, a push with the plain verify.
 test_ac_v1_07_template_branches_unset() {
 	f=$PKG_ROOT/src/templates/github/softwary.yml
-	assert_eq "$(awk '/^  pull_request:/ { getline; print; exit }' "$f")" "    branches: [UNSET]" "pull_request branches"
+	# V7: the pull request branches carry the production branch too (AC-V7-10).
+	assert_eq "$(awk '/^  pull_request:/ { getline; print; exit }' "$f")" "    branches: [UNSET, UNSET]" "pull_request branches"
 	assert_eq "$(awk '/^  push:/ { getline; print; exit }' "$f")" "    branches: [UNSET]" "push branches"
 	# shellcheck disable=SC2016 # literal workflow text, nothing to expand
 	assert_contains "$f" 'run: ./softwary verify --base "origin/$BASE_REF"'
@@ -162,9 +163,59 @@ test_ac_v1_07_doctor_reports_each_unset_line() {
 	assert_eq "$RC" 2 "exit code"
 	_n=$(grep -cE "^workflow +FAIL \($WORKFLOW still contains UNSET \(line [0-9]+\)\)$" "$OUT")
 	assert_eq "$_n" 3 "UNSET lines reported"
-	sed 's/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/$WORKFLOW"
+	sed 's/branches: \[UNSET, UNSET\]/branches: [main, master]/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/$WORKFLOW"
 	sw doctor
 	assert_eq "$(grep -cE "^workflow +FAIL" "$OUT")" 1 "only the install step left"
+}
+
+# AC-V7-10: a pull request to the production branch runs the workflow too: the
+# template's pull_request trigger has two branches to fill in, the integration
+# and the production branch, and a pull request is verified against its base
+# whichever it is.
+test_ac_v7_10_pull_request_branches_carry_production() {
+	f=$PKG_ROOT/src/templates/github/softwary.yml
+	assert_eq "$(awk '/^  pull_request:/ { getline; print; exit }' "$f")" "    branches: [UNSET, UNSET]" "pull_request branches"
+	assert_eq "$(awk '/^  push:/ { getline; print; exit }' "$f")" "    branches: [UNSET]" "push branches"
+	# shellcheck disable=SC2016 # literal workflow text, nothing to expand
+	assert_contains "$f" 'run: ./softwary verify --base "origin/$BASE_REF"'
+	setup_repo
+	conf_all true
+	sed 's/branches: \[UNSET, UNSET\]/branches: [main, UNSET]/; s/branches: \[UNSET\]/branches: [main]/; s/^\( *run: \)UNSET.*$/\1true/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/$WORKFLOW"
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code with the production branch UNSET"
+	assert_match "$OUT" "^workflow +FAIL \($WORKFLOW still contains UNSET \(line [0-9]+\)\)$"
+	sed 's/branches: \[main, UNSET\]/branches: [main, master]/' "$REPO/$WORKFLOW" >"$T/w" && cp "$T/w" "$REPO/$WORKFLOW"
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code with both branches"
+	assert_match "$OUT" "^workflow +PASS"
+	assert_contains "$PKG_ROOT/src/skills/setup/SKILL.md" "branches: [UNSET, UNSET]"
+	assert_contains "$PKG_ROOT/src/skills/setup/SKILL.md" "the integration branch and the production branch"
+}
+
+# make_pkg DIR VERSION: a copy of the package with the given version.
+make_pkg() {
+	mkdir -p "$1"
+	cp -R "$PKG_ROOT/install.sh" "$PKG_ROOT/VERSION" "$PKG_ROOT/src" "$1/"
+	printf '%s\n' "$2" >"$1/VERSION"
+}
+
+# AC-V7-10: the workflow of an installed project is the project's own and an
+# upgrade does not change it; it says so when the workflow does not name the
+# production branch, and says nothing when it does.
+test_ac_v7_10_upgrade_says_the_workflow_is_the_projects() {
+	setup_repo
+	conf_all true
+	sed 's/branches: \[main, master\]/branches: [main]/' "$REPO/$WORKFLOW" >"$T/w" && cp "$T/w" "$REPO/$WORKFLOW"
+	make_pkg "$T/pkg" 0.1.0
+	sw upgrade "$T/pkg"
+	assert_eq "$RC" 0 "exit code"
+	assert_contains "$OUT" "upgrade: $WORKFLOW is the project's file and is not changed: add master to the branches of its pull_request trigger"
+	assert_contains "$REPO/$WORKFLOW" "branches: [main]"
+	sed 's/branches: \[main\]$/branches: [main, master]/' "$REPO/$WORKFLOW" >"$T/w" && cp "$T/w" "$REPO/$WORKFLOW"
+	make_pkg "$T/pkg2" 0.2.0
+	sw upgrade "$T/pkg2"
+	assert_eq "$RC" 0 "exit code the second time"
+	assert_no_match "$OUT" "is the project's file"
 }
 
 run_tests "$0"

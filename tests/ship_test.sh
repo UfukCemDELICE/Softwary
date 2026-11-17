@@ -377,6 +377,11 @@ test_ac_v7_03_stale_note() {
 	sw ship prepare
 	sw ship check
 	assert_eq "$RC" 0 "exit code after prepare again (the written sections are kept)"
+	# a note that says it is of another tip, whatever its name
+	sed 's/^integration: .*$/integration: 0000000000000000000000000000000000000000/' "$(note_of)" >"$T/n" && cp "$T/n" "$(note_of)"
+	sw ship check
+	assert_eq "$RC" 1 "exit code with a note of another tip under this tip's name"
+	assert_contains "$OUT" "ship: the note is of another tip than $(git -C "$REPO" rev-parse main)"
 }
 
 # AC-V7-03: without a note there is nothing to check; the same refusals as
@@ -400,13 +405,13 @@ test_ac_v7_03_usage() {
 	ship_repo
 	sw ship
 	assert_eq "$RC" 2 "exit code without a subcommand"
-	assert_contains "$OUT" "usage: ./softwary ship prepare|check"
+	assert_contains "$OUT" "usage: ./softwary ship prepare|check|pr"
 	sw ship prepare extra
 	assert_eq "$RC" 2 "exit code with an argument"
 	sw ship launch
 	assert_eq "$RC" 2 "exit code with an unknown subcommand"
 	sw help
-	assert_match "$OUT" "^  ship prepare[|]check"
+	assert_match "$OUT" "^  ship prepare[|]check[|]pr"
 }
 
 # AC-V7-01: ship prepare does not touch the project: the branches, the files and
@@ -424,6 +429,115 @@ test_ac_v7_01_changes_nothing_but_the_note() {
 	assert_eq "$(git -C "$REPO" branch --show-current)" main "the branch checked out"
 	[ -z "$(git -C "$REPO" status --porcelain)" ] || fail "the working tree changed"
 	[ ! -e "$T/deployed" ] || fail "the deploy command was run"
+}
+
+# pr_repo: ship_repo with an origin that has both branches, a fake gh and a
+# note that is ready.
+pr_repo() {
+	ship_repo
+	add_origin
+	add_production
+	fake_gh
+	sw ship prepare
+	assert_eq "$RC" 0 "ship prepare"
+	fill_note "$(note_of)"
+}
+
+# AC-V7-04: with a clean note the pull request is opened from the integration
+# branch to the production branch, titled for the tip and with the note as its
+# body; its address is printed and the event log has ship_pr.
+test_ac_v7_04_opens_the_pull_request() {
+	pr_repo
+	sw ship pr
+	assert_eq "$RC" 0 "exit code"
+	assert_contains "$OUT" "https://github.com/o/r/pull/1"
+	assert_eq "$(cat "$T/gh/base-1")" master "base"
+	assert_eq "$(cat "$T/gh/branch-1")" main "head"
+	assert_eq "$(cat "$T/gh/pr-1")" "Release $(tip7)" "title"
+	cmp -s "$T/gh/body-1" "$(note_of)" || fail "the body is not the note"
+	assert_match "$T/gh.log" "^pr list --base master --head main --state open"
+	assert_match "$T/gh.log" "^pr create --base master --head main --title Release $(tip7) --body-file "
+	last=$(tail -n 1 "$REPO/.softwary/state/events.log")
+	assert_eq "$(printf '%s' "$last" | jq -r .event)" ship_pr "event"
+	assert_eq "$(printf '%s' "$last" | jq -r .detail)" "https://github.com/o/r/pull/1" "detail"
+}
+
+# AC-V7-04: no pull request while the note is not ready: nothing is asked of gh
+# to open one.
+test_ac_v7_04_not_with_an_unfinished_note() {
+	pr_repo
+	sed 's/^Written by the human\.$/UNSET/' "$(note_of)" >"$T/n" && cp "$T/n" "$(note_of)"
+	sw ship pr
+	assert_eq "$RC" 1 "exit code"
+	assert_contains "$OUT" "ship: ## Observability is not filled in"
+	assert_contains "$OUT" "ship: no pull request: the release note is not ready"
+	! grep -F "pr create" "$T/gh.log" >/dev/null || fail "gh pr create was called"
+	rm "$(note_of)"
+	sw ship pr
+	assert_eq "$RC" 1 "exit code without a note"
+	! grep -F "pr create" "$T/gh.log" >/dev/null || fail "gh pr create was called"
+}
+
+# AC-V7-04: a pull request that is open from the same head to the same base is
+# said so and no second one is opened; once it is merged or closed a new one can be.
+test_ac_v7_04_not_a_second_one() {
+	pr_repo
+	sw ship pr
+	assert_eq "$RC" 0 "first"
+	sw ship pr
+	assert_eq "$RC" 1 "exit code for the second"
+	assert_contains "$OUT" "ship: a pull request from main to master is already open: https://github.com/o/r/pull/1"
+	assert_eq "$(grep -c '^pr create' "$T/gh.log")" 1 "pr create calls"
+	echo CLOSED >"$T/gh/state-1"
+	sw ship pr
+	assert_eq "$RC" 0 "exit code once the first is closed"
+	assert_contains "$OUT" "https://github.com/o/r/pull/2"
+}
+
+# AC-V7-04: ship never merges the pull request and never deploys: gh pr merge
+# is not called, the branches stand where they were and the deploy command
+# does not run.
+test_ac_v7_04_never_merges_or_deploys() {
+	ship_repo
+	conf_set deploy "touch $T/deployed"
+	commit_all "a deploy command"
+	add_origin
+	add_production
+	fake_gh
+	sw ship prepare
+	fill_note "$(note_of)"
+	prod=$(git -C "$REPO" rev-parse origin/master)
+	main=$(git -C "$REPO" rev-parse origin/main)
+	sw ship pr
+	assert_eq "$RC" 0 "exit code"
+	! grep -F "pr merge" "$T/gh.log" >/dev/null || fail "gh pr merge was called"
+	grep -E -e "deploy" "$T/gh.log" >/dev/null && fail "something deployed through gh"
+	[ ! -e "$T/deployed" ] || fail "the deploy command was run"
+	git -C "$REPO" fetch -q origin
+	assert_eq "$(git -C "$REPO" rev-parse origin/master)" "$prod" "origin's master"
+	assert_eq "$(git -C "$REPO" rev-parse origin/main)" "$main" "origin's main"
+	assert_eq "$(git -C "$T/origin.git" rev-parse master)" "$prod" "master in origin.git"
+	# and the code of ship neither pushes, merges nor reads the deploy command
+	! grep -n -E 'git[^|]* push|pr merge|conf_get deploy' "$PKG_ROOT/src/lib/ship.sh" >/dev/null || fail "ship.sh pushes, merges or deploys"
+}
+
+# AC-V7-04: what it needs: an origin with both branches, and gh; exit 2 with the reason.
+test_ac_v7_04_needs_an_origin_with_both_branches_and_gh() {
+	ship_repo
+	sw ship prepare
+	fill_note "$(note_of)"
+	sw ship pr
+	assert_eq "$RC" 2 "exit code without an origin"
+	assert_contains "$OUT" "ship: there is no origin to open a pull request on"
+	add_origin
+	sw ship pr
+	assert_eq "$RC" 2 "exit code with master only here"
+	assert_contains "$OUT" "ship: 'master' is not on origin (push it first)"
+	add_production
+	RC=0
+	(PATH=$(path_without gh) && export PATH && cd "$REPO" && ./softwary ship pr) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code without gh"
+	assert_contains "$OUT" "ship: gh is not installed"
 }
 
 run_tests "$0"

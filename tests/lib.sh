@@ -415,7 +415,10 @@ open_run() {
 # https://github.com/o/r/pull/<n> (n = 1, 2, ...) and records the PR's title,
 # base and head branch under $T/gh/; `pr view --json headRefOid` prints
 # $T/gh/head when that file exists, else the tip of the PR's branch in origin;
-# `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN; `pr checks` exits with the
+# `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN;
+# `pr create` also keeps the body ($T/gh/body-<n>, from --body or --body-file) and
+# `pr list --base B --head H --state open --json ...` prints the open PRs of
+# that base and head as a JSON array of {number, url}; `pr checks` exits with the
 # code in $T/gh/checks (default 0); `pr merge` exits with the code in
 # $T/gh/merge when that file exists, else squash-merges the PR's branch into
 # its base in origin (refusing a --match-head-commit that is not the tip) and
@@ -440,10 +443,32 @@ create)
 		--title) printf '%s\n' "$2" >"$T/gh/pr-$n"; shift 2 ;;
 		--base) printf '%s\n' "$2" >"$T/gh/base-$n"; shift 2 ;;
 		--head) printf '%s\n' "$2" >"$T/gh/branch-$n"; shift 2 ;;
+		--body) printf '%s\n' "$2" >"$T/gh/body-$n"; shift 2 ;;
+		--body-file) cp "$2" "$T/gh/body-$n"; shift 2 ;;
 		*) shift ;;
 		esac
 	done
 	printf 'https://github.com/o/r/pull/%s\n' "$n"
+	;;
+list)
+	base= head=
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--base) base=$2; shift 2 ;;
+		--head) head=$2; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	out=
+	n=1
+	while [ -f "$T/gh/pr-$n" ]; do
+		st=$(cat "$T/gh/state-$n" 2>/dev/null || cat "$T/gh/state" 2>/dev/null || echo OPEN)
+		if [ "$(cat "$T/gh/base-$n")" = "$base" ] && [ "$(cat "$T/gh/branch-$n")" = "$head" ] && [ "$st" = OPEN ]; then
+			out="${out:+$out,}{\"number\":$n,\"url\":\"https://github.com/o/r/pull/$n\"}"
+		fi
+		n=$((n + 1))
+	done
+	printf '[%s]\n' "$out"
 	;;
 view)
 	n=$1
@@ -510,7 +535,7 @@ add_specs() {
 # add_ci: fills in the CI workflow and CODEOWNERS templates under .github/.
 add_ci() {
 	mkdir -p "$REPO/.github/workflows"
-	sed 's/^\( *run: \)UNSET.*$/\1true/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
+	sed 's/^\( *run: \)UNSET.*$/\1true/; s/branches: \[UNSET, UNSET\]/branches: [main, master]/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
 	sed 's/UNSET/@owner/' "$REPO/.softwary/templates/CODEOWNERS" >"$REPO/.github/CODEOWNERS"
 }
 
@@ -669,6 +694,8 @@ run_tests() {
 	_count=0
 	# shellcheck disable=SC2013 # test function names contain no whitespace
 	for _t in $(sed -n 's/^\(test_[a-z0-9_]*\)() {$/\1/p' "$1"); do
+		# SW_TEST_ONLY=<name> runs that one test (the mutation checks use it).
+		[ -z "${SW_TEST_ONLY:-}" ] || [ "$_t" = "$SW_TEST_ONLY" ] || continue
 		_count=$((_count + 1))
 		T=$(mktemp -d "${TMPDIR:-/tmp}/softwary-test.XXXXXX") || exit 1
 		OUT=$T/out

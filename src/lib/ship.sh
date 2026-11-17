@@ -20,7 +20,7 @@ SW_RELEASES_REL=.softwary/state/releases
 SW_SHIP_WRITTEN="Observability Rollout Rollback"
 
 sw_ship_usage() {
-	printf 'usage: ./softwary ship prepare|check\n' >&2
+	printf 'usage: ./softwary ship prepare|check|pr\n' >&2
 }
 
 # sw_ship_resolve NAME: the ref of the branch NAME: origin's when it has it,
@@ -361,6 +361,51 @@ sw_ship_check() {
 	printf 'ship: release note %s is ready\n' "$(sw_ship_note_rel)"
 }
 
+# sw_ship_pr: AC-V7-04. The note, once it checks clean, is the body of a pull
+# request from the integration branch to the production branch. It is the
+# human's to merge, and to deploy; neither is done here.
+sw_ship_pr() {
+	sw_ship_refs || return $?
+	sw_ship_range || return $?
+	_pr_probs=$(sw_ship_check_problems)
+	if [ -n "$_pr_probs" ]; then
+		printf '%s\n' "$_pr_probs"
+		printf 'ship: no pull request: the release note is not ready (./softwary ship check)\n'
+		return 1
+	fi
+	if ! command -v gh >/dev/null 2>&1; then
+		printf 'ship: gh is not installed; it opens the pull request\n'
+		return 2
+	fi
+	if ! sw_wt_origin; then
+		printf 'ship: there is no origin to open a pull request on\n'
+		return 2
+	fi
+	for _pr_b in "$SW_SHIP_INT" "$SW_SHIP_PROD"; do
+		if ! git -C "$SW_STATE_ROOT" rev-parse -q --verify "refs/remotes/origin/$_pr_b^{commit}" >/dev/null 2>&1; then
+			printf "ship: '%s' is not on origin (push it first)\n" "$_pr_b"
+			return 2
+		fi
+	done
+	if ! _pr_list=$(cd "$SW_STATE_ROOT" && gh pr list --base "$SW_SHIP_PROD" --head "$SW_SHIP_INT" --state open --json number,url 2>&1); then
+		printf 'ship: gh pr list failed: %s\n' "$_pr_list"
+		return 1
+	fi
+	_pr_url=$(printf '%s\n' "$_pr_list" | jq -r '.[0].url // empty' 2>/dev/null) || _pr_url=
+	if [ -n "$_pr_url" ]; then
+		printf 'ship: a pull request from %s to %s is already open: %s\n' "$SW_SHIP_INT" "$SW_SHIP_PROD" "$_pr_url"
+		return 1
+	fi
+	if ! _pr_out=$(cd "$SW_STATE_ROOT" && gh pr create --base "$SW_SHIP_PROD" --head "$SW_SHIP_INT" --title "Release $SW_SHIP_INT_7" \
+		--body-file "$SW_STATE_ROOT/$(sw_ship_note_rel)" 2>&1); then
+		printf 'ship: gh pr create failed: %s\n' "$_pr_out"
+		return 1
+	fi
+	_pr_url=$(printf '%s\n' "$_pr_out" | tail -n 1)
+	sw_event - ship_pr - - "$_pr_url" || return 2
+	printf 'ship: pull request %s (merging it and deploying are yours)\n' "$_pr_url"
+}
+
 # sw_ship prepare|check|pr
 sw_ship() {
 	_sh_cmd=${1:-}
@@ -370,6 +415,7 @@ sw_ship() {
 	case $_sh_cmd in
 	prepare) sw_ship_prepare ;;
 	check) sw_ship_check ;;
+	pr) sw_ship_pr ;;
 	*)
 		sw_ship_usage
 		return 2
