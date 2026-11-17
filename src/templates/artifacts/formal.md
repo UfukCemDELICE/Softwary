@@ -7,6 +7,13 @@ section headings. A state machine's every event is an action below, named
 exactly like the TLA+ action. The Invariants table is bound by the blueprint
 approval: a human reads those sentences.
 
+Coverage names the files and functions of the code the model describes (a
+path that is there, each function a word of it); `planned` while the code does
+not exist. Last verified is never edited by hand: `./softwary formal verified
+<name> compatible|updated` writes "<commit> <verdict>" once the model checks
+against the code as committed. Until then, and after the covered files, the
+model or the Coverage table change, `formal check` reports the model as stale.
+
 Optional: when the code this model describes already breaks an invariant, do
 not weaken the invariant or the model. Add a section "## Findings" to the
 record, a table with the columns | Invariant | Until | Reason | and a row for

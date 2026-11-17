@@ -290,6 +290,17 @@ bootstrap = NONE: nothing to install
 CONF
 }
 
+# existing_verified: the order model of the existing repository is verified
+# against its code as it is committed (V8: its record says `never`, and a model
+# that has never been verified against code that is there fails the check):
+# `formal verified order compatible`, and the record is committed. Call it
+# after the artifacts are committed. Needs TLC.
+existing_verified() {
+	sw formal verified order compatible
+	[ "$RC" -eq 0 ] || fail "formal verified order: $(cat "$OUT")"
+	commit_all "the order model is verified against the shop"
+}
+
 # add_existing_artifacts: what define, blueprint and plan write for the
 # existing repository: the product definition, the model, the data model, the
 # state machine of the order with its TLA+ record (which has a finding), the

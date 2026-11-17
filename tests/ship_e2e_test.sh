@@ -101,6 +101,7 @@ loop_shop() {
 	add_fix_spec 002 EX-F4-02 cancel-shipped tests/test_cancel_shipped.sh
 	add_fix_spec 003 EX-F4-01 cancel-created tests/test_cancel_created.sh
 	commit_all "the product and the blueprint, drawn from the code, and two fixes"
+	existing_verified
 	sw approve product
 	assert_eq "$RC" 0 "approve product"
 	approve_blueprint
@@ -146,6 +147,8 @@ TEST
 	sed 's/created | paid | shipped)/created | paid)/' "$wt/app/order.sh" >"$T/order.sh" && cp "$T/order.sh" "$wt/app/order.sh"
 	fm_set "$wt/specs/002-cancel-shipped/slices/S1.md" status review
 	commit_in "$wt" "a shipped order is not cancelled"
+	(cd "$wt" && ./softwary formal verified order compatible) >"$OUT" 2>&1 || fail "formal verified in the job: $(cat "$OUT")"
+	commit_in "$wt" "the order model is verified against the code"
 	sw job event $job implemented
 	assert_eq "$RC" 0 "implemented"
 	sw job gate $job
@@ -207,6 +210,7 @@ test_ac_v7_12_drift_stops_ship_then_the_note_becomes_a_pull_request() {
 	shop
 	add_existing_artifacts
 	commit_all "the product and the blueprint, drawn from the code"
+	existing_verified
 	add_origin
 	add_production
 	fake_gh

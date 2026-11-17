@@ -247,7 +247,7 @@ sw_blueprint() {
 	printf '%s\n' "$_probs"
 	# What formal check prints besides its problems (the steps of a path, the
 	# passing models) is not counted.
-	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|FINDING: |finding .* no longer reproduces|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
+	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|FINDING: |FAIL: the model passes |finding .* no longer reproduces|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
 	return 1
 }
 

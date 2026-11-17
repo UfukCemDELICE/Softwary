@@ -85,6 +85,7 @@ test_ac_v6_14_product_blueprint_plan() {
 	commit_all "waivers"
 	add_existing_artifacts
 	commit_all "the product and the blueprint, drawn from the code"
+	existing_verified
 	sw verify --base main
 	assert_eq "$RC" 0 "verify exit code"
 	assert_match "$OUT" "^lint +WAIVED "
@@ -154,6 +155,14 @@ TEST
 	[ "$1" -ne 1 ] || printf '# X%s: remove before the merge\n' XX >>"$wt/app/order.sh"
 	fm_set "$wt/specs/001-ship-paid/slices/S1.md" status review
 	commit_in "$wt" "ship only paid orders (round $1)"
+	verify_model
+}
+
+# verify_model: the job changed the code the order model covers: it checks the
+# model again, records the verdict in its worktree and commits the record (V8).
+verify_model() {
+	(cd "$(job_wt $JOB)" && ./softwary formal verified order compatible) >"$OUT" 2>&1 || fail "formal verified in the job: $(cat "$OUT")"
+	commit_in "$(job_wt $JOB)" "the order model is verified against the code"
 }
 
 # AC-V6-14: a job that puts a lint error in the file it changes fails the gate
@@ -165,6 +174,7 @@ test_ac_v6_14_job_gate_and_merge() {
 	waive 2999-12-31
 	add_existing_artifacts
 	commit_all "the product and the blueprint, drawn from the code"
+	existing_verified
 	sw approve product
 	approve_blueprint
 	assert_eq "$RC" 0 "approve blueprint exit code"
@@ -198,6 +208,7 @@ test_ac_v6_14_job_gate_and_merge() {
 	wt=$(job_wt $JOB)
 	grep -v 'remove before the merge' "$wt/app/order.sh" >"$T/order.sh" && cp "$T/order.sh" "$wt/app/order.sh"
 	commit_in "$wt" "round 2: remove the marker"
+	verify_model
 	sw job event $JOB implemented
 	assert_eq "$RC" 0 "implemented again"
 	sw job gate $JOB
@@ -237,6 +248,7 @@ test_ac_v6_14_dates_pass() {
 	waive 2999-12-31
 	add_existing_artifacts
 	commit_all "the product and the blueprint, drawn from the code"
+	existing_verified
 	sw verify --base main
 	assert_eq "$RC" 0 "verify exit code before the dates"
 	waive 2000-01-01
