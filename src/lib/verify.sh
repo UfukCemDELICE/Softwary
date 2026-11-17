@@ -152,6 +152,8 @@ sw_verify() {
 		fi
 	fi
 	for _k in $_checks; do
+		# proof_check (V8) follows model_check; --fast has no contract_check
+		[ "$_k" != contract_check ] || sw_verify_proof
 		if [ "$_k" = model_check ] && sw_formal_specs_exist; then
 			# A specification makes the model check required: not configured
 			# (or skipped on purpose) fails, unless a waiver holds.
@@ -182,6 +184,32 @@ sw_verify() {
 	printf 'verify: %s passed, %s failed, %s skipped, %s waived\n' "$_pass" "$_failc" "$_skip" "$_waived"
 	[ "$_failc" -eq 0 ] || return 1
 	return 0
+}
+
+# sw_verify_proof: proof_check, the project's command that checks the Lean
+# proofs of architecture/proofs/. Optional: it runs when it is set. A proof
+# there makes it required, as a specification does model_check. It cannot be
+# waived and has no scoped command.
+sw_verify_proof() {
+	_vp_cmd=
+	sw_conf_is_unset proof_check || _vp_cmd=$(sw_conf_get proof_check)
+	if sw_proofs_exist; then
+		case $_vp_cmd in
+		'' | NONE | NONE:*)
+			sw_verify_required proof_check "required: architecture/proofs has proofs"
+			return 0
+			;;
+		esac
+	fi
+	case $_vp_cmd in
+	'') return 0 ;;
+	NONE | NONE:*)
+		sw_line proof_check "SKIP ($(sw_none_reason "$_vp_cmd"))"
+		_skip=$((_skip + 1))
+		return 0
+		;;
+	esac
+	sw_verify_run proof_check "$_vp_cmd"
 }
 
 # sw_verify_required NAME WHY: a check that is required and not configured

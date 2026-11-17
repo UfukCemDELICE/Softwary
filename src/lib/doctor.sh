@@ -167,6 +167,27 @@ sw_doctor_formal() {
 	fi
 }
 
+# sw_doctor_proofs: proof_check (V8), required when architecture/proofs/ holds a
+# Lean proof; with none, a configured proof_check is reported like the other
+# optional keys.
+sw_doctor_proofs() {
+	_dpv=
+	sw_conf_is_unset proof_check || _dpv=$(sw_conf_get proof_check)
+	if sw_proofs_exist; then
+		case $_dpv in
+		'' | NONE | NONE:*)
+			sw_doctor_fail proof_check "required: architecture/proofs has proofs"
+			return 0
+			;;
+		esac
+	fi
+	case $_dpv in
+	'') ;;
+	NONE | NONE:*) sw_line proof_check "SKIP ($(sw_none_reason "$_dpv"))" ;;
+	*) sw_line proof_check "PASS (configured, not run)" ;;
+	esac
+}
+
 # sw_doctor_repro: a slice that has a repro (V7) needs test_files, the command
 # that runs given tests, to prove the tests fail on the base.
 sw_doctor_repro() {
@@ -241,6 +262,7 @@ EOF
 			sw_doctor_fail "$_k" "unknown key, line $(sw_conf_line "$_k")"
 		done
 		sw_doctor_formal
+		sw_doctor_proofs
 		sw_doctor_repro
 		_spp=$(sw_src_paths_problems)
 		if [ -n "$_spp" ]; then
