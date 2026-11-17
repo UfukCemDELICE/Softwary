@@ -146,6 +146,7 @@ sw_plan_problems() {
 "
 	done
 	_pl_examples=$(sw_product_examples)
+	_pl_fcov=$(sw_fmaint_all_covered)
 	_pl_nodes=
 	_pl_edges=
 	for _pl_dir in "$SOFTWARY_ROOT"/specs/*/; do
@@ -191,6 +192,7 @@ LINKS
 			sw_fm_read "$_pl_sf"
 			_pl_repro=$(sw_fm_get repro)
 			_pl_touches=$(sw_fm_get touches)
+			_pl_sst=$(sw_fm_get status)
 			if [ "$_pl_chk" -eq 1 ]; then
 				_pl_tp=$(sw_plan_touches_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$_pl_touches")
 				[ -z "$_pl_tp" ] || _pl_out="${_pl_out}$_pl_tp
@@ -198,6 +200,12 @@ LINKS
 				_pl_rp=$(sw_plan_repro_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$_pl_repro" "$_pl_touches")
 				[ -z "$_pl_rp" ] || _pl_out="${_pl_out}$_pl_rp
 "
+				# covered code and the record of its model change together (V8)
+				if [ "$_pl_sst" != "done" ]; then
+					_pl_fp=$(sw_fmaint_touches_problems "$_pl_id-$_pl_sn" "$_pl_touches" "$_pl_fcov")
+					[ -z "$_pl_fp" ] || _pl_out="${_pl_out}$_pl_fp
+"
+				fi
 			fi
 			for _pl_d in $(sw_list "$(sw_fm_get depends_on)"); do
 				case $_pl_d in S*) _pl_d=$_pl_id-$_pl_d ;; esac

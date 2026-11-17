@@ -11,7 +11,7 @@
 
 # The protected paths: a trailing '/' is a directory (everything below it),
 # anything else is exactly that path. The project cannot change this list.
-SW_PROTECTED=".softwary/ .github/ CODEOWNERS docs/CODEOWNERS softwary product/ architecture/model/ architecture/data/ architecture/contracts/ architecture/formal/ architecture/drift.md"
+SW_PROTECTED=".softwary/ .github/ CODEOWNERS docs/CODEOWNERS softwary product/ architecture/model/ architecture/data/ architecture/contracts/ architecture/proofs/ architecture/drift.md"
 
 SW_TESTSKIP_REL=.softwary/config/test-skip.conf
 
@@ -175,7 +175,35 @@ sw_guard_config() {
 # sw_guard_run: the checks, on the variables of sw_guard.
 sw_guard_run() {
 	sw_guard_paths
+	sw_guard_formal
 	sw_guard_tests
+}
+
+# sw_guard_formal: under architecture/formal/ only what binds a human is
+# protected (V8): a file that is added, deleted or renamed, and a record whose
+# invariants or findings table differs from the base's. The model, its
+# configurations and the other sections of a record are the loop's to keep
+# up; the touches rule applies to them as to any path.
+sw_guard_formal() {
+	_gd_fl=$(git -C "$SOFTWARY_ROOT" -c core.quotePath=false diff --no-renames --name-status "$_gd_mb" "$_gd_head" -- architecture/formal/)
+	while IFS='	' read -r _gd_st _gd_p; do
+		[ -n "$_gd_p" ] || continue
+		if [ "$_gd_st" != M ]; then
+			sw_guard_add protected "$_gd_p"
+			continue
+		fi
+		case $_gd_p in *.md) ;; *) continue ;; esac
+		for _gd_sec in Invariants Findings; do
+			_gd_a=$(git -C "$SOFTWARY_ROOT" show "$_gd_mb:$_gd_p" | sw_fmaint_section_raw "$_gd_sec")
+			_gd_b=$(git -C "$SOFTWARY_ROOT" show "$_gd_head:$_gd_p" | sw_fmaint_section_raw "$_gd_sec")
+			if [ "$_gd_a" != "$_gd_b" ]; then
+				sw_guard_add protected "$_gd_p"
+				break
+			fi
+		done
+	done <<FORMAL
+$_gd_fl
+FORMAL
 }
 
 # sw_guard_paths: protected paths and paths outside touches.

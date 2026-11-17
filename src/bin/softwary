@@ -57,6 +57,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/flows.sh"
 # shellcheck source=src/lib/formal.sh
 . "$SOFTWARY_HOME/lib/formal.sh"
+# shellcheck source=src/lib/formalmaint.sh
+. "$SOFTWARY_HOME/lib/formalmaint.sh"
 # shellcheck source=src/lib/next.sh
 . "$SOFTWARY_HOME/lib/next.sh"
 # shellcheck source=src/lib/risk.sh

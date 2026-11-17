@@ -80,7 +80,7 @@ spec: $1
 goal: Fix the reported behaviour
 acs: AC-$1-01
 depends_on:
-touches: app/order.sh, tests
+touches: app/order.sh, architecture/formal/order.md, tests
 status: planned
 repro: $4
 ---

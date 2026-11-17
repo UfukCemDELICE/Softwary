@@ -84,6 +84,15 @@ sw_path_tier() {
 	done <<RULES
 $SW_RISK_RULES
 RULES
+	# A specification is R2 at least, whatever risk.conf says (V8).
+	case $1 in
+	architecture/formal/*)
+		if [ "$_best" -lt 2 ]; then
+			printf 'R2\tarchitecture/formal/* (at least R2)\n'
+			return 0
+		fi
+		;;
+	esac
 	if [ "$_best" -eq 0 ]; then
 		printf '%s\tdefault\n' "$SW_RISK_DEFAULT"
 	else
