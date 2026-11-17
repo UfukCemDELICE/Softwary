@@ -352,4 +352,21 @@ EOF
 		".foo/rules.md .softwary/config/tools.conf .softwary/generated .softwary/targets/foo.sh " "changed files"
 }
 
+# AC-V6-14: the generated files are the same whichever checkout the package
+# runs on: the main checkout's softwary on a job's worktree finds them up to
+# date (the gate and the merge run verify there; found with the example repo).
+test_ac_v6_14_sync_check_on_a_worktree() {
+	setup_repo
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	commit_all "generated"
+	git -C "$REPO" worktree add -q "$T/wt" -b other || fail "worktree add failed"
+	RC=0
+	(cd "$T/wt" && SOFTWARY_ROOT=$T/wt sh "$REPO/.softwary/bin/softwary" sync --check) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 0 "sync --check on the worktree"
+	assert_match "$OUT" "^sync --check: up to date$"
+	assert_no_match "$T/wt/.claude/skills/softwary-setup/SKILL.md" "$T"
+}
+
 run_tests "$0"

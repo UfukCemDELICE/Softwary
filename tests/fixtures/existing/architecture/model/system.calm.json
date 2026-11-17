@@ -1,0 +1,24 @@
+{
+  "$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
+  "nodes": [
+    {
+      "unique-id": "clerk",
+      "node-type": "actor",
+      "name": "Clerk",
+      "description": "Places, pays, ships and cancels the shop's orders."
+    },
+    {
+      "unique-id": "orders",
+      "node-type": "service",
+      "name": "Orders",
+      "description": "The order scripts: one file per order holds its state.",
+      "metadata": { "paths": ["app/*"], "risk": "R2", "status": "active", "features": ["F1", "F2", "F3", "F4", "F5"] }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "clerk-uses-orders",
+      "relationship-type": { "interacts": { "actor": "clerk", "nodes": ["orders"] } }
+    }
+  ]
+}

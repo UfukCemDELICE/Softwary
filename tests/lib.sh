@@ -197,6 +197,49 @@ need_tlc() {
 	sh "$PKG_ROOT/tests/tlc.sh" --check >"$OUT" 2>&1 || fail "TLC is not available (set SW_SKIP_FORMAL=<reason> to skip)"
 }
 
+EXISTINGFIX=$PKG_ROOT/tests/fixtures/existing
+
+# add_existing: the example existing repository (tests/fixtures/existing): a
+# small shop's order scripts, its tests and checks, README.md and AGENTS.md,
+# as the project's own commit. Its lint and one of its tests are red. Call it
+# after setup_repo; existing_conf sets its commands.
+add_existing() {
+	for _e in README.md AGENTS.md app checks tests; do
+		cp -R "$EXISTINGFIX/$_e" "$REPO/" || fail "add_existing: cannot copy $_e"
+	done
+	commit_all "the existing shop"
+}
+
+# existing_conf: commands.conf of the existing repository: its own scripts,
+# the branches, the source and the test directories.
+existing_conf() {
+	write_conf <<'CONF'
+format_check = NONE: plain scripts have no formatter
+lint = sh checks/lint.sh
+typecheck = for f in app/*.sh; do sh -n "$f" || exit 1; done
+test = sh checks/test.sh
+build = NONE: nothing to build
+security = NONE: no dependencies
+model_check = ./softwary formal check
+src_paths = app
+test_paths = tests
+integration_branch = main
+production_branch = master
+bootstrap = NONE: nothing to install
+CONF
+}
+
+# add_existing_artifacts: what define, blueprint and plan write for the
+# existing repository: the product definition, the model, the data model, the
+# state machine of the order with its TLA+ record (which has a finding), the
+# ADR, and a draft spec with one slice; the views are generated.
+add_existing_artifacts() {
+	for _e in product architecture specs; do
+		cp -R "$EXISTINGFIX/$_e" "$REPO/" || fail "add_existing_artifacts: cannot copy $_e"
+	done
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
 CRITIQUE_REL=architecture/critique.md
 
 # add_critique [DECISION]: the blueprint critic's record for the blueprint as

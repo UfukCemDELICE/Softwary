@@ -17,9 +17,16 @@ sw_problem() {
 "
 }
 
-# sw_rel PATH: PATH relative to the repo root.
+# sw_rel PATH: PATH relative to the repo root. The main checkout's package run
+# on a job's worktree (the gate, the merge) reads the sources of its own
+# .softwary/; they are the worktree's copy at the same place, so the generated
+# files do not say where the main checkout is.
 sw_rel() {
-	printf '%s' "${1#"$SOFTWARY_ROOT"/}"
+	case $1 in
+	"$SOFTWARY_ROOT"/*) printf '%s' "${1#"$SOFTWARY_ROOT"/}" ;;
+	"$SOFTWARY_HOME"/*) printf '.softwary/%s' "${1#"$SOFTWARY_HOME"/}" ;;
+	*) printf '%s' "$1" ;;
+	esac
 }
 
 # --- tools.conf -------------------------------------------------------------

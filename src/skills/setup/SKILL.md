@@ -43,9 +43,12 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    steps are `define` (the product) and then `blueprint` (the model).
 8. A repository with code: do not draw the model and do not write a baseline
    ADR here: `blueprint` does both, from the code (its ADR is
-   `.softwary/templates/adr.md`, `status: proposed`). Run `./softwary verify
-   --base <integration branch>` instead. Every project check that fails was
-   debt before softwary came. Ask the human, for each one: fix it now, or
+   `.softwary/templates/adr.md`, `status: proposed`). Find the checks that
+   fail with `./softwary verify --base <integration branch>`; without a model
+   it stops at `model` (exit 2), so then run `./softwary verify --fast` and the
+   command of every other key in `commands.conf` yourself, from the
+   repository root. Every project check that fails was debt before softwary
+   came. Ask the human, for each one: fix it now, or
    waive it. A waiver is a line `<key> = <YYYY-MM-DD>: <reason>` in
    `.softwary/config/waivers.conf`; after the date the check fails again. A
    waived check also runs on the files of every change, so ask for

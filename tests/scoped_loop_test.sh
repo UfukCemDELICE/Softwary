@@ -85,6 +85,10 @@ test_ac_v6_04_run_start_refuses() {
 	assert_eq "$RC" 2 "exit code"
 	assert_contains "$OUT" "run start: lint_files is not set in .softwary/config/commands.conf (required: lint has a waiver)"
 	[ ! -e "$REPO/.softwary/state/run" ] || fail "the run was opened"
+	conf_set lint_files UNSET
+	sw run start
+	assert_eq "$RC" 2 "exit code with lint_files UNSET"
+	assert_contains "$OUT" "run start: lint_files is not set in .softwary/config/commands.conf (required: lint has a waiver)"
 	conf_set lint_files 'sh check.sh'
 	sw run start
 	assert_eq "$RC" 2 "exit code with a command without {files}"

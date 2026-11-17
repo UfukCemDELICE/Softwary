@@ -372,7 +372,7 @@ test_ac_v5_12_short_known_commands_no_gone_stages() {
 # whether to fix it or to waive it (a date, a reason and the scoped command),
 # never inventing them, and names define and blueprint as the next steps.
 test_ac_v6_10_setup_existing_repo_text() {
-	for t in "./softwary verify" "waive" ".softwary/config/waivers.conf" "<YYYY-MM-DD>: <reason>" "<key>_files" "{files}" "NONE: <reason>" \
+	for t in "./softwary verify" "./softwary verify --fast" "stops at \`model\`" "waive" ".softwary/config/waivers.conf" "<YYYY-MM-DD>: <reason>" "<key>_files" "{files}" "NONE: <reason>" \
 		"never invent them" "do not draw the model" "do not write a baseline" "\`blueprint\` does both" "\`define\` (what the product does today)"; do
 		assert_contains "$SKILL" "$t"
 	done

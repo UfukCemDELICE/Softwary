@@ -1,0 +1,12 @@
+{
+  "entities": [
+    {
+      "id": "order",
+      "name": "Order",
+      "fields": [
+        { "name": "id", "type": "string", "required": true },
+        { "name": "status", "type": "string", "required": true }
+      ]
+    }
+  ]
+}

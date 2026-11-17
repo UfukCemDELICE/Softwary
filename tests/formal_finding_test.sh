@@ -177,6 +177,10 @@ test_ac_v6_07_variant_rule_holds() {
 	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg did not fail \\(expected ShippedWasPaid\\)$"
 	assert_match "$OUT" "^formal order: FINDING: ShippedWasPaid violated "
 	assert_no_match "$OUT" "^formal order: PASS"
+	# the finding and its path are not problems: only the variant is
+	sw blueprint check
+	assert_eq "$RC" 1 "blueprint check exit code"
+	assert_match "$OUT" "^blueprint: 1 problem\\(s\\)$"
 }
 
 # AC-V6-07, review focus 3: the invariants may be listed on one line, after
