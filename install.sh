@@ -25,6 +25,16 @@ if [ ! -d "$1" ]; then
 fi
 target=$(cd "$1" && pwd -P)
 version=$(cat "$pkg/VERSION")
+# The wrapper is the one file of the package outside .softwary/. A file or a
+# directory called softwary that is not the package's wrapper is the project's
+# own: stop before anything is listed or written. The wrapper says so in its
+# first two lines (src/templates/softwary).
+if [ -e "$target/softwary" ] || [ -L "$target/softwary" ]; then
+	if [ ! -f "$target/softwary" ] || ! head -n 2 "$target/softwary" | grep -Fq '# softwary wrapper. Managed by softwary'; then
+		printf "install: %s/softwary exists and is not softwary's wrapper\n" "$target" >&2
+		exit 2
+	fi
+fi
 # Project-owned files: written once, never overwritten.
 owned="commands.conf tools.conf risk.conf waivers.conf loop.conf models.conf test-skip.conf"
 
