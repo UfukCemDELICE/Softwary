@@ -14,6 +14,12 @@ fix. You write no code that fixes it.
 2. Reproduce first. Write the smallest test, under `test_paths`, that fails
    because of the bug, and run it: you must see it red for the reason in the
    report. A test that passes does not reproduce the bug: change it, or ask.
+   When the bug breaks an invariant that a record in `architecture/formal/`
+   lists under `## Findings`, print the counter-example with
+   `./softwary formal trace <spec> <invariant>` and write this test with its
+   steps, one step after the other against the real code, naming
+   `CE-<spec>-<invariant>` in the test. Where it does not replay,
+   the model is wrong first: say so in the slice.
 3. Find the root cause with evidence: the file and the line, and the output or
    the trace that shows it. A guess does not go into a spec.
 4. Find the example in `product/PRODUCT.md` (`EX-F<n>-NN`) that the bug

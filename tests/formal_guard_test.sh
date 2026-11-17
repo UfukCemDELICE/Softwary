@@ -104,9 +104,10 @@ test_ac_v8_04_invariants_and_findings_are_protected() {
 test_ac_v8_04_compared_with_the_base() {
 	formal_guard_repo
 	md_sub 'has been paid for.' 'has been paid for!'
-	commit_all "an invariant is reworded"
+	md_sub 'One order at a time;' 'Two orders at a time;'
+	commit_all "an invariant is reworded and a bound changed"
 	md_sub 'has been paid for!' 'has been paid for.'
-	commit_all "and put back"
+	commit_all "the invariant is put back"
 	sw guard $JOB --base main
 	assert_eq "$RC" 0 "exit code after the table is put back"
 	assert_no_match "$OUT" "protected"

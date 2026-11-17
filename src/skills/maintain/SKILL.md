@@ -11,15 +11,20 @@ open; `ship` stops. Every decision is the human's.
 
 1. Run `./softwary drift`. Each line is `drift: <item>: <state>`; the kinds are
    `uncovered <path>` (code no component owns), `missing <component> <path>`,
-   `empty <component>`, `planned-with-code <component>` and
-   `unexercised <EX>` (a product example no test names).
+   `empty <component>`, `planned-with-code <component>`,
+   `unexercised <EX>` (a product example no test names),
+   `untested ST-<entity>-<state>-<event>` (a test a state machine owes that no
+   test names; `./softwary states tests` lists them all) and
+   `unreplayed CE-<spec>-<invariant>` (a finding no test replays;
+   `./softwary formal trace <spec> <invariant>` prints its steps).
 2. For each item that is `undecided` or `expired`, one at a time: say what you
    found in the code and the blueprint, recommend an answer and why, and ask:
    - `accept`: the code stays as it is and the difference is known;
    - `blueprint`: the blueprint is wrong; it will be changed to match (send the
      human to `blueprint`);
    - `fix <spec number>`: the code is wrong; a spec will change it (`plan`, or
-     `diagnose` when it is a bug).
+     `diagnose` when it is a bug). For `untested` and `unreplayed` items it is
+     the usual answer: a spec whose tests name the identifier.
 3. Write the answer as a row of the table in `architecture/drift.md`, copied
    from `.softwary/templates/drift.md` when the file is not there:
    `| <item exactly as drift prints it> | <decision> | <YYYY-MM-DD> | <reason> |`.

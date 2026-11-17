@@ -113,7 +113,7 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 | Davranışı test et, gerçeklemeyi değil | `implement` | Planlı (skill metni) |
 | Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Var (V5: `architecture/states/<varlık>.json`, durum diyagramı üretilir, D-116, D-124) |
 | Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi (tek satır yanıt, ayrıntı dosyada) | Var (V2) |
-| **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Kısmen: V5'te belirtim, değişmez cümleleri, varyant kanıtı, ihlal yolu ve `model_check` var; sapma bakımı ve Lean V8 (D-63) |
+| **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Var (V5: belirtim, değişmez cümleleri, varyant kanıtı, ihlal yolu, `model_check`; V8: kapsam ve eskime denetimi, `formal verified`, `formal trace`, `states tests`, `untested`/`unreplayed` drift öğeleri, isteğe bağlı `proof_check`, D-176..D-188; Lean'i proje kurar) |
 
 ### pstack'in biçimsel doğrulama yaklaşımı
 
@@ -134,9 +134,9 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 İnsan kararıyla (D-63, 2026-11-15) yaklaşım ürüne uygulanır; ayrıntı design §6.2 ve §7'de:
 
 - Blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış için TLA+ belirtimi. Değişmezler insanın onayladığı cümlelerdir; belirtim blueprint onayından önce model denetleyiciden geçer, sonra `model_check` olarak her `verify`'da çalışır (V5'te var: `formal check`, `formal install`, `model_check`, D-117..D-123).
-- Yukarıdaki 4, 5 ve 8. maddeler kapıdır: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi (V5'te kayıt, V8'de bakım döngüsü).
-- Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır (V8).
-- Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk karşı örneklerin koda karşı yeniden oynatılması ve belirtimden türetilen testlerle daraltılır (V8).
+- Yukarıdaki 4, 5 ve 8. maddeler kapıdır: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi (V5'te kayıt, V8'de gerçek dosya ve fonksiyon denetimi, eskime ve `formal verified`).
+- Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır (V8: kanıt `architecture/proofs/`'ta, komutu projenin `proof_check`'i; paket Lean kurmaz).
+- Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk karşı örneklerin koda karşı yeniden oynatılması (`formal trace`, `CE-` kimliği) ve belirtimden türetilen testlerle (`states tests`, `ST-` kimliği) daraltılır (V8).
 - softwary'nin kendi paralel birleştirme protokolü de TLA+ ile belirtilir (V4).
 
 Alınmayan: `poteto-mode`'un çok modelli panel düzeni (softwary `models.conf` ile Opus ve Sonnet'e iki rol verir), arena ve sürü gibi paralel aday üretimi, Cursor'a özgü özellikler (bugbot, otomasyonlar), TypeScript'e özgü skill'ler.

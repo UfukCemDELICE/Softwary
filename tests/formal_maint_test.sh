@@ -69,6 +69,9 @@ test_ac_v8_01_missing_path() {
 	sw formal check order
 	assert_eq "$RC" 1 "formal check exit code"
 	assert_match "$OUT" "^formal order: coverage path app/ghost\\.sh does not exist$"
+	# the model is checked all the same: a mistake of the model shows too
+	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg fails on ShippedWasPaid$"
+	assert_match "$OUT" "^formal order: FAIL: the model passes \\([0-9]+ states\\) but is not held to the code \\(see above\\)$"
 }
 
 # AC-V8-01: every function the table names must be in the file, as a word:
