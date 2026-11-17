@@ -1,0 +1,10 @@
+{
+  "entity": "UNSET",
+  "initial": "UNSET",
+  "states": ["UNSET"],
+  "final": ["UNSET"],
+  "transitions": [
+    { "from": "UNSET", "event": "UNSET", "to": "UNSET" }
+  ],
+  "formal": "UNSET"
+}

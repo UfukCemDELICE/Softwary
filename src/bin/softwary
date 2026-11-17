@@ -51,6 +51,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/plan.sh"
 # shellcheck source=src/lib/product.sh
 . "$SOFTWARY_HOME/lib/product.sh"
+# shellcheck source=src/lib/flows.sh
+. "$SOFTWARY_HOME/lib/flows.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh

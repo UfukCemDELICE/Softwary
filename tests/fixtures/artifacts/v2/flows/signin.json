@@ -1,0 +1,13 @@
+{
+  "id": "signin",
+  "name": "Sign in",
+  "features": ["F1"],
+  "participants": ["user", "api", "db"],
+  "entities": ["user"],
+  "steps": [
+    { "from": "user", "to": "api", "action": "Send the email and the password", "data": "credentials" },
+    { "from": "api", "to": "db", "action": "Look the member up" },
+    { "from": "db", "to": "api", "action": "Return the member" },
+    { "from": "api", "to": "user", "action": "Confirm the sign-in" }
+  ]
+}

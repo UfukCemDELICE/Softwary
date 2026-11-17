@@ -162,12 +162,27 @@ add_product() {
 }
 
 # add_blueprint: replaces the model with the sample one that names product
-# features, regenerates its view and adds the sample data model.
+# features, regenerates its view and adds the sample data model and the flow
+# that F1 (delivered by two components) needs.
 add_blueprint() {
-	mkdir -p "$REPO/architecture/model" "$REPO/architecture/data"
+	mkdir -p "$REPO/architecture/model" "$REPO/architecture/data" "$REPO/architecture/flows"
 	cp "$V2FIX/system.calm.json" "$REPO/$MODEL_REL"
 	cp "$V2FIX/data-model.json" "$REPO/architecture/data/model.json"
+	cp "$V2FIX/flows/signin.json" "$REPO/architecture/flows/signin.json"
 	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
+FORMALFIX=$PKG_ROOT/tests/fixtures/formal
+
+# add_formal: adds the sample state machine of the order, its TLA+ model with
+# two invariants and a variant for each (tests/fixtures/formal), and the order
+# entity to the data model. Call it after add_blueprint.
+add_formal() {
+	mkdir -p "$REPO/architecture"
+	cp -R "$FORMALFIX/architecture/." "$REPO/architecture/"
+	jq '.entities += [{"id": "order", "name": "Order", "fields": [{"name": "id", "type": "uuid", "required": true}, {"name": "status", "type": "string"}]}]' \
+		"$REPO/architecture/data/model.json" >"$T/data.tmp" || fail "jq failed adding the order entity"
+	mv "$T/data.tmp" "$REPO/architecture/data/model.json"
 }
 
 # add_plan: copies the sample plan (an approved spec 001 with two slices and a

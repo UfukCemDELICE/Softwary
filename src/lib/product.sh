@@ -187,7 +187,20 @@ sw_blueprint_check() {
 			_bn=$((_bn + $(sw_count "$_bref")))
 		fi
 	fi
+	_bfl=$(sw_flows_check) || _bn=$((_bn + $(sw_count "$_bfl")))
+	[ -z "$_bfl" ] || printf '%s\n' "$_bfl"
+	_bsm=$(sw_states_check) || _bn=$((_bn + $(sw_count "$_bsm")))
+	[ -z "$_bsm" ] || printf '%s\n' "$_bsm"
 	[ "$_bn" -eq 0 ]
+}
+
+# sw_blueprint_inventory: what the blueprint holds beyond the model, when it
+# holds any: its flows and state machines.
+sw_blueprint_inventory() {
+	_bi_f=$(sw_count "$(sw_json_files "$SW_FLOWS_DIR")")
+	_bi_s=$(sw_count "$(sw_json_files "$SW_STATES_DIR")")
+	[ $((_bi_f + _bi_s)) -gt 0 ] || return 0
+	printf 'blueprint: %s flow(s), %s state machine(s)\n' "$_bi_f" "$_bi_s"
 }
 
 # sw_blueprint [check]
@@ -203,6 +216,7 @@ sw_blueprint() {
 		printf 'blueprint: valid (%s nodes, %s entities, %s features)\n' \
 			"$(jq '.nodes | length' "$SOFTWARY_ROOT/$SW_MODEL_REL")" \
 			"$(jq '.entities | length' "$SOFTWARY_ROOT/$SW_DATA_REL")" "$(sw_count "$(sw_product_features)")"
+		sw_blueprint_inventory
 		return 0
 		;;
 	2)

@@ -1,0 +1,13 @@
+{
+  "entity": "order",
+  "initial": "created",
+  "states": ["created", "paid", "shipped", "cancelled"],
+  "final": ["shipped", "cancelled"],
+  "transitions": [
+    { "from": "created", "event": "pay", "to": "paid" },
+    { "from": "created", "event": "cancel", "to": "cancelled" },
+    { "from": "paid", "event": "ship", "to": "shipped" },
+    { "from": "paid", "event": "cancel", "to": "cancelled" }
+  ],
+  "formal": "order"
+}
