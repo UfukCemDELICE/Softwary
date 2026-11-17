@@ -65,6 +65,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/guard.sh"
 # shellcheck source=src/lib/drift.sh
 . "$SOFTWARY_HOME/lib/drift.sh"
+# shellcheck source=src/lib/ship.sh
+. "$SOFTWARY_HOME/lib/ship.sh"
 # shellcheck source=src/lib/eval.sh
 . "$SOFTWARY_HOME/lib/eval.sh"
 # shellcheck source=src/lib/adr.sh
@@ -150,6 +152,13 @@ commands:
                    example no test names) and the decision the human took for
                    each in architecture/drift.md; 1 while one is undecided or
                    expired
+  ship prepare|check
+                   prepare the proposal to take integration_branch to
+                   production_branch: the tip passes the gate, the drift is
+                   decided, and the release note is written to
+                   .softwary/state/releases/<sha>.md (what to watch, how to
+                   roll out and how to roll back are for a person to write);
+                   check that the note is of today's tip and filled in
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -255,6 +264,11 @@ eval)
 drift)
 	shift
 	sw_drift "$@"
+	;;
+ship)
+	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
+	sw_ship "$@"
 	;;
 status)
 	shift

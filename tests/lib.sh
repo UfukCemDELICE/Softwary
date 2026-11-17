@@ -161,6 +161,39 @@ add_product() {
 	cp "$V2FIX/PRODUCT.md" "$REPO/product/PRODUCT.md"
 }
 
+# core_model PATHS STATUS [EXTRA]: replaces the model with an actor and one
+# component, `core`, that owns PATHS (a JSON array) and has STATUS; EXTRA is one
+# more node (a JSON object). The view is generated.
+core_model() {
+	mkdir -p "$REPO/architecture/model"
+	cat >"$REPO/$MODEL_REL" <<MODEL
+{
+  "\$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
+  "nodes": [
+    { "unique-id": "user", "node-type": "actor", "name": "User", "description": "Uses the product." },
+    { "unique-id": "core", "node-type": "service", "name": "Core", "description": "The code.",
+      "metadata": { "paths": $1, "risk": "R1", "status": "$2" } }${3:+,
+    $3}
+  ],
+  "relationships": [
+    { "unique-id": "user-uses-core", "relationship-type": { "interacts": { "actor": "user", "nodes": ["core"] } } }
+  ]
+}
+MODEL
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
+# add_production [REF]: the production branch, master, at REF (default: the
+# first commit of main), pushed to origin when there is one.
+add_production() {
+	_ap=${1:-$(git -C "$REPO" rev-list --max-parents=0 main | tail -n 1)}
+	git -C "$REPO" branch -f master "$_ap" || fail "add_production: cannot make master at $_ap"
+	if git -C "$REPO" remote get-url origin >/dev/null 2>&1; then
+		git -C "$REPO" push -q --no-verify -f origin master >"$T/push.out" 2>&1 || fail "push of master failed: $(cat "$T/push.out")"
+		git -C "$REPO" fetch -q origin
+	fi
+}
+
 # add_blueprint: replaces the model with the sample one that names product
 # features, regenerates its view and adds the sample data model and the flow
 # that F1 (delivered by two components) needs.

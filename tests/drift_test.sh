@@ -7,28 +7,6 @@
 DRIFT_REL=architecture/drift.md
 FAR=2999-12-31
 
-# drift_model PATHS STATUS: the model of the test: an actor and one component,
-# `core`, that owns PATHS (a JSON array) and has STATUS. More nodes can be put
-# in with EXTRA (a JSON object followed by a comma is the caller's business).
-drift_model() {
-	mkdir -p "$REPO/architecture/model"
-	cat >"$REPO/$MODEL_REL" <<MODEL
-{
-  "\$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
-  "nodes": [
-    { "unique-id": "user", "node-type": "actor", "name": "User", "description": "Uses the product." },
-    { "unique-id": "core", "node-type": "service", "name": "Core", "description": "The code.",
-      "metadata": { "paths": $1, "risk": "R1", "status": "$2" } }${3:+,
-    $3}
-  ],
-  "relationships": [
-    { "unique-id": "user-uses-core", "relationship-type": { "interacts": { "actor": "user", "nodes": ["core"] } } }
-  ]
-}
-MODEL
-	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
-}
-
 # drift_repo: a repository whose model covers its source: src/core/a.sh under
 # src_paths = src, a test under tests/. Everything is committed.
 drift_repo() {
@@ -39,7 +17,7 @@ drift_repo() {
 	mkdir -p "$REPO/src/core" "$REPO/tests"
 	printf 'a\n' >"$REPO/src/core/a.sh"
 	printf 't\n' >"$REPO/tests/t.sh"
-	drift_model '["src/core/*"]' active
+	core_model '["src/core/*"]' active
 	commit_all "base"
 }
 
@@ -85,14 +63,14 @@ test_ac_v7_08_uncovered() {
 # is not reported.
 test_ac_v7_08_missing() {
 	drift_repo
-	drift_model '["src/core/*", "src/gone/*", "lib/gone.sh"]' active
+	core_model '["src/core/*", "src/gone/*", "lib/gone.sh"]' active
 	commit_all "paths"
 	sw drift
 	assert_eq "$RC" 1 "exit code"
 	assert_match "$OUT" "^drift: missing core src/gone/\*: undecided$"
 	assert_match "$OUT" "^drift: missing core lib/gone\.sh: undecided$"
 	assert_no_match "$OUT" "missing core src/core"
-	drift_model '["src/core/*", "src/gone/*"]' planned
+	core_model '["src/core/*", "src/gone/*"]' planned
 	commit_all "planned"
 	sw drift
 	assert_no_match "$OUT" "^drift: missing"
@@ -101,12 +79,12 @@ test_ac_v7_08_missing() {
 # AC-V7-08: an active node without a file is empty.
 test_ac_v7_08_empty() {
 	drift_repo
-	drift_model '["src/nothing/*"]' active
+	core_model '["src/nothing/*"]' active
 	commit_all "no code"
 	sw drift
 	assert_eq "$RC" 1 "exit code"
 	assert_match "$OUT" "^drift: empty core: undecided$"
-	drift_model '["src/nothing/*"]' deprecated
+	core_model '["src/nothing/*"]' deprecated
 	commit_all "deprecated"
 	sw drift
 	assert_no_match "$OUT" "^drift: empty"
@@ -115,7 +93,7 @@ test_ac_v7_08_empty() {
 # AC-V7-08: a planned node that has code is planned-with-code.
 test_ac_v7_08_planned_with_code() {
 	drift_repo
-	drift_model '["src/core/*"]' planned
+	core_model '["src/core/*"]' planned
 	commit_all "planned"
 	sw drift
 	assert_eq "$RC" 1 "exit code"
@@ -256,7 +234,7 @@ test_ac_v7_08_dot_src_paths_and_nested_nodes() {
 	tools_set claude-code on
 	mkdir -p "$REPO/src/core/deep"
 	printf 'x\n' >"$REPO/src/core/deep/b.sh"
-	drift_model '["src/core"]' active '{ "unique-id": "deep", "node-type": "service", "name": "Deep", "description": "Inside core.", "metadata": { "paths": ["src/core/deep/*"], "risk": "R1", "status": "active" } }'
+	core_model '["src/core"]' active '{ "unique-id": "deep", "node-type": "service", "name": "Deep", "description": "Inside core.", "metadata": { "paths": ["src/core/deep/*"], "risk": "R1", "status": "active" } }'
 	sw sync
 	assert_eq "$RC" 0 "sync"
 	commit_all "dot"
@@ -272,7 +250,7 @@ test_ac_v7_08_dot_src_paths_and_nested_nodes() {
 	# the node inside the first one is not empty for owning only its own files
 	assert_no_match "$OUT" "^drift: empty"
 	# a path with a trailing slash and a leading ./ names the same directory
-	drift_model '["./src/core/"]' active
+	core_model '["./src/core/"]' active
 	commit_all "slashes"
 	sw drift
 	assert_no_match "$OUT" "uncovered src/core/"
@@ -286,7 +264,7 @@ test_ac_v7_08_configuration() {
 	sw drift
 	assert_eq "$RC" 2 "exit code without a model"
 	assert_match "$OUT" "^drift: no model"
-	drift_model '["src/core/*"]' active
+	core_model '["src/core/*"]' active
 	conf_del src_paths
 	sw drift
 	assert_eq "$RC" 2 "exit code without src_paths"
