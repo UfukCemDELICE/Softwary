@@ -18,7 +18,7 @@ ready() {
 	add_blueprint
 	sw approve product
 	assert_eq "$RC" 0 "approve product"
-	sw approve blueprint
+	approve_blueprint
 	assert_eq "$RC" 0 "approve blueprint"
 	add_plan
 }
@@ -49,7 +49,7 @@ test_ac_v2_05_approvals_required() {
 	assert_match "$OUT" "^product: approval is missing \(run \./softwary approve product\)$"
 	assert_match "$OUT" "^blueprint: approval is missing \(run \./softwary approve blueprint\)$"
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	printf '\n' >>"$REPO/product/PRODUCT.md"
 	sw plan check
 	assert_eq "$RC" 1 "exit code with a stale approval"
@@ -182,7 +182,7 @@ test_ac_v2_06_refusals() {
 	refuse "plan check reports problems"
 	assert_contains "$OUT" "product: approval is stale"
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	write_analysis specs/001-login pass
 	cp "$REPO/$SPEC1" "$T/before"
 	sw plan approve 001

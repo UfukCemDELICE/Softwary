@@ -56,7 +56,11 @@ sw_eval_build() {
 	git -C "$_eb" symbolic-ref HEAD refs/heads/main
 	(
 		cd "$_eb" || exit 1
-		./softwary sync && ./softwary views && ./softwary approve product && ./softwary approve blueprint
+		./softwary sync && ./softwary views && ./softwary approve product &&
+			# The sample project is a sandbox of the package: its blueprint gets the
+			# critic's pass written here, so that it can be approved.
+			printf -- '---\ndigest: %s\ndecision: pass\n---\n\n# Critique\n\nThe sample project of the evaluation; no critic is involved.\n' "$(./softwary blueprint digest)" >architecture/critique.md &&
+			./softwary approve blueprint
 	) >"$_eb.log" 2>&1 || { cat "$_eb.log"; return 1; }
 	rm -f "$_eb.log"
 	git -C "$_eb" add -A || return 1

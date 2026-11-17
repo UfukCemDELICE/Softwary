@@ -6,11 +6,11 @@
 # are ignored. A value is a shell command, UNSET, or `NONE: <reason>`.
 
 SW_REQUIRED_KEYS="format_check lint typecheck test build security"
-SW_OPTIONAL_CHECK_KEYS="contract_check arch_check"
+SW_OPTIONAL_CHECK_KEYS="model_check contract_check arch_check"
 SW_OTHER_KEYS="run deploy bootstrap"
 SW_SETTING_KEYS="test_paths src_paths integration_branch production_branch"
 SW_BRANCH_KEYS="integration_branch production_branch"
-SW_VERIFY_KEYS="format_check lint typecheck test build contract_check arch_check security"
+SW_VERIFY_KEYS="format_check lint typecheck test build model_check contract_check arch_check security"
 SW_FAST_KEYS="format_check lint typecheck"
 SW_CONF_REL=.softwary/config/commands.conf
 

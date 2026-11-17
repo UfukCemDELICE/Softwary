@@ -51,6 +51,12 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/plan.sh"
 # shellcheck source=src/lib/product.sh
 . "$SOFTWARY_HOME/lib/product.sh"
+# shellcheck source=src/lib/flows.sh
+. "$SOFTWARY_HOME/lib/flows.sh"
+# shellcheck source=src/lib/formal.sh
+. "$SOFTWARY_HOME/lib/formal.sh"
+# shellcheck source=src/lib/next.sh
+. "$SOFTWARY_HOME/lib/next.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh
@@ -80,8 +86,17 @@ commands:
   views [--check]  generate architecture/views/system.mmd from the model
                    (--check: report a missing or stale view, write nothing)
   product check    check product/PRODUCT.md: sections, features, examples
-  blueprint check  check the model, the data model and that every product
+  blueprint check  check the model, the data model, the flows, the state
+                   machines, the specifications and that every product
                    feature is delivered by a component
+  blueprint digest print the digest the blueprint approval binds (the
+                   blueprint-critic's record names it)
+  formal check [<spec>]
+                   run TLC on the specifications under architecture/formal/:
+                   the model passes and every variant fails the invariant the
+                   record says it breaks; a violation is printed as the
+                   shortest path, in the record's sentences
+  formal install   download the pinned tla2tools.jar and check its SHA-256
   approve product|blueprint
                    record the human's approval of the product definition or
                    the blueprint (a digest of the files they bind)
@@ -135,6 +150,14 @@ commands:
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: integration_branch)
   status           summarise approvals, specs, slices, proposed ADRs and jobs
+  next             print what the project needs next, in one line, worked out
+                   from its files: define, approve product (human),
+                   blueprint, critique, approve blueprint (human), plan,
+                   plan approve <spec>, run, waiting: <jobs> or none; writes
+                   nothing and does not run TLC
+  handoff          write .softwary/state/handoff.md (where the work stands:
+                   branch, working tree, next step, approvals, jobs, the last
+                   events) for the next session; its ## Notes are kept
   doctor           report installation and configuration problems
   upgrade <package-path>
                    replace the managed files with those of a newer package,
@@ -203,6 +226,10 @@ blueprint)
 	shift
 	sw_blueprint "$@"
 	;;
+formal)
+	shift
+	sw_formal "$@"
+	;;
 risk)
 	shift
 	sw_risk "$@"
@@ -218,6 +245,14 @@ eval)
 status)
 	shift
 	sw_status "$@"
+	;;
+next)
+	shift
+	sw_next "$@"
+	;;
+handoff)
+	shift
+	sw_handoff "$@"
 	;;
 adr)
 	shift

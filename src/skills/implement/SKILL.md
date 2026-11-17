@@ -25,7 +25,7 @@ Three things are forbidden:
 
 - weaken a test, a check or a gate to get it to pass;
 - change `.softwary/config/` files;
-- change the model or a contract; that belongs to the `architect` stage. Stop
+- change the model or a contract; that belongs to the `blueprint` stage. Stop
   and say so when the slice needs it.
 
 If the same failure is still there after three attempts, stop, describe what

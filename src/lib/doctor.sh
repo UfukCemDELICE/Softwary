@@ -128,6 +128,41 @@ $2
 EOF
 }
 
+# sw_doctor_formal: model_check, Java and the jar, when architecture/formal/
+# holds a specification (model_check is then required). With none, a
+# configured model_check is reported like the other optional keys.
+sw_doctor_formal() {
+	if ! sw_formal_specs_exist; then
+		sw_conf_is_unset model_check && return 0
+		case $(sw_conf_get model_check) in
+		NONE | NONE:*) sw_line model_check "SKIP ($(sw_none_reason "$(sw_conf_get model_check)"))" ;;
+		*) sw_line model_check "PASS (configured, not run)" ;;
+		esac
+		return 0
+	fi
+	if sw_conf_is_unset model_check; then
+		sw_doctor_fail model_check "required: architecture/formal has specs"
+	else
+		case $(sw_conf_get model_check) in
+		NONE | NONE:*) sw_doctor_fail model_check "required: architecture/formal has specs" ;;
+		*) sw_line model_check "PASS (configured, not run)" ;;
+		esac
+	fi
+	if command -v java >/dev/null 2>&1; then
+		sw_line java PASS
+	else
+		sw_doctor_fail java "not found in PATH; formal check needs Java 11 or later"
+	fi
+	_dj=$(sw_formal_jar)
+	if [ ! -f "$_dj" ]; then
+		sw_doctor_fail tla2tools "$_dj not found; run ./softwary formal install"
+	elif [ "$(sw_formal_sha256 "$_dj")" != "$SW_TLA_SHA256" ]; then
+		sw_doctor_fail tla2tools "$_dj is not tla2tools $SW_TLA_VERSION; run ./softwary formal install"
+	else
+		sw_line tla2tools PASS
+	fi
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -185,6 +220,7 @@ EOF
 		for _k in $(sw_conf_unknown_keys); do
 			sw_doctor_fail "$_k" "unknown key, line $(sw_conf_line "$_k")"
 		done
+		sw_doctor_formal
 		_spp=$(sw_src_paths_problems)
 		if [ -n "$_spp" ]; then
 			while IFS= read -r _err; do

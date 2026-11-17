@@ -40,8 +40,7 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
 7. An empty repository (no code yet): do not draft a model. Create each
    `src_paths` directory with a `.gitkeep` file so it exists. The `model` line
    of `doctor` stays FAIL until the model is written; tell the human the next
-   steps are `define` (the product) and then `blueprint` (the model), or
-   `discover` and `architect` to walk the stages by hand.
+   steps are `define` (the product) and then `blueprint` (the model).
 8. A repository with code, and no `architecture/model/system.calm.json`:
    draft the model from the code. Start from
    `.softwary/templates/system.calm.json`, describe only components you can

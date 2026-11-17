@@ -141,8 +141,10 @@ sw_model_features() {
 		| "\($id) \(.)"' "$SOFTWARY_ROOT/$SW_MODEL_REL" 2>/dev/null
 }
 
-# sw_blueprint_check: prints one problem per line. Returns 0 valid,
-# 1 problems, 2 an input is missing (each missing input has its own line).
+# sw_blueprint_check [--no-formal]: prints one problem per line. Returns 0
+# valid, 1 problems, 2 an input is missing (each missing input has its own
+# line) or the models cannot be checked (no Java, no jar). --no-formal does
+# not run TLC.
 sw_blueprint_check() {
 	_bmiss=0
 	if [ ! -f "$SOFTWARY_ROOT/$SW_PRODUCT_REL" ]; then
@@ -187,22 +189,54 @@ sw_blueprint_check() {
 			_bn=$((_bn + $(sw_count "$_bref")))
 		fi
 	fi
+	_bfl=$(sw_flows_check) || _bn=$((_bn + $(sw_count "$_bfl")))
+	[ -z "$_bfl" ] || printf '%s\n' "$_bfl"
+	_bsm=$(sw_states_check) || _bn=$((_bn + $(sw_count "$_bsm")))
+	[ -z "$_bsm" ] || printf '%s\n' "$_bsm"
+	_bfm=$(sw_formal_record_check) || _bn=$((_bn + $(sw_count "$_bfm")))
+	[ -z "$_bfm" ] || printf '%s\n' "$_bfm"
+	# The models are checked when everything else is in order.
+	if [ "$_bn" -eq 0 ] && [ "${1-}" != --no-formal ] && [ -n "$(sw_formal_names)" ]; then
+		_bfc=0
+		_bfo=$(sw_formal_check) || _bfc=$?
+		if [ "$_bfc" -eq 2 ]; then
+			printf 'blueprint: formal check could not run: %s\n' "$(printf '%s\n' "$_bfo" | head -n 1 | sed 's/^formal: //')"
+			return 2
+		fi
+		printf '%s\n' "$_bfo"
+		_bn=$((_bn + $(printf '%s\n' "$_bfo" | grep -Ec '^formal [^ :]+: (FAIL|variant .* (did not fail|failed on|could not be checked))' || :)))
+	fi
 	[ "$_bn" -eq 0 ]
 }
 
-# sw_blueprint [check]
+# sw_blueprint_inventory: what the blueprint holds beyond the model, when it
+# holds any: its flows and state machines.
+sw_blueprint_inventory() {
+	_bi_f=$(sw_count "$(sw_json_files "$SW_FLOWS_DIR")")
+	_bi_s=$(sw_count "$(sw_json_files "$SW_STATES_DIR")")
+	[ $((_bi_f + _bi_s)) -gt 0 ] || return 0
+	printf 'blueprint: %s flow(s), %s state machine(s)\n' "$_bi_f" "$_bi_s"
+}
+
+# sw_blueprint [check|digest]
 sw_blueprint() {
+	if [ $# -eq 1 ] && [ "$1" = digest ]; then
+		sw_digest blueprint
+		return 0
+	fi
 	if [ $# -ne 1 ] || [ "$1" != check ]; then
-		printf 'usage: ./softwary blueprint check\n' >&2
+		printf 'usage: ./softwary blueprint check | blueprint digest\n' >&2
 		return 2
 	fi
 	_rc=0
 	_probs=$(sw_blueprint_check) || _rc=$?
 	case $_rc in
 	0)
+		[ -z "$_probs" ] || printf '%s\n' "$_probs"
 		printf 'blueprint: valid (%s nodes, %s entities, %s features)\n' \
 			"$(jq '.nodes | length' "$SOFTWARY_ROOT/$SW_MODEL_REL")" \
 			"$(jq '.entities | length' "$SOFTWARY_ROOT/$SW_DATA_REL")" "$(sw_count "$(sw_product_features)")"
+		sw_blueprint_inventory
 		return 0
 		;;
 	2)
@@ -211,7 +245,9 @@ sw_blueprint() {
 		;;
 	esac
 	printf '%s\n' "$_probs"
-	printf 'blueprint: %s problem(s)\n' "$(sw_count "$_probs")"
+	# What formal check prints besides its problems (the steps of a path, the
+	# passing models) is not counted.
+	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
 	return 1
 }
 
@@ -232,13 +268,19 @@ sw_digest() {
 				[ ! -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ] || printf '%s\n' "$SW_MODEL_REL"
 				[ ! -f "$SOFTWARY_ROOT/$SW_DATA_REL" ] || printf '%s\n' "$SW_DATA_REL"
 				(cd "$SOFTWARY_ROOT" && find architecture/contracts -type f 2>/dev/null)
+				# Of a specification's record only the invariants table is
+				# bound: it is the sentence a human approves.
+				(cd "$SOFTWARY_ROOT" && find architecture/formal -type f -name '*.md' 2>/dev/null) | sed 's/$/#invariants/'
 				;;
 			esac
 		} | LC_ALL=C sort
 	)
 	printf '%s\n' "$_dg_paths" | while IFS= read -r _dg_p; do
 		[ -n "$_dg_p" ] || continue
-		printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p"
+		case $_dg_p in
+		*'#invariants') printf '%s %s\n' "$(sw_formal_invariants_raw "$SOFTWARY_ROOT/${_dg_p%#invariants}" | git -C "$SOFTWARY_ROOT" hash-object --stdin)" "$_dg_p" ;;
+		*) printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p" ;;
+		esac
 	done | git -C "$SOFTWARY_ROOT" hash-object --stdin
 }
 
@@ -294,6 +336,27 @@ sw_approvals_put() {
 		END { if (!done) print k " = " v }' "$_ap_f" >"$_ap_f.tmp" && mv "$_ap_f.tmp" "$_ap_f"
 }
 
+# sw_critique_problem: prints why the blueprint critic's record does not
+# allow the approval (nothing when it does) and returns 1; 0 when it allows.
+# The record is architecture/critique.md: `digest` is the blueprint's digest
+# when the critic wrote it and `decision` is pass or changes.
+sw_critique_problem() {
+	_cq_f=$SOFTWARY_ROOT/architecture/critique.md
+	if [ ! -f "$_cq_f" ]; then
+		printf 'blueprint: no critique (architecture/critique.md); call the blueprint-critic\n'
+		return 1
+	fi
+	sw_fm_read "$_cq_f"
+	if [ "$(sw_fm_get decision)" != pass ]; then
+		printf "blueprint: the critique's decision is %s, not pass (architecture/critique.md)\n" "$(sw_fm_get decision)"
+		return 1
+	fi
+	if [ "$(sw_fm_get digest)" != "$(sw_digest blueprint)" ]; then
+		printf 'blueprint: critique is stale (the blueprint changed after it was written); call the blueprint-critic again\n'
+		return 1
+	fi
+}
+
 # sw_approve product|blueprint: records the digest when the checks pass.
 sw_approve() {
 	case ${1:-} in
@@ -325,10 +388,15 @@ sw_approve() {
 			return 1
 		fi
 		_apr=$(sw_blueprint_check) || _apc=$?
+		_apw="$_apk check does not pass"
+		if [ "$_apc" -eq 0 ]; then
+			_apr=$(sw_critique_problem) || _apc=1
+			_apw="the blueprint critique does not allow it"
+		fi
 	fi
 	if [ "$_apc" -ne 0 ]; then
 		printf '%s\n' "$_apr"
-		printf 'approve: %s check does not pass; nothing was approved\n' "$_apk"
+		printf 'approve: %s; nothing was approved\n' "${_apw:-$_apk check does not pass}"
 		return 1
 	fi
 	_apd=$(sw_digest "$_apk")

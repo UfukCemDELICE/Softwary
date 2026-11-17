@@ -1,0 +1,12 @@
+{
+  "id": "UNSET",
+  "name": "UNSET",
+  "features": ["UNSET"],
+  "participants": ["UNSET"],
+  "entities": ["UNSET"],
+  "steps": [
+    { "from": "UNSET", "to": "UNSET", "action": "UNSET", "data": "UNSET" }
+  ],
+  "traits": [],
+  "formal": "UNSET"
+}

@@ -11,7 +11,7 @@
 
 # The protected paths: a trailing '/' is a directory (everything below it),
 # anything else is exactly that path. The project cannot change this list.
-SW_PROTECTED=".softwary/ .github/ CODEOWNERS docs/CODEOWNERS softwary product/ architecture/model/ architecture/data/ architecture/contracts/"
+SW_PROTECTED=".softwary/ .github/ CODEOWNERS docs/CODEOWNERS softwary product/ architecture/model/ architecture/data/ architecture/contracts/ architecture/formal/"
 
 SW_TESTSKIP_REL=.softwary/config/test-skip.conf
 
