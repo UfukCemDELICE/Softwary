@@ -40,8 +40,8 @@ cannot justify from `PRODUCT.md`. Write no specs, slices or code.
    one plain sentence a human can approve, with the harm if it breaks.
    Without Java: `./softwary formal install` and install a Java runtime.
    Run `./softwary formal check`. A failing good model is a finding: print its
-   path to the human; fix the design or ask, never weaken the invariant to
-   make it pass.
+   path to the human; fix the design or ask, never weaken the invariant so
+   that it passes.
 8. Decisions: for each choice a human might later question, an ADR from
    `.softwary/templates/adr.md` in `architecture/decisions/` with
    `status: proposed` and `affects` naming what it changes. Never set

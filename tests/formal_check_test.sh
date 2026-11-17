@@ -207,7 +207,8 @@ test_ac_v5_04_trace_odd_shapes() {
 	assert_match "$OUT" '^  then it goes back to step 1 \(Tick\)$'
 }
 
-# AC-V5-04: a variant that does not fail, and one that fails on another invariant.
+# AC-V5-04: a variant that does not fail; and (separately) one that fails on
+# another invariant. Each alone makes the check fail.
 test_ac_v5_04_variant_did_not_fail() {
 	need_tlc || return 0
 	ready
@@ -220,6 +221,12 @@ INVARIANTS
   TypeOK
   ShippedWasPaid
 CFG
+	sw formal check
+	assert_eq "$RC" 1 "exit code with a variant that does not fail"
+	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg did not fail \\(expected ShippedWasPaid\\)$"
+	assert_match "$OUT" "^formal order: variant order-shipcancelled\\.cfg fails on CancelledNeverShipped$"
+	assert_no_match "$OUT" "PASS"
+	ready
 	cfg_put order-shipcancelled.cfg <<'CFG'
 SPECIFICATION Spec
 CHECK_DEADLOCK FALSE
@@ -230,9 +237,9 @@ INVARIANTS
   ShippedWasPaid
 CFG
 	sw formal check
-	assert_eq "$RC" 1 "exit code"
-	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg did not fail \\(expected ShippedWasPaid\\)$"
+	assert_eq "$RC" 1 "exit code with a variant that fails on another invariant"
 	assert_match "$OUT" "^formal order: variant order-shipcancelled\\.cfg failed on ShippedWasPaid \\(expected CancelledNeverShipped\\)$"
+	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg fails on ShippedWasPaid$"
 	assert_no_match "$OUT" "PASS"
 }
 

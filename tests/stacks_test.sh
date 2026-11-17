@@ -84,9 +84,13 @@ test_ac_m0_09_same_behaviour_on_two_stacks() {
 # AC-M0-09: src/ and install.sh contain no language, framework or package manager specifics.
 test_ac_m0_09_no_stack_specific_code() {
 	# 'node' alone is CALM's word for a model element (D-31); Node.js is still caught.
-	words='npm|npx|yarn|pnpm|node\.js|nodejs|deno|bun|python|python3|pip|poetry|pytest|ruby|gem|bundler|rake|cargo|rustc|golang|java|javac|maven|mvn|gradle|kotlin|dotnet|nuget|php|composer|swift|make|cmake|docker|django|rails|react|spring'
+	# 'java' is the runtime of the TLA+ model checker (V5), not a stack the
+	# package serves: only the files that find, call or explain it may say so.
+	words='npm|npx|yarn|pnpm|node\.js|nodejs|deno|bun|python|python3|pip|poetry|pytest|ruby|gem|bundler|rake|cargo|rustc|golang|javac|maven|mvn|gradle|kotlin|dotnet|nuget|php|composer|swift|make|cmake|docker|django|rails|react|spring'
 	hits=$(cd "$PKG_ROOT" && grep -R -n -i -w -E "$words" src install.sh)
 	[ -z "$hits" ] || fail "stack-specific references found: $hits"
+	javas=$(cd "$PKG_ROOT" && grep -R -l -i -w java src install.sh | sort | tr '\n' ' ')
+	assert_eq "$javas" "src/lib/doctor.sh src/lib/formal.sh src/lib/product.sh src/skills/blueprint/SKILL.md src/templates/github/softwary.yml " "files that name Java (the TLA+ model checker's runtime)"
 }
 
 run_tests "$0"

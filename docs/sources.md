@@ -50,11 +50,11 @@ Ne: Mühendislik ve yazı skill'leri. Bizi ilgilendirenler: `grill-me`/`grilling
 
 | Fikir | softwary'deki yeri | Durum |
 | --- | --- | --- |
-| Bütün dallar çözülene kadar, birer birer soru sorarak sorgulama | `discover`, `define` | Kısmen: `discover` ve ince `define` (V2); derin sorgulama V5 |
-| Sözlük ve kararlar görüşme sürerken güncellenir | `CONTEXT.md`, ADR | Kısmen: şablonlar var |
-| Alan modelleme | Blueprint veri modeli | Kısmen: veri modeli ve `blueprint check` (V2); derin alan modelleme V5 |
+| Bütün dallar çözülene kadar, birer birer soru sorarak sorgulama | `define` | Var (V5: tek soru, önerili cevap, bütün dallar kapanana kadar; `discover` `define`'a katıldı, D-127) |
+| Sözlük ve kararlar görüşme sürerken güncellenir | `CONTEXT.md`, ADR | Var (V5: `define` terimi `CONTEXT.md`'ye, zor geri alınır kararı önerilmiş ADR'ye görüşmede yazar) |
+| Alan modelleme | Blueprint veri modeli | Var (V5: veri modeli, durum makineleri ve akışlar yapısal dosyalardır, `blueprint check` denetler, D-115, D-116) |
 | Engelleme ilişkileri açık, uçtan uca ince iş blokları | Dilim `depends_on`, plan | Var (V2: `plan` skill'i, `NNN-S<n>` bağımlılıkları, `plan check`) |
-| Oturum devri | `handoff` | Planlı (V5) |
+| Oturum devri | `handoff` | Var (V5: `./softwary handoff` ve `handoff` skill'i, D-126) |
 | İnceleme iki eksenli: kod standartları ve spec'e uyum | `reviewer` | Kısmen |
 | Fabrika için "fren"ler: otomatik denetim, otomatik inceleme, insan incelemesi; tetikleyicileri yavaş açmak, her döngüyü birkaç denemede insana bağlamak | Kapılar, `reviewer`, tur sınırı | Var (V2: kapılar, tur sınırı, approver) |
 | Bir çalıştırma insanı beklemez, biter; insanın sonraki değişikliği yeni çalıştırmayı başlatır | Escalate ve devam (design §6.4) | Var (V2: `job escalate`, `job resume`, `run next` `waiting:`) |
@@ -111,9 +111,9 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 | İşi her biri doğrulanabilir durumda biten küçük birimlere bölmek ve sırayı kendini kanıtlayacak şekilde dizmek | Dilimler, plan | Kısmen |
 | Paylaşılan durumu seri hale getirmeden önce ayırmak; işlemleri idempotent yapmak | Paralel yürütme, kilitler, çöküşten devam | Planlı (V4) |
 | Davranışı test et, gerçeklemeyi değil | `implement` | Planlı (skill metni) |
-| Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Planlı (V5) |
+| Alanı modelle (durum taşıyan mantıkta) | Blueprint durum makineleri | Var (V5: `architecture/states/<varlık>.json`, durum diyagramı üretilir, D-116, D-124) |
 | Bağlam penceresini koru: toplu çıktıyı subagent'a, ana iş parçacığına özet | Ajan sözleşmesi (tek satır yanıt, ayrıntı dosyada) | Var (V2) |
-| **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Planlı (V5, V8; D-63) |
+| **Biçimsel doğrulama** (aşağıda) | design §6.2, §7 | Kısmen: V5'te belirtim, değişmez cümleleri, varyant kanıtı, ihlal yolu ve `model_check` var; sapma bakımı ve Lean V8 (D-63) |
 
 ### pstack'in biçimsel doğrulama yaklaşımı
 
@@ -133,7 +133,7 @@ Ne: Cursor'da geliştirilen bir skill paketi. `poteto-mode` bir isteği oyun kit
 
 İnsan kararıyla (D-63, 2026-11-15) yaklaşım ürüne uygulanır; ayrıntı design §6.2 ve §7'de:
 
-- Blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış için TLA+ belirtimi. Değişmezler insanın onayladığı cümlelerdir; belirtim blueprint onayından önce model denetleyiciden geçer, sonra `model_check` olarak her `verify`'da çalışır (V5).
+- Blueprint'teki her durum makinesi ve eşzamanlılık, yeniden deneme ya da çöküş içeren her akış için TLA+ belirtimi. Değişmezler insanın onayladığı cümlelerdir; belirtim blueprint onayından önce model denetleyiciden geçer, sonra `model_check` olarak her `verify`'da çalışır (V5'te var: `formal check`, `formal install`, `model_check`, D-117..D-123).
 - Yukarıdaki 4, 5 ve 8. maddeler kapıdır: bozulmuş varyantta başarısızlık kanıtı, bulguyu zayıflatma yasağı, kapsam kaydı ve sapma denetimi (V5'te kayıt, V8'de bakım döngüsü).
 - Kanıt asistanı (Lean) yalnızca R3 riskli, saf algoritmik çekirdekler için isteğe bağlıdır (V8).
 - Değişmeyen sınır: belirtimin doğruluğu kanıtlanır, kodun belirtime uyduğu kanıtlanmaz; bu boşluk karşı örneklerin koda karşı yeniden oynatılması ve belirtimden türetilen testlerle daraltılır (V8).

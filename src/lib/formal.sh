@@ -251,7 +251,7 @@ sw_formal_install() {
 		return 2
 	fi
 	_fi_url=${SW_TLA2TOOLS_URL:-$SW_TLA_URL}
-	mkdir -p "$(dirname "$_fi_jar")" || { printf 'formal install: cannot make %s\n' "$(dirname "$_fi_jar")"; return 2; }
+	mkdir -p "$(dirname "$_fi_jar")" || { printf 'formal install: cannot create %s\n' "$(dirname "$_fi_jar")"; return 2; }
 	rm -f "$_fi_jar.part"
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL -o "$_fi_jar.part" "$_fi_url" || { rm -f "$_fi_jar.part"; printf 'formal install: could not download %s\n' "$_fi_url"; return 2; }
