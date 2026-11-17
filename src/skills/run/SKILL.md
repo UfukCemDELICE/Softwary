@@ -26,7 +26,9 @@ Every job works in its own worktree, `.softwary/worktrees/<job>`, on branch
    - `merging: <jobs>`: someone is merging them; do nothing for those jobs.
    - `waiting: <jobs>`: a human must answer; run `./softwary status`, show the
      questions, and go on with the other lines.
-   - `none`: everything is merged; `./softwary run stop` and report.
+   - `none`: everything is merged; `./softwary run stop` and report. Say that
+     the integration branch can now go to production with the `ship` skill, if
+     the human wants it: that pull request and its merge are theirs, never yours.
    - `stop: <why>` alone: do not call `run stop`. Report `./softwary status`
      and the reason: after a red merge the human decides about the revert PR,
      then `./softwary run start` goes on; for a run limit `./softwary run stop`.

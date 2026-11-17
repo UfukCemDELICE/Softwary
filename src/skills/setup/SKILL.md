@@ -58,9 +58,12 @@ a command, a branch, an owner or a risk tier you do not know: ask the human.
    human's; never invent them. Run `verify` again until each failing check
    is fixed or waived.
 9. Copy `.softwary/templates/softwary.yml` to `.github/workflows/softwary.yml`.
-   Replace both `branches: [UNSET]` with the integration branch, and the
-   `Install tools` step with the commands that install what `commands.conf`
-   needs on the CI machine (ask the human for them).
+   Replace `branches: [UNSET, UNSET]` (`pull_request`) with
+   the integration branch and the production branch, `branches: [UNSET]`
+   (`push`) with the integration branch, and the `Install tools` step with the
+   commands that install what `commands.conf` needs on the CI machine (ask
+   the human). An existing workflow stays the project's own: tell the human to
+   add the production branch to its `pull_request` branches.
 10. `.github/CODEOWNERS` is optional. Copy `.softwary/templates/CODEOWNERS`
    only if the human wants owners; then ask for them and replace every
    `UNSET`.

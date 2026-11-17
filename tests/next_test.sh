@@ -109,6 +109,78 @@ test_ac_v5_10_waiting_and_none() {
 	next_is none
 }
 
+# done_repo: the sample plan with every slice taken, nothing left to run, one
+# commit; the production branch is not made yet.
+done_repo() {
+	setup_repo
+	conf_all true
+	add_product
+	add_blueprint
+	sw approve product
+	approve_blueprint
+	add_plan
+	open_run
+	rm -r "$REPO/specs/002-tasks"
+	for f in "$REPO"/specs/*/slices/*.md; do fm_set "$f" status in-progress; done
+	commit_all "first"
+}
+
+# AC-V7-09: where `none` would be, the integration branch ahead of production
+# says ship and by how many commits; level with it, it says none.
+test_ac_v7_09_next_ship() {
+	done_repo
+	add_production
+	next_is none
+	printf 'x\n' >"$REPO/x.txt"
+	commit_all "second"
+	next_is ship
+	assert_contains "$OUT" "(1 commit ahead of master)"
+	printf 'y\n' >"$REPO/y.txt"
+	commit_all "third"
+	next_is ship
+	assert_contains "$OUT" "(2 commits ahead of master)"
+	git -C "$REPO" branch -f master main
+	next_is none
+}
+
+# AC-V7-09: ship comes only where there is nothing else to do; without a
+# production branch (not set, or not there) it stays none.
+test_ac_v7_09_no_production_stays_none() {
+	done_repo
+	printf 'x\n' >"$REPO/x.txt"
+	commit_all "second"
+	next_is none
+	conf_set production_branch UNSET
+	next_is none
+	conf_set production_branch master
+	add_production
+	next_is ship
+	# work that is left comes first
+	for f in "$REPO"/specs/*/slices/*.md; do fm_set "$f" status planned; done
+	next_is run
+}
+
+# AC-V7-09: next only reads: it fetches nothing, so the tips are those origin had
+# when it was last fetched.
+test_ac_v7_09_next_does_not_fetch() {
+	done_repo
+	add_origin
+	add_production
+	git clone -q "$T/origin.git" "$T/other" || fail "clone failed"
+	for n in 1 2; do
+		printf '%s\n' "$n" >"$T/other/n$n.txt"
+		git -C "$T/other" add -A
+		git -C "$T/other" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "c$n"
+	done
+	git -C "$T/other" push -q --no-verify origin main
+	before=$(git -C "$REPO" rev-parse origin/main)
+	next_is none
+	assert_eq "$(git -C "$REPO" rev-parse origin/main)" "$before" "origin/main after next"
+	git -C "$REPO" fetch -q origin
+	next_is ship
+	assert_contains "$OUT" "(2 commits ahead of master)"
+}
+
 # AC-V5-10: the specifications are not run: next looks at their files only, and
 # says that the models were not checked when Java is missing.
 test_ac_v5_10_does_not_run_tlc() {

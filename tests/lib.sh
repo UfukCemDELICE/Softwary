@@ -161,6 +161,67 @@ add_product() {
 	cp "$V2FIX/PRODUCT.md" "$REPO/product/PRODUCT.md"
 }
 
+# core_model PATHS STATUS [EXTRA]: replaces the model with an actor and one
+# component, `core`, that owns PATHS (a JSON array) and has STATUS; EXTRA is one
+# more node (a JSON object). The view is generated.
+core_model() {
+	mkdir -p "$REPO/architecture/model"
+	cat >"$REPO/$MODEL_REL" <<MODEL
+{
+  "\$schema": "https://calm.finos.org/release/1.3/meta/calm.json",
+  "nodes": [
+    { "unique-id": "user", "node-type": "actor", "name": "User", "description": "Uses the product." },
+    { "unique-id": "core", "node-type": "service", "name": "Core", "description": "The code.",
+      "metadata": { "paths": $1, "risk": "R1", "status": "$2" } }${3:+,
+    $3}
+  ],
+  "relationships": [
+    { "unique-id": "user-uses-core", "relationship-type": { "interacts": { "actor": "user", "nodes": ["core"] } } }
+  ]
+}
+MODEL
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
+}
+
+# add_production [REF]: the production branch, master, at REF (default: the
+# first commit of main), pushed to origin when there is one.
+add_production() {
+	_ap=${1:-$(git -C "$REPO" rev-list --max-parents=0 main | tail -n 1)}
+	git -C "$REPO" branch -f master "$_ap" || fail "add_production: cannot make master at $_ap"
+	if git -C "$REPO" remote get-url origin >/dev/null 2>&1; then
+		git -C "$REPO" push -q --no-verify -f origin master >"$T/push.out" 2>&1 || fail "push of master failed: $(cat "$T/push.out")"
+		git -C "$REPO" fetch -q origin
+	fi
+}
+
+# add_repro_slice [PATHS]: slice S1 of the sample plan becomes the fix of a bug:
+# repro: PATHS (default tests/test_bug.sh), touches src/api and tests, the
+# command that runs given tests (test_files = sh {files}) and a src/api/calc.sh
+# whose add is wrong. Committed on the integration branch.
+# shellcheck disable=SC2016 # the shell code in the printf formats is not for this shell
+add_repro_slice() {
+	conf_set test_paths tests
+	conf_set test_files 'sh {files}'
+	_sl=$REPO/specs/001-login/slices/S1.md
+	fm_set "$_sl" touches "src/api, tests"
+	fm_set "$_sl" repro "${1:-tests/test_bug.sh}"
+	mkdir -p "$REPO/src/api"
+	printf 'add() { echo $(($1 - $2)); }\n' >"$REPO/src/api/calc.sh"
+	commit_all "a bug and the slice that fixes it"
+}
+
+# repro_commit DIR [nofix]: what the job commits in DIR (its worktree, or a
+# checkout of its branch): the slice in review, the test that reproduces the
+# bug (adding 2 and 3 gives 5) and, unless nofix, the fix.
+# shellcheck disable=SC2016 # the shell code in the printf formats is not for this shell
+repro_commit() {
+	fm_set "$1/specs/001-login/slices/S1.md" status review
+	mkdir -p "$1/tests"
+	printf '#!/bin/sh\n# covers AC-001-01: adding 2 and 3 gives 5\n. "$(dirname "$0")/../src/api/calc.sh"\n[ "$(add 2 3)" = 5 ]\n' >"$1/tests/test_bug.sh"
+	[ "${2-}" = nofix ] || printf 'add() { echo $(($1 + $2)); }\n' >"$1/src/api/calc.sh"
+	commit_in "$1" "fix the sum"
+}
+
 # add_blueprint: replaces the model with the sample one that names product
 # features, regenerates its view and adds the sample data model and the flow
 # that F1 (delivered by two components) needs.
@@ -354,7 +415,10 @@ open_run() {
 # https://github.com/o/r/pull/<n> (n = 1, 2, ...) and records the PR's title,
 # base and head branch under $T/gh/; `pr view --json headRefOid` prints
 # $T/gh/head when that file exists, else the tip of the PR's branch in origin;
-# `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN; `pr checks` exits with the
+# `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN;
+# `pr create` also keeps the body ($T/gh/body-<n>, from --body or --body-file) and
+# `pr list --base B --head H --state open --json ...` prints the open PRs of
+# that base and head as a JSON array of {number, url}; `pr checks` exits with the
 # code in $T/gh/checks (default 0); `pr merge` exits with the code in
 # $T/gh/merge when that file exists, else squash-merges the PR's branch into
 # its base in origin (refusing a --match-head-commit that is not the tip) and
@@ -379,10 +443,32 @@ create)
 		--title) printf '%s\n' "$2" >"$T/gh/pr-$n"; shift 2 ;;
 		--base) printf '%s\n' "$2" >"$T/gh/base-$n"; shift 2 ;;
 		--head) printf '%s\n' "$2" >"$T/gh/branch-$n"; shift 2 ;;
+		--body) printf '%s\n' "$2" >"$T/gh/body-$n"; shift 2 ;;
+		--body-file) cp "$2" "$T/gh/body-$n"; shift 2 ;;
 		*) shift ;;
 		esac
 	done
 	printf 'https://github.com/o/r/pull/%s\n' "$n"
+	;;
+list)
+	base= head=
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--base) base=$2; shift 2 ;;
+		--head) head=$2; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	out=
+	n=1
+	while [ -f "$T/gh/pr-$n" ]; do
+		st=$(cat "$T/gh/state-$n" 2>/dev/null || cat "$T/gh/state" 2>/dev/null || echo OPEN)
+		if [ "$(cat "$T/gh/base-$n")" = "$base" ] && [ "$(cat "$T/gh/branch-$n")" = "$head" ] && [ "$st" = OPEN ]; then
+			out="${out:+$out,}{\"number\":$n,\"url\":\"https://github.com/o/r/pull/$n\"}"
+		fi
+		n=$((n + 1))
+	done
+	printf '[%s]\n' "$out"
 	;;
 view)
 	n=$1
@@ -449,7 +535,7 @@ add_specs() {
 # add_ci: fills in the CI workflow and CODEOWNERS templates under .github/.
 add_ci() {
 	mkdir -p "$REPO/.github/workflows"
-	sed 's/^\( *run: \)UNSET.*$/\1true/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
+	sed 's/^\( *run: \)UNSET.*$/\1true/; s/branches: \[UNSET, UNSET\]/branches: [main, master]/; s/branches: \[UNSET\]/branches: [main]/' "$REPO/.softwary/templates/softwary.yml" >"$REPO/.github/workflows/softwary.yml"
 	sed 's/UNSET/@owner/' "$REPO/.softwary/templates/CODEOWNERS" >"$REPO/.github/CODEOWNERS"
 }
 
@@ -608,6 +694,8 @@ run_tests() {
 	_count=0
 	# shellcheck disable=SC2013 # test function names contain no whitespace
 	for _t in $(sed -n 's/^\(test_[a-z0-9_]*\)() {$/\1/p' "$1"); do
+		# SW_TEST_ONLY=<name> runs that one test (the mutation checks use it).
+		[ -z "${SW_TEST_ONLY:-}" ] || [ "$_t" = "$SW_TEST_ONLY" ] || continue
 		_count=$((_count + 1))
 		T=$(mktemp -d "${TMPDIR:-/tmp}/softwary-test.XXXXXX") || exit 1
 		OUT=$T/out

@@ -72,7 +72,7 @@ Ne: Süreç skill'leri: `brainstorming`, `writing-plans`, `executing-plans`, `su
 | Dosya yolları ve doğrulama adımları olan plan | `docs/plans/`, plan aşaması | Var (V2: ürün için `plan` skill'i; paketin kendi planları `docs/plans/`) |
 | Görev başına taze subagent, ardından inceleme | `implementer`, `reviewer` | Var (V2: döngüde her iş temiz bağlamlı `implementer` ve `reviewer` çağrısıdır) |
 | Temiz test tabanıyla izole worktree | Paralel yürütme | Planlı (V4) |
-| Sistematik hata ayıklama (kök neden önce) | `diagnose` | Planlı (V7) |
+| Sistematik hata ayıklama (kök neden önce) | `diagnose` | Var (V7: önce hatayı yeniden üreten test, kök neden kanıtla, düzeltme `repro`'lu bir dilim olarak plana girer; kapı ve birleştirme testin tabanda düştüğünü, işte geçtiğini kendileri hesaplar, D-157) |
 | İnceleme geri bildirimini körü körüne değil doğrulayarak almak | `implement` (değişiklik turu) | Kısmen: `changes` kararı yeni tur açar (`job review`); ayrı skill yok |
 
 Alınmayan: "her yanıttan önce skill çağır" zorlaması (softwary aşamaları kapılarla bağlar, prompt baskısıyla değil); belge yolu `docs/superpowers/` (planlar `docs/plans/`'a taşındı).
@@ -83,14 +83,14 @@ Ne: Yaşam döngüsü skill'leri: fikir ve spec, planlama, artımlı uygulama, T
 
 | Fikir | softwary'deki yeri | Durum |
 | --- | --- | --- |
-| Yaşam döngüsü evreleri ve evre başına kapı | Hat (design §6) | Kısmen: v1 hattı, tanım, blueprint, plan ve döngü var (V2); teslim V7 |
+| Yaşam döngüsü evreleri ve evre başına kapı | Hat (design §6) | Var: tanım, blueprint, plan, döngü (V2) ve teslim (V7: `ship`) |
 | Kalite çıtası yazılı bir sözleşmedir; ajan onu sessizce indiremez (`constraint-driven-development`) | `commands.conf`, muafiyetler | Var: kapılar ve süreli muafiyetler (V1) |
 | Spec önce (`spec-driven-development`) | `specify`, `changes` kapısı | Var |
-| ADR'ler ve belgenin koddan sapmasının yakalanması | `adr` kapısı, drift | Kısmen: `adr` var; drift V7 |
+| ADR'ler ve belgenin koddan sapmasının yakalanması | `adr` kapısı, drift | Var: `adr` ve `drift` (V7: blueprint ile kod arasındaki sapma, kararlar `architecture/drift.md`'de, D-159) |
 | Taze bağlamda karşıt görüşlü inceleme (`doubt-driven-development`) | `reviewer`, `spec-analyst` | Kısmen |
 | İnce, doğrulanabilir artımlar (`incremental-implementation`) | Dilimler | Var |
 | "Bahane tabloları" (ajanın kapıyı atlatmak için kullandığı gerekçeler ve karşılıkları) | Skill metinleri | Var (V3: `implement`, `implementer`, `run` ve `evaluate`'te `## Excuses`, D-95) |
-| Teslimde gözlemlenebilirlik, kademeli yayın, geri alma planı | `ship` | Planlı (V7) |
+| Teslimde gözlemlenebilirlik, kademeli yayın, geri alma planı | `ship` | Var (V7: sürüm notunun üç bölümü doldurulmadan PR açılmaz, D-155) |
 
 Alınmayan: tarayıcı ve ön yüz skill'leri (stack'e özgü), performans optimizasyonu.
 

@@ -60,7 +60,7 @@ Her kaynağın rolü, alınan ve alınmayan fikirler, durumları ve pstack'in bi
 - iş, entegrasyon dalıyla eşitlendikten sonra o SHA üzerinde yerel kapı ve PR'ın CI'ı yeşil,
 - diff, dilimin `touches` alanıyla bildirdiği yolların içinde,
 - test silinmemiş, atlanmamış (`skip`, `only`), kriter kimliği kaldırılmamış,
-- korunan yollara dokunulmamış: `.softwary/`, CI, `CODEOWNERS`, `PRODUCT.md`, blueprint'in bağlayıcı kısımları,
+- korunan yollara dokunulmamış: `.softwary/`, CI, `CODEOWNERS`, `PRODUCT.md`, blueprint'in bağlayıcı kısımları, drift kararları (`architecture/drift.md`),
 - risk kademesi R3 değil: R3 her zaman insana gelir,
 - korunan yol değişikliği yok: her zaman insana gelir,
 - tur ve bütçe sınırı aşılmamış.
@@ -82,6 +82,8 @@ Her birleştirme gerekçesiyle `decision.md`'ye ve olay günlüğüne yazılır.
 | İnceleme | `specs/NNN-ad/reviews/Sx.md` | Yok |
 | İş durumu ve olay günlüğü | Ana checkout'ta `.softwary/state/jobs/<iş>/` ve `.softwary/state/events.log` | Yok |
 | Muafiyetler | `.softwary/config/waivers.conf`: `anahtar = bitiş-tarihi: gerekçe` | İnsan |
+| Drift kararları | `architecture/drift.md`: `\| Item \| Decision \| Until \| Reason \|` tablosu; her satır `drift`'in bildirdiği bir öğenin kararıdır (`accept`, `blueprint` ya da `fix <spec no>`, tarih, gerekçe). Korunan yol | İnsan |
+| Sürüm notu | `.softwary/state/releases/<kısa-sha>.md`: aralık, tamamlanan spec'ler, kararlar, risk, muafiyetler ve bulgular, drift kararları (hesaplanır); gözlemlenebilirlik, kademeli yayın, geri alma (insan yazar ya da onaylar). Üretim dalına açılan PR'ın gövdesidir | İnsan PR'ı birleştirir |
 
 ## 6. Hat
 
@@ -116,6 +118,10 @@ Sınırlar ve gözlem (`.softwary/config/loop.conf`, varsayılanlar insan onayl�
 ### 6.5 Teslim ve işletim
 
 `ship`: entegrasyon dalını üretim dalına alma önerisi, sürüm notu, gözlemlenebilirlik, kademeli yayın ve geri alma planı; dağıtım insan onayıyla. `diagnose`: önce hatayı yeniden üreten test. `maintain`: drift denetimi.
+
+- **`ship`** (`./softwary ship prepare|check|pr`). `prepare`, entegrasyon ucunun yerel kapıdan geçtiğini ve drift'in kararlı olduğunu denetler, sürüm notunu yazar. Not PR gövdesidir ve bir durum kopyasıdır (`.softwary/state/releases/`); aralığı, tamamlanan spec'leri, kararları, riski, muafiyet ve bulguları ve drift kararlarını dosyalardan ve git'ten hesaplar, gözlemlenebilirlik, kademeli yayın ve geri alma bölümlerini insana bırakır. `check` notun bugünkü uca ait ve bu üç bölümün dolu olduğunu, `pr` üretim dalına PR'ı açtığını söyler. softwary PR'ı birleştirmez ve `deploy`'u çalıştırmaz.
+- **`diagnose`**: hatayı önce onu yeniden üreten bir testle yakalar ve düzeltmeyi, hatanın bozduğu kabul örneğine bağlı bir spec ve `repro` taşıyan bir dilim olarak plana sokar. Kapı (`job gate`) ve birleştirme `repro`'yu kendileri hesaplar (`./softwary repro <iş>`): test tabanda (ortak atanın geçici worktree'sinde) düşer, işin kodunda geçer. Hiçbir örnek bu davranışı anlatmıyorsa ürün değişikliğidir ve insana gider.
+- **`maintain`**: `./softwary drift` blueprint ile kod arasındaki sapmayı bulur (hiçbir bileşenin sahip olmadığı dosya, var olmayan yol, dosyasız `active` bileşen, kodlu `planned` bileşen, hiçbir testin anmadığı ürün örneği) ve her öğenin kararını `architecture/drift.md`'den okur. Kararsız ya da süresi dolmuş öğe döngüyü durdurmaz, `ship`'i durdurur (D-159).
 
 ## 7. Güven, değerlendirme ve biçimsel doğrulama
 
@@ -196,7 +202,7 @@ Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNS
 
 Muaf tutulabilir her denetimin (`format_check lint typecheck test build security contract_check arch_check model_check`) isteğe bağlı bir `<anahtar>_files` karşılığı vardır: aynı denetimin yalnızca değişen dosyalardaki hali. Değeri `{files}` yer tutucusunu taşıyan bir komut ya da `NONE: <gerekçe>`'dir; `{files}` geçmeyen komut yapılandırma hatasıdır. Muafiyeti olan bir anahtarın `<anahtar>_files`'ı ayarlı olmalıdır (`doctor` ve `run start` aksi hâlde başarısızdır): muafiyet döngüyü kör bırakmaz.
 
-Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`. Her biri ilgili kilometre taşında eklenir.
+Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`, `ship` ve `repro`. Her biri ilgili kilometre taşında eklenir.
 
 `verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri (`sync`, `model`, `views`, `trace`, sonra entegrasyon dalına ya da `--base`'e karşı `adr` ve `changes`; henüz commit yoksa bu ikisi `SKIP (no commits yet)`), biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. `--fast` yalnızca biçim, lint ve tip denetimlerini çalıştırır. Çıktı ajanın okuması içindir:
 

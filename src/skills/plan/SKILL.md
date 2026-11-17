@@ -25,7 +25,10 @@ send the human back to `define` or `blueprint`. Write no code.
    `goal`, `acs`, `touches` (the paths it will change; the loop refuses a
    change outside them) and `depends_on`: `S<n>` (same spec) or `NNN-S<n>`
    (another spec); work that others rest on comes first. Keep
-   `status: planned`. Every criterion belongs to exactly one slice.
+   `status: planned`. Every criterion belongs to exactly one slice. A slice
+   that fixes a bug carries `repro: <test files>` (each under `test_paths` and
+   in `touches`): the gate proves they fail on the base and pass on the job.
+   The `diagnose` skill plans those.
 4. Run `./softwary trace` and `./softwary plan check` and fix every line:
    a criterion without an example, an unknown example, an unknown dependency,
    a dependency cycle, a stale approval.

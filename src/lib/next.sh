@@ -122,7 +122,26 @@ sw_next_compute() {
 		sw_next_set run "$_nx_planned slice(s) planned in approved specs"
 		return 0
 	fi
+	if sw_next_ahead; then
+		sw_next_set ship "$_nx_n $(if [ "$_nx_n" -eq 1 ]; then printf 'commit'; else printf 'commits'; fi) ahead of $_nx_prod"
+		return 0
+	fi
 	sw_next_set none "nothing is left to plan or run"
+}
+
+# sw_next_ahead: true when the integration branch is ahead of the production
+# branch, by _nx_n commits (_nx_prod is its name). The branches are those of
+# commands.conf, read from origin when it has them, else locally: nothing is
+# fetched here. Not true when either is not set or not there.
+sw_next_ahead() {
+	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
+	sw_conf_is_unset integration_branch && return 1
+	sw_conf_is_unset production_branch && return 1
+	_nx_prod=$(sw_conf_get production_branch)
+	_nx_ri=$(sw_ship_resolve "$(sw_conf_get integration_branch)") || return 1
+	_nx_rp=$(sw_ship_resolve "$_nx_prod") || return 1
+	_nx_n=$(git -C "$SW_STATE_ROOT" rev-list --count "$_nx_rp..$_nx_ri" 2>/dev/null) || return 1
+	[ "$_nx_n" -gt 0 ]
 }
 
 # sw_next: prints `next: <step> (<why>)`. Reads only.

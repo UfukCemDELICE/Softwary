@@ -10,6 +10,8 @@ SW_SPEC_NONEMPTY="id title status risk"
 SW_SPEC_STATUSES="draft approved done"
 SW_SLICE_FIELDS="id spec goal acs depends_on touches status"
 SW_SLICE_NONEMPTY="id spec goal acs status"
+# repro (V7): the tests that reproduce the bug a slice fixes; not required.
+SW_SLICE_OPTIONAL="repro"
 SW_SLICE_STATUSES="planned in-progress review done"
 SW_REVIEW_FIELDS="slice decision"
 SW_REVIEW_DECISIONS="approve changes"
@@ -69,8 +71,9 @@ sw_tr_problem() {
 	_tr_n=$((_tr_n + 1))
 }
 
-# sw_tr_fields REL FIELDS NONEMPTY: checks the loaded front matter: structural
-# problems, unknown, missing, empty and UNSET fields.
+# sw_tr_fields REL FIELDS NONEMPTY [OPTIONAL]: checks the loaded front matter:
+# structural problems, unknown, missing, empty and UNSET fields; an OPTIONAL
+# field may be absent or empty but is not UNSET.
 sw_tr_fields() {
 	_ferrs=$(sw_fm_errors)
 	if [ -n "$_ferrs" ]; then
@@ -82,7 +85,11 @@ ERRS
 	fi
 	case $_ferrs in "missing front matter"*) return 0 ;; esac
 	for _k in $(printf '%s\n' "$_fm" | awk -F '\t' '$1 == "F" { print $2 }'); do
-		sw_in_list "$_k" "$2" || sw_tr_problem "$1" "unknown field '$_k'"
+		sw_in_list "$_k" "$2 ${4-}" || sw_tr_problem "$1" "unknown field '$_k'"
+	done
+	for _k in ${4-}; do
+		sw_fm_has "$_k" || continue
+		[ "$(sw_fm_get "$_k")" != UNSET ] || sw_tr_problem "$1" "$_k: is UNSET"
 	done
 	for _k in $2; do
 		if ! sw_fm_has "$_k"; then
@@ -162,7 +169,7 @@ sw_trace_slice() {
 	printf '%s\n' "$_lname" | grep -Eq '^S[1-9][0-9]*$' ||
 		sw_tr_problem "$_lrel" "file name must be S<n>.md"
 	sw_fm_read "$1/slices/$2"
-	sw_tr_fields "$_lrel" "$SW_SLICE_FIELDS" "$SW_SLICE_NONEMPTY"
+	sw_tr_fields "$_lrel" "$SW_SLICE_FIELDS" "$SW_SLICE_NONEMPTY" "$SW_SLICE_OPTIONAL"
 	_v=$(sw_fm_get id)
 	case $_v in '' | UNSET | "$_lname") ;; *) sw_tr_problem "$_lrel" "id: '$_v' does not match the file name $2" ;; esac
 	_v=$(sw_fm_get spec)

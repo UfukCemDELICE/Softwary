@@ -63,6 +63,12 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh
 . "$SOFTWARY_HOME/lib/guard.sh"
+# shellcheck source=src/lib/drift.sh
+. "$SOFTWARY_HOME/lib/drift.sh"
+# shellcheck source=src/lib/ship.sh
+. "$SOFTWARY_HOME/lib/ship.sh"
+# shellcheck source=src/lib/repro.sh
+. "$SOFTWARY_HOME/lib/repro.sh"
 # shellcheck source=src/lib/eval.sh
 . "$SOFTWARY_HOME/lib/eval.sh"
 # shellcheck source=src/lib/adr.sh
@@ -142,6 +148,25 @@ commands:
                    project with a deliberately broken or a clean change)
   eval score <dir> read the reviewer's record of every case and write the
                    result to .softwary/config/eval.conf
+  repro <job> [--base <ref>]
+                   prove test first for a slice that has a repro: its tests
+                   fail on the base (the code before the job, in a temporary
+                   worktree) and pass on the job
+  drift            list where the code and the blueprint differ (a file no
+                   component owns, a path that is not there, an active
+                   component without a file, a planned one with code, a product
+                   example no test names) and the decision the human took for
+                   each in architecture/drift.md; 1 while one is undecided or
+                   expired
+  ship prepare|check|pr
+                   take integration_branch to production_branch, as a pull
+                   request that a person merges: prepare checks that the tip
+                   passes the gate and the drift is decided, and writes the
+                   release note to .softwary/state/releases/<sha>.md (what to
+                   watch, how to roll out and how to roll back are for a
+                   person to write); check that the note is of today's tip
+                   and filled in; pr opens the pull request with the note as
+                   its body (never merges it, never deploys)
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -243,6 +268,19 @@ guard)
 eval)
 	shift
 	sw_eval "$@"
+	;;
+drift)
+	shift
+	sw_drift "$@"
+	;;
+repro)
+	shift
+	sw_repro "$@"
+	;;
+ship)
+	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
+	sw_ship "$@"
 	;;
 status)
 	shift

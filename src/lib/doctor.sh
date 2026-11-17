@@ -167,6 +167,14 @@ sw_doctor_formal() {
 	fi
 }
 
+# sw_doctor_repro: a slice that has a repro (V7) needs test_files, the command
+# that runs given tests, to prove the tests fail on the base.
+sw_doctor_repro() {
+	_dp_first=$(sw_plan_repro_slices | head -n 1)
+	[ -n "$_dp_first" ] || return 0
+	sw_plan_test_files_usable || sw_doctor_fail test_files "required: a slice has repro, $_dp_first"
+}
+
 sw_doctor() {
 	if [ $# -ne 0 ]; then
 		printf 'usage: ./softwary doctor\n' >&2
@@ -233,6 +241,7 @@ EOF
 			sw_doctor_fail "$_k" "unknown key, line $(sw_conf_line "$_k")"
 		done
 		sw_doctor_formal
+		sw_doctor_repro
 		_spp=$(sw_src_paths_problems)
 		if [ -n "$_spp" ]; then
 			while IFS= read -r _err; do

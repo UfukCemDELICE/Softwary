@@ -153,6 +153,18 @@ set_hooks_path() {
 set_hooks_path
 
 if [ "$upgrade" -eq 1 ]; then
+	# The CI workflow is the project's own file and an upgrade leaves it as it
+	# is. A pull request to the production branch is verified only when the
+	# workflow names that branch: say so when it does not.
+	prod=$(sed -n 's/^production_branch[[:space:]]*=[[:space:]]*//p' "$target/.softwary/config/commands.conf" 2>/dev/null | head -n 1)
+	case $prod in
+	'' | UNSET) ;;
+	*)
+		if [ -f "$target/.github/workflows/softwary.yml" ] && ! grep -Fq -- "$prod" "$target/.github/workflows/softwary.yml"; then
+			printf "upgrade: .github/workflows/softwary.yml is the project's file and is not changed: add %s to the branches of its pull_request trigger (see .softwary/templates/softwary.yml)\n" "$prod"
+		fi
+		;;
+	esac
 	printf 'Done.\n'
 	exit 0
 fi
