@@ -134,4 +134,40 @@ test_ac_m3_08_hooks_path_redirected() {
 	assert_eq "$(git -C "$REPO" config --get core.hooksPath)" .softwary/hooks "core.hooksPath"
 }
 
+# AC-V5-12: upgrade removes the skills the new version no longer has, from the
+# sources and from all three tools; a skill of the same name under local/ stays.
+test_ac_v5_12_upgrade_removes_gone_skills() {
+	setup_repo
+	tools_all on
+	for s in discover architect specify slice; do
+		mkdir -p "$REPO/.softwary/skills/$s"
+		printf -- '---\nname: %s\ndescription: Old stage.\n---\nBody.\n' "$s" >"$REPO/.softwary/skills/$s/SKILL.md"
+	done
+	mkdir -p "$REPO/.softwary/local/skills/slice"
+	printf -- '---\nname: slice\ndescription: My own slicing.\n---\nMine.\n' >"$REPO/.softwary/local/skills/slice/SKILL.md"
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	for d in .claude .cursor .agents; do
+		[ -f "$REPO/$d/skills/softwary-discover/SKILL.md" ] || fail "$d: the old skill was not distributed"
+	done
+	make_pkg "$T/pkg" "$(installed_version)"
+	sw upgrade "$T/pkg"
+	assert_eq "$RC" 0 "upgrade exit code"
+	for s in discover architect specify; do
+		[ ! -e "$REPO/.softwary/skills/$s" ] || fail ".softwary/skills/$s is still there"
+		for d in .claude .cursor .agents; do
+			[ ! -e "$REPO/$d/skills/softwary-$s" ] || fail "$d/skills/softwary-$s is still there"
+		done
+	done
+	[ ! -e "$REPO/.softwary/skills/slice" ] || fail ".softwary/skills/slice is still there"
+	for d in .claude .cursor .agents; do
+		assert_contains "$REPO/$d/skills/softwary-slice/SKILL.md" "My own slicing."
+	done
+	for s in define blueprint plan handoff; do
+		[ -f "$REPO/.claude/skills/softwary-$s/SKILL.md" ] || fail "softwary-$s was not generated"
+	done
+	sw sync --check
+	assert_eq "$RC" 0 "sync --check exit code"
+}
+
 run_tests "$0"

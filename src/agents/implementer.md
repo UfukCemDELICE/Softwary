@@ -20,7 +20,7 @@ worktrees at the same time, and the main checkout is not yours). If
    clean. Do not push and do not open a pull request: the scripts do.
 
 Never weaken a test, a check or a gate. Never change `.softwary/config/`, the
-architecture model or a contract: that needs the architect stage, so reply
+architecture model or a contract: that needs the blueprint stage, so reply
 `blocked: <what is needed>`. If the same failure remains after three attempts,
 stop and reply `advice: <the question, what you tried>`. You do not review
 your own work.

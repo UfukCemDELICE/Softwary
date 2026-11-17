@@ -1,6 +1,6 @@
 #!/bin/sh
 # Tests for the setup skill (M3).
-# shellcheck disable=SC2329,SC2119 # tests are called by run_tests; setup_repo takes optional flags
+# shellcheck disable=SC2329,SC2119,SC2016 # tests are called by run_tests; setup_repo takes optional flags
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
@@ -63,13 +63,13 @@ test_ac_v1_08_setup_branch_protection() {
 	! grep -F "Require review from Code Owners" "$SKILL" >/dev/null || fail "setup still asks for Code Owners review"
 }
 
-# AC-V1-08: an empty repository gets no model and is pointed at discover and
-# architect; in an existing one the baseline ADR lists each component's paths.
+# AC-V1-08: an empty repository gets no model and is pointed at define and
+# blueprint; in an existing one the baseline ADR lists each component's paths.
 test_ac_v1_08_setup_empty_and_existing_repo() {
 	assert_contains "$SKILL" "empty repository"
 	assert_contains "$SKILL" "do not draft a model"
-	assert_contains "$SKILL" "\`discover\`"
-	assert_contains "$SKILL" "\`architect\`"
+	assert_contains "$SKILL" "\`define\`"
+	assert_contains "$SKILL" "\`blueprint\`"
 	assert_contains "$SKILL" ".gitkeep"
 	assert_contains "$SKILL" "the paths each component is drawn from"
 }
@@ -285,6 +285,85 @@ test_ac_v4_14_parallel_texts() {
 	done
 	for c in $(commands_in "$AGENTS/approver.md"); do
 		case $c in merge | job) ;; *) fail "approver uses ./softwary $c" ;; esac
+	done
+}
+
+# AC-V5-12: discover, architect, specify and slice are gone from the package;
+# the surviving and the new skills and agents reach the three tools.
+test_ac_v5_12_package_skills() {
+	for s in discover architect specify slice; do
+		[ ! -e "$SKILLS/$s" ] || fail "src/skills/$s is still in the package"
+	done
+	for s in define blueprint plan implement review run setup evaluate handoff; do
+		[ -f "$SKILLS/$s/SKILL.md" ] || fail "src/skills/$s/SKILL.md missing"
+	done
+	[ -f "$AGENTS/blueprint-critic.md" ] || fail "src/agents/blueprint-critic.md missing"
+	setup_repo
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	for s in define blueprint plan implement review handoff; do
+		for d in .claude .cursor .agents; do
+			[ -s "$REPO/$d/skills/softwary-$s/SKILL.md" ] || fail "$d/skills/softwary-$s/SKILL.md missing"
+		done
+	done
+	for d in .claude .cursor; do
+		[ -s "$REPO/$d/agents/blueprint-critic.md" ] || fail "$d/agents/blueprint-critic.md missing"
+	done
+	[ -s "$REPO/.codex/agents/blueprint-critic.toml" ] || fail ".codex/agents/blueprint-critic.toml missing"
+	for s in discover architect specify slice; do
+		for d in .claude .cursor .agents; do
+			[ ! -e "$REPO/$d/skills/softwary-$s" ] || fail "$d/skills/softwary-$s was generated"
+		done
+	done
+}
+
+# AC-V5-12: define asks one question at a time with a recommended answer until
+# every branch is closed, and writes decisions as they are made; it holds what
+# discover did (stories, terms, open questions).
+test_ac_v5_12_define_text() {
+	f=$SKILLS/define/SKILL.md
+	for t in "one question at a time" "recommended answer" "every branch" "CONTEXT.md" ".softwary/templates/adr.md" "status: proposed" \
+		"user stories" "## Open questions" "./softwary product check"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V5-12: blueprint carries the architect stage and the V5 artifacts: flows,
+# state machines, specifications and the critic.
+test_ac_v5_12_blueprint_text() {
+	f=$SKILLS/blueprint/SKILL.md
+	for t in ".softwary/templates/adr.md" "status: proposed" "./softwary model validate" "./softwary views" "architecture/flows/" "architecture/states/" \
+		"architecture/formal/" ".softwary/templates/flow.json" ".softwary/templates/states.json" ".softwary/templates/formal.md" \
+		"./softwary formal check" "./softwary blueprint check" "blueprint-critic" "plain sentence" "variant" "only a human"; do
+		assert_contains "$f" "$t"
+	done
+	assert_contains "$f" "Only a human approves the"
+}
+
+# AC-V5-12: plan carries the spec and slice stages: the spec's fields and
+# limits, the analyst, a fresh session where a tool has no subagents, and the
+# slice's touches and depends_on.
+test_ac_v5_12_plan_text() {
+	f=$SKILLS/plan/SKILL.md
+	for t in ".softwary/templates/spec.md" ".softwary/templates/slice.md" "status: draft" "spec-analyst" "fresh session" "touches" "depends_on" \
+		"exactly one slice" "one end-to-end" "risk" "./softwary plan approve" "./softwary trace"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V5-12: no skill, agent or rule names a stage that is gone, and every one
+# of them stays within 80 lines and the commands that help lists.
+test_ac_v5_12_short_known_commands_no_gone_stages() {
+	known=$(sh "$PKG_ROOT/src/bin/softwary" help | awk '/^commands:/ { on = 1; next } on && /^  [a-z]/ { print $1 }' | sort -u)
+	for f in "$SKILLS"/*/SKILL.md "$AGENTS"/*.md; do
+		[ "$(wc -l <"$f" | tr -d ' ')" -le 80 ] || fail "${f#"$PKG_ROOT"/} is longer than 80 lines"
+		for c in $(commands_in "$f"); do
+			printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "${f#"$PKG_ROOT"/} uses unknown command: ./softwary $c"
+		done
+	done
+	for f in "$SKILLS"/*/SKILL.md "$AGENTS"/*.md "$PKG_ROOT/src/rules/core.md"; do
+		! grep -E '`(discover|architect|specify|slice)`' "$f" >/dev/null || fail "${f#"$PKG_ROOT"/} names a stage that is gone"
 	done
 }
 

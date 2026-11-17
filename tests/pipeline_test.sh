@@ -4,13 +4,13 @@
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
-STAGES="discover architect specify slice implement review"
+STAGES="define blueprint plan implement review"
 AGENTS="spec-analyst implementer reviewer"
 
 skill() { printf '%s\n' "$PKG_ROOT/src/skills/$1/SKILL.md"; }
 agent() { printf '%s\n' "$PKG_ROOT/src/agents/$1.md"; }
 
-# AC-M4-01: the six skills and three agents go to the three tools; the Codex
+# AC-M4-01: the five stage skills and three agents go to the three tools; the Codex
 # agents are valid TOML; sync --check is clean afterwards.
 test_ac_m4_01_distributed_to_three_tools() {
 	command -v python3 >/dev/null || fail "python3 is required to validate TOML"
@@ -68,22 +68,20 @@ test_ac_m4_02_known_commands_and_short() {
 
 # AC-M4-03: each skill names its output and its gate.
 test_ac_m4_03_skills_name_outputs_and_gates() {
-	f=$(skill discover)
+	f=$(skill define)
 	for t in "CONTEXT.md" "open questions"; do assert_contains "$f" "$t"; done
-	f=$(skill architect)
+	f=$(skill blueprint)
 	for t in "./softwary model validate" "./softwary views" ".softwary/templates/adr.md" "status: proposed" "only a human"; do assert_contains "$f" "$t"; done
-	f=$(skill specify)
-	for t in ".softwary/templates/spec.md" "spec-analyst" "status: draft" "only a human"; do assert_contains "$f" "$t"; done
-	f=$(skill slice)
-	for t in ".softwary/templates/slice.md" "./softwary trace"; do assert_contains "$f" "$t"; done
+	f=$(skill plan)
+	for t in ".softwary/templates/spec.md" ".softwary/templates/slice.md" "spec-analyst" "status: draft" "./softwary trace"; do assert_contains "$f" "$t"; done
 	f=$(skill implement)
-	for t in "implementer" "criterion id" "test first" "./softwary verify" "three attempts" "weaken" ".softwary/config/" "architect"; do assert_contains "$f" "$t"; done
+	for t in "implementer" "criterion id" "test first" "./softwary verify" "three attempts" "weaken" ".softwary/config/" "blueprint"; do assert_contains "$f" "$t"; done
 	f=$(skill review)
 	for t in "reviewer" "./softwary risk" ".softwary/templates/review.md" "decision: approve"; do assert_contains "$f" "$t"; done
 }
 
 # AC-M4-04: the reviewer and the spec analyst edit nothing but the review
-# record; review and specify hand over to a fresh session where a tool has no
+# record; review and plan hand over to a fresh session where a tool has no
 # subagents.
 test_ac_m4_04_clean_context_roles() {
 	for a in reviewer spec-analyst; do
@@ -92,7 +90,7 @@ test_ac_m4_04_clean_context_roles() {
 	done
 	assert_contains "$(agent reviewer)" "reviews/S<n>.md"
 	assert_contains "$(agent spec-analyst)" "Do not edit the spec"
-	for s in review specify; do
+	for s in review plan; do
 		assert_contains "$(skill "$s")" "fresh session"
 	done
 }
