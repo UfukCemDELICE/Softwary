@@ -191,6 +191,8 @@ sw_blueprint_check() {
 	[ -z "$_bfl" ] || printf '%s\n' "$_bfl"
 	_bsm=$(sw_states_check) || _bn=$((_bn + $(sw_count "$_bsm")))
 	[ -z "$_bsm" ] || printf '%s\n' "$_bsm"
+	_bfm=$(sw_formal_record_check) || _bn=$((_bn + $(sw_count "$_bfm")))
+	[ -z "$_bfm" ] || printf '%s\n' "$_bfm"
 	[ "$_bn" -eq 0 ]
 }
 
