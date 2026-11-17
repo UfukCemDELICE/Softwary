@@ -28,8 +28,14 @@ sw_in_list() {
 	return 1
 }
 
+# A known key is a check, a command, a setting or the scoped command of a
+# check that can be waived (`<key>_files`, V6).
 sw_known_key() {
-	sw_in_list "$1" "$SW_REQUIRED_KEYS $SW_OPTIONAL_CHECK_KEYS $SW_OTHER_KEYS $SW_SETTING_KEYS"
+	sw_in_list "$1" "$SW_REQUIRED_KEYS $SW_OPTIONAL_CHECK_KEYS $SW_OTHER_KEYS $SW_SETTING_KEYS" && return 0
+	case $1 in
+	*_files) sw_in_list "${1%_files}" "$SW_VERIFY_KEYS" ;;
+	*) return 1 ;;
+	esac
 }
 
 # sw_kv_load FILE REL PREFIX MODE: parses a `key = value` file.

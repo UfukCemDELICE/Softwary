@@ -21,6 +21,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/config.sh"
 # shellcheck source=src/lib/waivers.sh
 . "$SOFTWARY_HOME/lib/waivers.sh"
+# shellcheck source=src/lib/scoped.sh
+. "$SOFTWARY_HOME/lib/scoped.sh"
 # shellcheck source=src/lib/verify.sh
 . "$SOFTWARY_HOME/lib/verify.sh"
 # shellcheck source=src/lib/doctor.sh

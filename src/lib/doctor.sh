@@ -206,6 +206,14 @@ sw_doctor() {
 $SW_CONF_ERRORS
 EOF
 		fi
+		_sp=$(sw_scoped_problems)
+		if [ -n "$_sp" ]; then
+			while IFS= read -r _err; do
+				[ -n "$_err" ] && sw_doctor_fail "commands.conf" "$_err"
+			done <<EOF
+$_sp
+EOF
+		fi
 		# doctor never runs the project's commands: verify does.
 		for _k in $SW_REQUIRED_KEYS; do
 			if sw_conf_is_unset "$_k"; then

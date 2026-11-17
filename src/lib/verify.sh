@@ -11,7 +11,7 @@ sw_verify_usage() {
 }
 
 sw_verify() {
-	_fast=0 _base=
+	_fast=0 _base='' _explicit=0
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--fast)
@@ -21,6 +21,7 @@ sw_verify() {
 		--base)
 			[ $# -ge 2 ] || { sw_verify_usage; return 2; }
 			_base=$2
+			_explicit=1
 			shift 2
 			;;
 		*)
@@ -43,6 +44,13 @@ sw_verify() {
 	fi
 	if [ -n "$SW_CONF_ERRORS" ]; then
 		printf '%s' "$SW_CONF_ERRORS"
+		printf 'verify: fix the lines above in %s\n' "$SW_CONF_REL"
+		return 2
+	fi
+
+	_sp=$(sw_scoped_problems)
+	if [ -n "$_sp" ]; then
+		printf '%s\n' "$_sp"
 		printf 'verify: fix the lines above in %s\n' "$SW_CONF_REL"
 		return 2
 	fi
@@ -102,6 +110,18 @@ sw_verify() {
 			sw_base_commit "$_base" verify || return 2
 			SW_VERIFY_BASE=$_base
 			export SW_VERIFY_BASE
+			# Scoped checks need a base that was asked for.
+			# shellcheck disable=SC2034 # read by scoped.sh
+			[ "$_explicit" -eq 0 ] || SW_SCOPED_COMMIT=$SW_BASE_COMMIT
+		fi
+	else
+		# --fast: the scoped checks compare with the integration branch,
+		# when there is one.
+		SW_SCOPED_COMMIT=
+		if ! sw_conf_is_unset integration_branch && sw_has_commits &&
+			sw_base_commit "$(sw_conf_get integration_branch)" verify >/dev/null; then
+			# shellcheck disable=SC2034 # read by scoped.sh
+			SW_SCOPED_COMMIT=$SW_BASE_COMMIT
 		fi
 	fi
 
@@ -170,6 +190,7 @@ sw_verify_required() {
 	if sw_waiver "$1" && [ "$SW_WAIVER_EXPIRED" -eq 0 ]; then
 		sw_line "$1" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
 		_waived=$((_waived + 1))
+		sw_scoped_run "$1"
 		return 0
 	fi
 	sw_line "$1" "FAIL ($2)"
@@ -193,6 +214,7 @@ sw_verify_run() {
 			sw_line "$1" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
 			printf '    log: .softwary/state/logs/verify-%s.log (exit %s)\n' "$1" "$_rc"
 			_waived=$((_waived + 1))
+			sw_scoped_run "$1"
 			return 0
 		else
 			_wnote=", waiver expired $SW_WAIVER_DATE"
