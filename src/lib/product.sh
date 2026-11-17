@@ -247,7 +247,7 @@ sw_blueprint() {
 	printf '%s\n' "$_probs"
 	# What formal check prints besides its problems (the steps of a path, the
 	# passing models) is not counted.
-	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
+	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|FINDING: |finding .* no longer reproduces|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
 	return 1
 }
 
@@ -271,6 +271,11 @@ sw_digest() {
 				# Of a specification's record only the invariants table is
 				# bound: it is the sentence a human approves.
 				(cd "$SOFTWARY_ROOT" && find architecture/formal -type f -name '*.md' 2>/dev/null) | sed 's/$/#invariants/'
+				# and the findings table, when the record has one (V6): a
+				# record without it binds what it bound before.
+				for _dg_m in $(cd "$SOFTWARY_ROOT" && find architecture/formal -type f -name '*.md' 2>/dev/null); do
+					[ -z "$(sw_formal_findings_raw "$SOFTWARY_ROOT/$_dg_m")" ] || printf '%s#findings\n' "$_dg_m"
+				done
 				;;
 			esac
 		} | LC_ALL=C sort
@@ -279,6 +284,7 @@ sw_digest() {
 		[ -n "$_dg_p" ] || continue
 		case $_dg_p in
 		*'#invariants') printf '%s %s\n' "$(sw_formal_invariants_raw "$SOFTWARY_ROOT/${_dg_p%#invariants}" | git -C "$SOFTWARY_ROOT" hash-object --stdin)" "$_dg_p" ;;
+		*'#findings') printf '%s %s\n' "$(sw_formal_findings_raw "$SOFTWARY_ROOT/${_dg_p%#findings}" | git -C "$SOFTWARY_ROOT" hash-object --stdin)" "$_dg_p" ;;
 		*) printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p" ;;
 		esac
 	done | git -C "$SOFTWARY_ROOT" hash-object --stdin

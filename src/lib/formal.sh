@@ -46,6 +46,51 @@ sw_formal_actions() {
 	sw_formal_table "$1" Actions | awk -F'|' '$1 == "R" && $2 != "" { print $2 }'
 }
 
+# sw_formal_findings_raw FILE: the lines of the findings table of a record
+# exactly as written (what the blueprint approval binds besides the invariants).
+sw_formal_findings_raw() {
+	tr -d '\r' <"$1" | awk '
+		/^##[ \t]/ { t = $0; sub(/^##[ \t]+/, "", t); sub(/[ \t]+$/, "", t); insec = (t == "Findings"); next }
+		insec && /^[ \t]*\|/ { print }'
+}
+
+# sw_formal_findings AD: the findings of a record, one per line:
+# "<invariant>|<until>|<reason>".
+sw_formal_findings() {
+	sw_formal_table "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.md" Findings | awk -F'|' '$1 == "R" { print $2 "|" $3 "|" $4 }'
+}
+
+# sw_formal_findings_problems AD: the problems of the findings table of a
+# record (it is optional), one "<file>: <problem>" line each: the columns, an
+# invariant that is not in the invariants table or is there twice, a date that
+# is not a calendar date, no reason.
+sw_formal_findings_problems() {
+	_ff_md=$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.md
+	_ff_rel=$SW_FORMAL_DIR/$1.md
+	_ff_h=$(sw_formal_table "$_ff_md" Findings | awk -F'|' '$1 == "H" { print $2 "|" $3 "|" $4 }')
+	[ -n "$_ff_h" ] || return 0
+	if [ "$_ff_h" != "Invariant|Until|Reason" ]; then
+		printf "%s: '## Findings' table must have the columns Invariant, Until, Reason\n" "$_ff_rel"
+		return 0
+	fi
+	_ff_invs=$(sw_formal_table "$_ff_md" Invariants | awk -F'|' '$1 == "R" { print $2 }' | tr '\n' ' ')
+	_ff_seen=
+	while IFS='|' read -r _ff_i _ff_u _ff_r; do
+		[ -n "$_ff_i$_ff_u$_ff_r" ] || continue
+		if ! sw_in_list "$_ff_i" "$_ff_invs"; then
+			printf "%s: finding '%s' is not in the invariants table\n" "$_ff_rel" "$_ff_i"
+		elif sw_in_list "$_ff_i" "$_ff_seen"; then
+			printf "%s: duplicate finding '%s'\n" "$_ff_rel" "$_ff_i"
+		fi
+		_ff_seen="$_ff_seen $_ff_i"
+		sw_valid_date "$_ff_u" || printf "%s: finding '%s' has an invalid date '%s' (use YYYY-MM-DD)\n" "$_ff_rel" "$_ff_i" "$_ff_u"
+		[ -n "$_ff_r" ] || printf "%s: finding '%s' has no reason\n" "$_ff_rel" "$_ff_i"
+	done <<FINDINGS
+$(sw_formal_findings "$1")
+FINDINGS
+	return 0
+}
+
 # sw_formal_record_problems AD FILES: the problems of the record
 # architecture/formal/<AD>.md, one "<file>: <problem>" per line. FILES are the
 # file names of architecture/formal/.
@@ -184,6 +229,9 @@ sw_formal_record_check() {
 		_fc_p=$(sw_formal_record_problems "$_fc_n" "$_fc_files")
 		[ -z "$_fc_p" ] || _fc_out="${_fc_out}$_fc_p
 "
+		_fc_p=$(sw_formal_findings_problems "$_fc_n")
+		[ -z "$_fc_p" ] || _fc_out="${_fc_out}$_fc_p
+"
 		# Every event of a state machine is an action of the record.
 		_fc_acts=$(sw_formal_actions "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$_fc_n.md" | tr '\n' ' ')
 		for _fc_s in $(printf '%s\n' "$_fc_refs" | awk -v n="$_fc_n" -v d="$SW_STATES_DIR/" '$1 == n && index($2, d) == 1 { print $2 }'); do
@@ -270,12 +318,15 @@ sw_formal_install() {
 	printf 'formal install: installed %s\n' "$_fi_jar"
 }
 
-# sw_formal_tlc DIR CFG TLA WORKERS LOG: runs TLC on a copy of the model and
-# the configuration (TLC writes trace files next to the model when it finds an
-# error) and keeps its whole output in LOG. Returns TLC's exit code.
+# sw_formal_tlc DIR CFG TLA WORKERS LOG [CFGFILE]: runs TLC on a copy of the
+# model and the configuration (TLC writes trace files next to the model when it
+# finds an error) and keeps its whole output in LOG. CFGFILE, when given, is
+# the configuration that is copied in place of DIR/CFG (a generated one).
+# Returns TLC's exit code.
 sw_formal_tlc() {
 	_ft_work=$(mktemp -d "${TMPDIR:-/tmp}/softwary-tlc.XXXXXX") || return 2
-	cp "$1"/*.tla "$1/$2" "$_ft_work/" || { rm -rf "$_ft_work"; return 2; }
+	cp "$1"/*.tla "$_ft_work/" || { rm -rf "$_ft_work"; return 2; }
+	cp "${6:-$1/$2}" "$_ft_work/$2" || { rm -rf "$_ft_work"; return 2; }
 	_ft_rc=0
 	(cd "$_ft_work" && java -XX:+UseParallelGC -cp "$(sw_formal_jar)" tlc2.TLC -workers "$4" -config "$2" -metadir "$_ft_work/states" "$3") \
 		>"$5" 2>&1 </dev/null || _ft_rc=$?
@@ -360,6 +411,44 @@ sw_formal_trace() {
 		END { flush() }' "$1"
 }
 
+# sw_formal_cfg CFG MODE NAMES: prints the configuration CFG with its INVARIANT
+# and PROPERTY names changed: MODE drop leaves NAMES (blank-separated) out, MODE
+# only keeps nothing but NAMES. The names are printed under one INVARIANTS and
+# one PROPERTIES keyword at the end (the order of the sections does not matter
+# to TLC); every other line stays as it is.
+sw_formal_cfg() {
+	tr -d '\r' <"$1" | awk -v mode="$2" -v names="$3" '
+		BEGIN {
+			n = split(names, nm, " "); for (i = 1; i <= n; i++) pick[nm[i]] = 1
+			n = split("SPECIFICATION INIT NEXT CONSTANT CONSTANTS CONSTRAINT CONSTRAINTS ACTION_CONSTRAINT ACTION_CONSTRAINTS INVARIANT INVARIANTS PROPERTY PROPERTIES SYMMETRY VIEW ALIAS POSTCONDITION CHECK_DEADLOCK TERMINAL", kw, " ")
+			for (i = 1; i <= n; i++) iskw[kw[i]] = 1
+			kind = ""
+		}
+		function keep(t) {
+			if (t == "") return
+			if (mode == "drop" ? (t in pick) : !(t in pick)) return
+			if (kind == "I") { if (!(t in seeni)) { seeni[t] = 1; ni++; inv[ni] = t } }
+			else if (!(t in seenp)) { seenp[t] = 1; np++; prop[np] = t }
+		}
+		{
+			code = $0; k = index(code, "\\*"); if (k > 0) code = substr(code, 1, k - 1)
+			m = split(code, tok, /[ \t]+/)
+			start = 0
+			for (i = 1; i <= m; i++) if (tok[i] != "") { start = i; break }
+			if (start == 0) { print; next }
+			if (tok[start] in iskw) {
+				kind = (tok[start] == "INVARIANT" || tok[start] == "INVARIANTS") ? "I" : ((tok[start] == "PROPERTY" || tok[start] == "PROPERTIES") ? "P" : "")
+				if (kind == "") { print; next }
+				start++
+			} else if (kind == "") { print; next }
+			for (i = start; i <= m; i++) keep(tok[i])
+		}
+		END {
+			if (ni > 0) { print "INVARIANTS"; for (i = 1; i <= ni; i++) print "  " inv[i] }
+			if (np > 0) { print "PROPERTIES"; for (i = 1; i <= np; i++) print "  " prop[i] }
+		}'
+}
+
 # --- formal check ---------------------------------------------------------------
 
 # sw_formal_variant_rows AD: "<file> <invariant>" of the record's variants.
@@ -379,8 +468,19 @@ sw_formal_check_one() {
 		printf 'formal %s: FAIL: the record has problems (./softwary blueprint check)\n' "$_fo_ad"
 		return 1
 	fi
+	# The findings of the record are invariants the code is known to break: the
+	# model runs without them, and each runs alone (below).
+	_fo_find=$(sw_formal_findings "$_fo_ad")
+	_fo_gen=
+	_fo_tmp=
+	if [ -n "$_fo_find" ]; then
+		_fo_tmp=$(mktemp -d "${TMPDIR:-/tmp}/softwary-cfg.XXXXXX") || return 1
+		_fo_names=$(printf '%s\n' "$_fo_find" | cut -d'|' -f1 | tr '\n' ' ')
+		sw_formal_cfg "$_fo_dir/$_fo_ad.cfg" drop "$_fo_names" >"$_fo_tmp/good.cfg"
+		_fo_gen=$_fo_tmp/good.cfg
+	fi
 	_fo_log=$_fo_logs/formal-$_fo_ad.log
-	sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" auto "$_fo_log" || :
+	sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" auto "$_fo_log" "$_fo_gen" || :
 	_fo_res=$(sw_formal_result "$_fo_log")
 	case $_fo_res in
 	"pass "*) _fo_states=${_fo_res#pass } ;;
@@ -389,19 +489,49 @@ sw_formal_check_one() {
 		[ "$_fo_res" != deadlock ] || _fo_name=deadlock
 		printf 'formal %s: FAIL: %s violated\n' "$_fo_ad" "$_fo_name"
 		# One worker searches breadth first and reports the shortest path.
-		sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" 1 "$_fo_log" || :
+		sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" 1 "$_fo_log" "$_fo_gen" || :
 		sw_formal_trace "$_fo_log" "$_fo_dir/$_fo_ad.md"
 		printf '    log: .softwary/state/logs/formal-%s.log\n' "$_fo_ad"
+		[ -z "$_fo_tmp" ] || rm -rf "$_fo_tmp"
 		return 1
 		;;
 	*)
 		printf 'formal %s: FAIL: TLC could not check the model\n' "$_fo_ad"
 		tail -n 8 "$_fo_log" | sed 's/^/    /'
 		printf '    log: .softwary/state/logs/formal-%s.log\n' "$_fo_ad"
+		[ -z "$_fo_tmp" ] || rm -rf "$_fo_tmp"
 		return 1
 		;;
 	esac
 	_fo_bad=0
+	_fo_today=$(date +%Y%m%d)
+	while IFS='|' read -r _fo_fi _fo_fu _fo_fr; do
+		[ -n "$_fo_fi" ] || continue
+		sw_formal_cfg "$_fo_dir/$_fo_ad.cfg" only "$_fo_fi" >"$_fo_tmp/one.cfg"
+		_fo_flog=$_fo_logs/formal-$_fo_ad-finding-$_fo_fi.log
+		sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" auto "$_fo_flog" "$_fo_tmp/one.cfg" || :
+		_fo_fres=$(sw_formal_result "$_fo_flog")
+		case $_fo_fres in
+		"violated $_fo_fi" | "violated ?")
+			if [ "$(printf '%s' "$_fo_fu" | tr -d -)" -lt "$_fo_today" ]; then
+				printf 'formal %s: FAIL: %s violated (finding expired %s)\n' "$_fo_ad" "$_fo_fi" "$_fo_fu"
+				_fo_bad=1
+			else
+				printf 'formal %s: FINDING: %s violated (until %s: %s)\n' "$_fo_ad" "$_fo_fi" "$_fo_fu" "$_fo_fr"
+			fi
+			sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" 1 "$_fo_flog" "$_fo_tmp/one.cfg" || :
+			sw_formal_trace "$_fo_flog" "$_fo_dir/$_fo_ad.md"
+			;;
+		"pass "*) printf 'formal %s: finding %s no longer reproduces (remove it)\n' "$_fo_ad" "$_fo_fi" ;;
+		*)
+			printf 'formal %s: FAIL: finding %s could not be checked (see .softwary/state/logs/formal-%s-finding-%s.log)\n' "$_fo_ad" "$_fo_fi" "$_fo_ad" "$_fo_fi"
+			_fo_bad=1
+			;;
+		esac
+	done <<FINDINGS
+$_fo_find
+FINDINGS
+	[ -z "$_fo_tmp" ] || rm -rf "$_fo_tmp"
 	_fo_vars=$(sw_formal_variant_rows "$_fo_ad")
 	while read -r _fo_vf _fo_vb; do
 		[ -n "$_fo_vf" ] || continue
