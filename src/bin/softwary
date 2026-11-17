@@ -55,6 +55,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/flows.sh"
 # shellcheck source=src/lib/formal.sh
 . "$SOFTWARY_HOME/lib/formal.sh"
+# shellcheck source=src/lib/next.sh
+. "$SOFTWARY_HOME/lib/next.sh"
 # shellcheck source=src/lib/risk.sh
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh
@@ -148,6 +150,14 @@ commands:
   risk <spec> [--base <ref>]
                    the review tier of a change (default base: integration_branch)
   status           summarise approvals, specs, slices, proposed ADRs and jobs
+  next             print what the project needs next, in one line, worked out
+                   from its files: define, approve product (human),
+                   blueprint, critique, approve blueprint (human), plan,
+                   plan approve <spec>, run, waiting: <jobs> or none; writes
+                   nothing and does not run TLC
+  handoff          write .softwary/state/handoff.md (where the work stands:
+                   branch, working tree, next step, approvals, jobs, the last
+                   events) for the next session; its ## Notes are kept
   doctor           report installation and configuration problems
   upgrade <package-path>
                    replace the managed files with those of a newer package,
@@ -235,6 +245,14 @@ eval)
 status)
 	shift
 	sw_status "$@"
+	;;
+next)
+	shift
+	sw_next "$@"
+	;;
+handoff)
+	shift
+	sw_handoff "$@"
 	;;
 adr)
 	shift
