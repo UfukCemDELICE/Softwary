@@ -11,7 +11,10 @@
 #   - what the loop may change of a record (the model, the configurations, the
 #     coverage, the commit last verified) is told apart from what binds a human
 #     (the invariants, the findings, the set of files: guard.sh), and a slice
-#     that touches covered code touches the record too (plan.sh).
+#     that touches covered code touches the record too (plan.sh);
+#   - `formal trace` prints the counter-example of a finding as steps a test
+#     can replay, `states tests` lists the tests a state machine owes, and
+#     drift (drift.sh) reports those no test names.
 
 # --- the record ---------------------------------------------------------------
 
@@ -288,4 +291,113 @@ TOUCHES
 	done <<ALLCOVERED
 $3
 ALLCOVERED
+}
+
+# --- formal trace ---------------------------------------------------------------
+
+sw_fmaint_trace_usage() {
+	printf 'usage: ./softwary formal trace <spec> <invariant>\n' >&2
+}
+
+# sw_fmaint_trace AD INVARIANT: the counter-example of a finding of the record,
+# the shortest path from the good model to the invariant being broken, as the
+# steps `formal check` prints for a finding, under the finding's identifier:
+# the steps are the ones a test replays against the code. Returns 0, 1 when the
+# model no longer breaks the invariant, 2 on usage, an unknown specification, an
+# invariant that is no finding, or when TLC cannot run.
+sw_fmaint_trace() {
+	[ $# -eq 2 ] || { sw_fmaint_trace_usage; return 2; }
+	_ft_ad=$1
+	_ft_inv=$2
+	if ! sw_formal_names | grep -Fqx -e "$_ft_ad" || [ ! -f "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$_ft_ad.md" ]; then
+		printf "formal trace: no specification '%s' (see architecture/formal/)\n" "$_ft_ad"
+		return 2
+	fi
+	if ! sw_formal_findings "$_ft_ad" | cut -d'|' -f1 | grep -Fqx -e "$_ft_inv"; then
+		printf 'formal trace: %s has no finding for %s\n' "$_ft_ad" "$_ft_inv"
+		return 2
+	fi
+	sw_formal_ready || return 2
+	_ft_logs=$SOFTWARY_ROOT/.softwary/state/logs
+	mkdir -p "$_ft_logs" || return 2
+	_ft_tmp=$(mktemp -d "${TMPDIR:-/tmp}/softwary-cfg.XXXXXX") || return 2
+	sw_formal_cfg "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$_ft_ad.cfg" only "$_ft_inv" >"$_ft_tmp/one.cfg"
+	_ft_log=$_ft_logs/formal-$_ft_ad-trace-$_ft_inv.log
+	# One worker searches breadth first: the path is the shortest.
+	sw_formal_tlc "$SOFTWARY_ROOT/$SW_FORMAL_DIR" "$_ft_ad.cfg" "$_ft_ad.tla" 1 "$_ft_log" "$_ft_tmp/one.cfg" || :
+	rm -rf "$_ft_tmp"
+	case $(sw_formal_result "$_ft_log") in
+	"violated $_ft_inv" | "violated ?")
+		printf 'CE-%s-%s\n' "$_ft_ad" "$_ft_inv"
+		sw_formal_trace "$_ft_log" "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$_ft_ad.md"
+		;;
+	"pass "*)
+		printf 'formal trace: %s is not violated by the model of %s any more (remove the finding)\n' "$_ft_inv" "$_ft_ad"
+		return 1
+		;;
+	*)
+		printf 'formal trace: TLC could not check %s (see .softwary/state/logs/formal-%s-trace-%s.log)\n' "$_ft_inv" "$_ft_ad" "$_ft_inv"
+		return 1
+		;;
+	esac
+}
+
+# --- the tests a state machine owes ----------------------------------------------
+
+# sw_fmaint_obligations [ENTITY]: for every state of every state machine (or
+# ENTITY's) and every event of its transitions, one line:
+# "ST-<entity>-<state>-<event> allowed -> <target>" or "... refused". States are
+# in the order of the file, events in the order they first appear.
+sw_fmaint_obligations() {
+	for _fo_f in $(sw_json_files "$SW_STATES_DIR"); do
+		_fo_e=${_fo_f##*/}
+		_fo_e=${_fo_e%.json}
+		[ -z "${1-}" ] || [ "$_fo_e" = "$1" ] || continue
+		jq -r '
+			. as $m | ($m.entity // "") as $e
+			| ([$m.transitions[]? | .event? | strings] | reduce .[] as $x ([]; if index([$x]) then . else . + [$x] end)) as $events
+			| ($m.states[]? | strings) as $s | $events[] as $ev
+			| ([$m.transitions[]? | select(.from == $s and .event == $ev) | .to] | first) as $to
+			| "ST-\($e)-\($s)-\($ev) " + (if $to then "allowed -> \($to)" else "refused" end)' "$SOFTWARY_ROOT/$_fo_f" 2>/dev/null
+	done
+}
+
+sw_states_usage() {
+	printf 'usage: ./softwary states tests [<entity>]\n' >&2
+}
+
+# sw_states tests [<entity>]
+sw_states() {
+	[ "${1:-}" = tests ] && [ $# -le 2 ] || { sw_states_usage; return 2; }
+	if [ -n "${2-}" ]; then
+		sw_json_files "$SW_STATES_DIR" | grep -Fqx -e "$SW_STATES_DIR/$2.json" || {
+			printf "states: no state machine '%s' (see %s/)\n" "$2" "$SW_STATES_DIR"
+			return 2
+		}
+	fi
+	sw_fmaint_obligations "${2-}"
+}
+
+# sw_fmaint_test_ids TESTPATHS: the identifiers (ST-... and CE-...) that the
+# tracked files under TESTPATHS (blank-separated) name, one per line. An
+# identifier is a word: what comes before and after it is not a letter, a
+# digit, '_' or '-'.
+sw_fmaint_test_ids() {
+	set -f
+	# shellcheck disable=SC2086 # test_paths is a blank-separated list of paths
+	set -- $1
+	set +f
+	git -C "$SOFTWARY_ROOT" grep -h -I -o -E '(^|[^A-Za-z0-9_-])(ST|CE)-[A-Za-z0-9_-]+' -- "$@" 2>/dev/null |
+		sed -E 's/^[^SC]//' | LC_ALL=C sort -u
+}
+
+# sw_fmaint_ce_ids: the identifier of the counter-example of every finding of
+# every record, CE-<spec>-<invariant>, one per line.
+sw_fmaint_ce_ids() {
+	for _fi_ad in $(sw_formal_names); do
+		[ -f "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$_fi_ad.md" ] || continue
+		sw_formal_findings "$_fi_ad" | cut -d'|' -f1 | while IFS= read -r _fi_inv; do
+			[ -z "$_fi_inv" ] || printf 'CE-%s-%s\n' "$_fi_ad" "$_fi_inv"
+		done
+	done
 }

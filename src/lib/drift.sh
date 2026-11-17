@@ -11,6 +11,8 @@
 #   empty <node>                  an active node that has no file
 #   planned-with-code <node>      a planned node that has code
 #   unexercised <EX>              a product example no test names
+#   untested <ST-...>             a test a state machine owes that no test names
+#   unreplayed <CE-...>           a finding no test replays
 # An item without a valid decision, or whose decision has expired, fails
 # drift (exit 1); the loop does not look at it, `ship` does (ship.sh).
 
@@ -203,7 +205,39 @@ DRIFT_FILES
 	done <<DRIFT_NODES2
 $_di_nodes
 DRIFT_NODES2
-	sw_drift_unexercised
+	sw_drift_unexercised || return $?
+	sw_drift_obligations
+}
+
+# sw_drift_obligations: adds `untested ST-...` for every test a state machine
+# owes (`states tests`) and `unreplayed CE-...` for every finding of a record
+# whose identifier no tracked file under test_paths names (as a word). Returns
+# 2 when there are such obligations and test_paths cannot be looked at.
+sw_drift_obligations() {
+	_do_st=$(sw_fmaint_obligations | cut -d' ' -f1)
+	_do_ce=$(sw_fmaint_ce_ids)
+	[ -n "$_do_st$_do_ce" ] || return 0
+	_do_tp=
+	! sw_conf_has test_paths || _do_tp=$(sw_conf_get test_paths)
+	case $_do_tp in
+	'' | UNSET | NONE*)
+		printf 'drift: test_paths is not set in %s (the state machines and findings need it)\n' "$SW_CONF_REL"
+		return 2
+		;;
+	esac
+	_do_found=$(sw_fmaint_test_ids "$_do_tp")
+	while IFS= read -r _do_id; do
+		[ -n "$_do_id" ] || continue
+		printf '%s\n' "$_do_found" | grep -Fqx -e "$_do_id" || sw_drift_add "untested $_do_id"
+	done <<DRIFT_ST
+$_do_st
+DRIFT_ST
+	while IFS= read -r _do_id; do
+		[ -n "$_do_id" ] || continue
+		printf '%s\n' "$_do_found" | grep -Fqx -e "$_do_id" || sw_drift_add "unreplayed $_do_id"
+	done <<DRIFT_CE
+$_do_ce
+DRIFT_CE
 }
 
 # sw_drift_unexercised: adds `unexercised <EX>` for every product example none

@@ -623,7 +623,7 @@ sw_formal_check() {
 }
 
 sw_formal_usage() {
-	printf 'usage: ./softwary formal check [<spec>] | formal verified <spec> compatible|updated | formal install\n' >&2
+	printf 'usage: ./softwary formal check [<spec>] | formal verified <spec> compatible|updated | formal trace <spec> <invariant> | formal install\n' >&2
 }
 
 # sw_formal check [<spec>] | verified <spec> <verdict> | install
@@ -636,6 +636,10 @@ sw_formal() {
 	verified)
 		shift
 		sw_fmaint_verified "$@"
+		;;
+	trace)
+		shift
+		sw_fmaint_trace "$@"
 		;;
 	install)
 		[ $# -eq 1 ] || { sw_formal_usage; return 2; }
