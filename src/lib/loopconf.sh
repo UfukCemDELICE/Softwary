@@ -34,12 +34,12 @@ sw_loop_load() {
 			esac
 		elif [ "$_lk" = min_catch_percent ]; then
 			sw_percent "$_lv" || _le="$_lk: '$_lv' is not a whole number from 0 to 100"
+		elif [ "$_lk" = concurrency ]; then
+			case $_lv in 1 | 2 | 3) ;; *) _le="concurrency must be 1, 2 or 3" ;; esac
 		elif [ "$_lv" = UNSET ]; then
 			_le="$_lk: is UNSET (set a positive integer)"
 		elif ! sw_positive_int "$_lv"; then
 			_le="$_lk: '$_lv' is not a positive integer"
-		elif [ "$_lk" = concurrency ] && [ "$_lv" -ne 1 ]; then
-			_le="concurrency above 1 arrives with parallel jobs (V4)"
 		fi
 		[ -z "$_le" ] || SW_LOOP_ERRORS="${SW_LOOP_ERRORS}${SW_LOOP_REL}:$_ll: $_le
 "

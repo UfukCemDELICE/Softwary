@@ -178,7 +178,7 @@ test_unknown_key_exits_2() {
 	printf 'lnit = true\n' >>"$REPO/.softwary/config/commands.conf"
 	sw verify
 	assert_eq "$RC" 2 "exit code"
-	assert_match "$OUT" "^UNKNOWN +lnit \(line 10\)$"
+	assert_match "$OUT" "^UNKNOWN +lnit \(line 11\)$"
 }
 
 # A missing commands.conf is a configuration error.

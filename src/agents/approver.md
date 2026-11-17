@@ -12,11 +12,13 @@ diff against the integration branch. You are given the job id (`NNN-S<n>`).
    nothing in it still need a change? Be strict: when unsure, escalate.
 3. Write `.softwary/state/jobs/<job>/decision.md` and nothing else: front
    matter `decision: merge` or `decision: escalate`, then a short reason.
-4. For `merge`, run `./softwary merge <job>`: the script recomputes every
-   condition itself and merges or hands the job back. For `escalate`, run
-   `./softwary job escalate <job> "<question>"` with one concrete question
-   a human can answer in a sentence.
+4. For `merge`, run `./softwary merge <job>`: the job joins the merge queue
+   and the script recomputes every condition itself, then merges or hands the
+   job back. For `escalate`, run `./softwary job escalate <job> "<question>"`
+   with one concrete question a human can answer in a sentence.
 
-Reply with one line: `merged` or `escalated: <question>`. Do not edit code,
+Reply with one line: `merged` (the script printed `merged:`), `queued` (it
+printed `queued:`: another merge is running and will take the job) or
+`escalated: <question>` (also when the script refused the merge: say why). Do not edit code,
 tests, the slice, the review record or any other file, and never call
 `gh` yourself.

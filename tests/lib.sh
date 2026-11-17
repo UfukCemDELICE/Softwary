@@ -59,6 +59,7 @@ setup_repo() {
 	done
 	REPO=$T/repo
 	mkdir -p "$REPO/src"
+	: >"$REPO/src/.gitkeep"
 	if [ "$_git" -eq 1 ]; then
 		git -C "$REPO" init -q || fail "git init failed"
 		git -C "$REPO" symbolic-ref HEAD refs/heads/main
@@ -66,6 +67,7 @@ setup_repo() {
 	sh "$PKG_ROOT/install.sh" "$REPO" >"$T/install.out" 2>&1 || fail "install.sh failed: $(cat "$T/install.out")"
 	loop_conf
 	skip_conf
+	add_bootstrap
 	if [ "$_sync" -eq 1 ]; then
 		tools_all off
 		(cd "$REPO" && ./softwary sync) >"$T/sync.out" 2>&1 || fail "sync failed: $(cat "$T/sync.out")"
@@ -86,6 +88,17 @@ add_model() {
 }
 
 V2FIX=$FIXTURES/v2
+
+# add_bootstrap: the loop needs a bootstrap command; tests need nothing run.
+add_bootstrap() {
+	file_set "$REPO/.softwary/config/commands.conf" bootstrap "NONE: tests"
+}
+
+# job_wt JOB: the worktree of a job (the main checkout stays on the integration
+# branch; the job's files are here).
+job_wt() {
+	printf '%s/.softwary/worktrees/%s\n' "$REPO" "$1"
+}
 LOOP_CONF_REL=.softwary/config/loop.conf
 
 # loop_conf: writes the default loop limits, with the token keys filled in
@@ -163,6 +176,73 @@ add_plan() {
 	cp -R "$V2FIX/specs" "$REPO/"
 }
 
+# add_parallel_plan: the sample plan with three slices of spec 001 that can run
+# together: S1 (src/a, tests/a) and S2 (src/b, tests/b) cross nothing; S3
+# (src/a/deep, tests/c) crosses S1. None depends on another. Spec 002 is gone.
+add_parallel_plan() {
+	add_plan
+	rm -r "$REPO/specs/002-tasks"
+	_sl=$REPO/specs/001-login/slices
+	fm_set "$_sl/S1.md" touches "src/a, tests/a"
+	fm_set "$_sl/S2.md" touches "src/b, tests/b"
+	fm_set "$_sl/S2.md" depends_on ""
+	cp "$_sl/S1.md" "$_sl/S3.md"
+	fm_set "$_sl/S3.md" id S3
+	fm_set "$_sl/S3.md" acs AC-001-03
+	sed -i.bak 's/^\(- \*\*AC-001-02:\*\* .*\)$/\1\
+- **AC-001-03:** Signing in twice is harmless. Covers EX-F1-01./' "$REPO/specs/001-login/spec.md" && rm -f "$REPO/specs/001-login/spec.md.bak"
+	fm_set "$_sl/S3.md" touches "src/a/deep, tests/c"
+}
+
+# implement_job JOB: what the implementer does in the job's worktree: the slice
+# in progress, a test that names the slice's criterion and code, both under the
+# slice's touches (its first two entries), the slice in review, one commit.
+implement_job() {
+	_wt=$(job_wt "$1")
+	_s=${1#*-}
+	_sf=$_wt/specs/${1%%-*}-login/slices/$_s.md
+	_touches=$(sed -n 's/^touches: *//p' "$_sf")
+	_src=$(printf '%s' "$_touches" | cut -d, -f1 | tr -d ' ')
+	_tst=$(printf '%s' "$_touches" | cut -d, -f2 | tr -d ' ')
+	fm_set "$_sf" status in-progress
+	mkdir -p "$_wt/$_src" "$_wt/$_tst"
+	printf '# covers %s\n' "$(sed -n 's/^acs: *//p' "$_sf")" >"$_wt/$_tst/test_$_s.py"
+	printf 'code %s\n' "$_s" >"$_wt/$_src/code_$_s.py"
+	fm_set "$_sf" status review
+	git -C "$_wt" add -A
+	git -C "$_wt" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "implement $_s"
+}
+
+# review_job JOB [DECISION]: the reviewer's record in the job's worktree.
+review_job() {
+	_wt=$(job_wt "$1")
+	mkdir -p "$_wt/specs/${1%%-*}-login/reviews"
+	printf -- '---\nslice: %s\ndecision: %s\n---\n\n# Review of %s\n' "${1#*-}" "${2:-approve}" "${1#*-}" \
+		>"$_wt/specs/${1%%-*}-login/reviews/${1#*-}.md"
+}
+
+# write_decision JOB DECISION: the approver's decision file.
+write_decision() {
+	printf -- '---\ndecision: %s\n---\n\nReady.\n' "$2" >"$REPO/.softwary/state/jobs/$1/decision.md"
+}
+
+# approve_job JOB: start, implement and take the job through the gate, the PR,
+# CI and the review to the approver's decision to merge.
+approve_job() {
+	sw job start "$1"
+	[ "$RC" -eq 0 ] || fail "job start $1"
+	implement_job "$1"
+	sw job event "$1" implemented
+	for _step in gate pr ci; do
+		sw job "$_step" "$1"
+		[ "$RC" -eq 0 ] || fail "job $_step $1"
+	done
+	review_job "$1"
+	sw job review "$1"
+	[ "$RC" -eq 0 ] || fail "job review $1"
+	write_decision "$1" merge
+}
+
 # add_origin: commits what the repo has, creates the bare repository
 # $T/origin.git as its `origin` and pushes main (setting origin/main).
 add_origin() {
@@ -187,10 +267,13 @@ open_run() {
 # https://github.com/o/r/pull/<n> (n = 1, 2, ...) and records the PR's title,
 # base and head branch under $T/gh/; `pr view --json headRefOid` prints
 # $T/gh/head when that file exists, else the tip of the PR's branch in origin;
-# `pr view --json state` prints $T/gh/state or OPEN; `pr checks` exits with the
+# `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN; `pr checks` exits with the
 # code in $T/gh/checks (default 0); `pr merge` exits with the code in
 # $T/gh/merge when that file exists, else squash-merges the PR's branch into
-# its base in origin (refusing a --match-head-commit that is not the tip).
+# its base in origin (refusing a --match-head-commit that is not the tip) and
+# marks the PR MERGED. Every merge call logs "start <n>" and "end <n>" to
+# $T/gh/merge-log; $T/gh/pre-merge (a script) runs first, $T/gh/merge-sleep
+# (seconds) delays, and $T/gh/merge-then-die kills the caller after the merge.
 fake_gh() {
 	mkdir -p "$T/bin" "$T/gh"
 	cat >"$T/bin/gh" <<'GH'
@@ -221,7 +304,7 @@ view)
 		if [ -f "$T/gh/head" ]; then cat "$T/gh/head"
 		else git --git-dir="$T/origin.git" rev-parse "refs/heads/$(cat "$T/gh/branch-$n")"; fi
 		;;
-	*state*) cat "$T/gh/state" 2>/dev/null || echo OPEN ;;
+	*state*) cat "$T/gh/state-$n" 2>/dev/null || cat "$T/gh/state" 2>/dev/null || echo OPEN ;;
 	esac
 	;;
 checks)
@@ -230,7 +313,13 @@ checks)
 merge)
 	n=$1
 	shift
-	[ ! -f "$T/gh/merge" ] || exit "$(cat "$T/gh/merge")"
+	echo "start $n" >>"$T/gh/merge-log"
+	[ ! -f "$T/gh/pre-merge" ] || sh "$T/gh/pre-merge"
+	[ ! -f "$T/gh/merge-sleep" ] || sleep "$(cat "$T/gh/merge-sleep")"
+	if [ -f "$T/gh/merge" ]; then
+		echo "end $n" >>"$T/gh/merge-log"
+		exit "$(cat "$T/gh/merge")"
+	fi
 	br=$(cat "$T/gh/branch-$n")
 	base=$(cat "$T/gh/base-$n")
 	tip=$(git --git-dir="$T/origin.git" rev-parse "refs/heads/$br")
@@ -250,6 +339,9 @@ merge)
 	git commit -q -m "squash $br" || exit 1
 	git push -q origin "$base" >/dev/null 2>&1 || exit 1
 	rm -rf "$w"
+	echo MERGED >"$T/gh/state-$n"
+	echo "end $n" >>"$T/gh/merge-log"
+	[ ! -f "$T/gh/merge-then-die" ] || kill -9 "$PPID"
 	;;
 esac
 GH
@@ -310,6 +402,7 @@ conf_all() {
 		printf 'src_paths = src\n'
 		printf 'integration_branch = main\n'
 		printf 'production_branch = master\n'
+		printf 'bootstrap = NONE: tests\n'
 	} | write_conf
 }
 
@@ -378,6 +471,12 @@ outside_block() {
 commit_all() {
 	git -C "$REPO" add -A || fail "git add failed"
 	git -C "$REPO" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "$1" || fail "commit failed"
+}
+
+# commit_in DIR MESSAGE: commits every file in DIR (a job's worktree).
+commit_in() {
+	git -C "$1" add -A || fail "git add failed"
+	git -C "$1" -c user.name=t -c user.email=t@example.com commit -q --no-verify -m "$2" || fail "commit failed"
 }
 
 # write_adr ID STATUS AFFECTS: writes architecture/decisions/ID-x.md.

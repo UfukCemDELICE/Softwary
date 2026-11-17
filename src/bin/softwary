@@ -8,6 +8,15 @@ if [ -z "${SOFTWARY_ROOT:-}" ]; then
 fi
 export SOFTWARY_HOME SOFTWARY_ROOT
 
+# shellcheck source=src/lib/lock.sh
+. "$SOFTWARY_HOME/lib/lock.sh"
+# State (jobs, the run, events, the queue, locks) is in the main checkout, also
+# when this command runs from a job's worktree. Never taken from the
+# environment: a child process works out its own.
+SW_STATE_ROOT=$(sw_state_root) || exit 2
+export SW_STATE_ROOT
+sw_lock_install_traps
+
 # shellcheck source=src/lib/config.sh
 . "$SOFTWARY_HOME/lib/config.sh"
 # shellcheck source=src/lib/waivers.sh
@@ -28,6 +37,14 @@ export SOFTWARY_HOME SOFTWARY_ROOT
 . "$SOFTWARY_HOME/lib/job.sh"
 # shellcheck source=src/lib/run.sh
 . "$SOFTWARY_HOME/lib/run.sh"
+# shellcheck source=src/lib/worktree.sh
+. "$SOFTWARY_HOME/lib/worktree.sh"
+# shellcheck source=src/lib/admit.sh
+. "$SOFTWARY_HOME/lib/admit.sh"
+# shellcheck source=src/lib/queue.sh
+. "$SOFTWARY_HOME/lib/queue.sh"
+# shellcheck source=src/lib/merge.sh
+. "$SOFTWARY_HOME/lib/merge.sh"
 # shellcheck source=src/lib/loopconf.sh
 . "$SOFTWARY_HOME/lib/loopconf.sh"
 # shellcheck source=src/lib/plan.sh
@@ -74,8 +91,10 @@ commands:
                    approve a draft spec when plan check is clean and the
                    spec-analyst's analysis.md passes for this version of it
   job start|gate <job>
-                   open the branch of a planned slice and take it into its
-                   first round; run the full verify on the job branch
+                   admit a planned slice (concurrency, touches), open its
+                   worktree and branch softwary/<job>, run bootstrap there and
+                   take it into its first round; run the full verify on the
+                   job's worktree
   job pr|ci|review|merged|show <job>
                    push the branch and open the PR; check the PR's head and
                    CI; read the review record; record a human's merge; print
@@ -84,10 +103,15 @@ commands:
   job resume <job> <answer>, job abandon <job> <reason>
                    continue an escalated job in a new round; give it up
   run start|next|stop
-                   open the run (the checks it needs), print what to do next
-                   (start, resume, waiting, none or stop), close the run
-  merge <job>      recompute every condition on the commit to merge and merge
-                   the PR bound to it, or hand the job to the human
+                   open the run (the checks it needs; resume a halted run once
+                   the integration branch is green), print what to do next, one
+                   line each (resume, start, drain, merging, waiting, none or
+                   stop), close the run
+  merge <job>      queue the approved job; when no merge is running, drain the
+                   queue: recompute every condition on the commit to merge and
+                   merge the PR bound to it, or hand the job to the human
+  queue [drain]    print the merge queue and its drainer; drain the queue when
+                   nobody does
   job event <job> <event> [detail]
                    apply one transition of lib/transitions.json to a job
   job tokens <job> <n>
@@ -153,15 +177,23 @@ plan)
 	;;
 job)
 	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
 	sw_job "$@"
 	;;
 run)
 	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
 	sw_run "$@"
 	;;
 merge)
 	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
 	sw_merge_job "$@"
+	;;
+queue)
+	shift
+	SOFTWARY_ROOT=$SW_STATE_ROOT
+	sw_queue "$@"
 	;;
 product)
 	shift

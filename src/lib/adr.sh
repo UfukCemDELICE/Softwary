@@ -57,12 +57,13 @@ AFFECTS
 
 SW_CONTRACTS_REL=architecture/contracts
 
-# sw_base_commit REF [NAME]: sets SW_BASE_COMMIT to the merge-base of REF and
+# sw_base_commit REF [NAME [HEAD]]: sets SW_BASE_COMMIT to the merge-base of REF and
 # HEAD. Prints the reason (prefixed with NAME, default adr) and returns 2 when
 # REF cannot be used.
 sw_base_commit() {
 	SW_BASE_COMMIT=
 	_bn=${2:-adr}
+	_bh=${3:-HEAD}
 	case $1 in
 	-*)
 		printf "%s: base '%s' not found (use --base <ref>)\n" "$_bn" "$1"
@@ -73,8 +74,8 @@ sw_base_commit() {
 		printf "%s: base '%s' not found (use --base <ref>)\n" "$_bn" "$1"
 		return 2
 	fi
-	if ! SW_BASE_COMMIT=$(git -C "$SOFTWARY_ROOT" merge-base "$1" HEAD 2>/dev/null); then
-		printf "%s: no common commit between '%s' and HEAD\n" "$_bn" "$1"
+	if ! SW_BASE_COMMIT=$(git -C "$SOFTWARY_ROOT" merge-base "$1" "$_bh" 2>/dev/null); then
+		printf "%s: no common commit between '%s' and %s\n" "$_bn" "$1" "$_bh"
 		return 2
 	fi
 }

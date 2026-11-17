@@ -149,12 +149,12 @@ test_ac_v2_15_human_approves() {
 	done
 }
 
-# AC-V2-15: the run skill coordinates only: its own commands are run, job and
-# status; it does not merge, writes no file, and calls the advisor itself.
+# AC-V2-15: the run skill coordinates only: its own commands are run, job,
+# queue and status; it does not merge, writes no file, and calls the advisor itself.
 test_ac_v2_15_run_contract() {
 	f=$SKILLS/run/SKILL.md
 	for c in $(commands_in "$f"); do
-		case $c in run | job | status) ;; *) fail "run uses ./softwary $c" ;; esac
+		case $c in run | job | queue | status) ;; *) fail "run uses ./softwary $c" ;; esac
 	done
 	assert_contains "$f" "You write no artifact and no state file"
 	assert_contains "$f" "**one line**"
@@ -171,7 +171,7 @@ test_ac_v2_15_agent_files() {
 	assert_contains "$f" ".softwary/state/jobs/<job>/decision.md"
 	assert_contains "$f" "./softwary merge <job>"
 	assert_contains "$f" "./softwary job escalate <job>"
-	assert_contains "$f" "\`merged\` or \`escalated: <question>\`"
+	assert_contains "$f" "\`merged\` (the script printed"
 	for c in $(commands_in "$f"); do
 		case $c in merge | job) ;; *) fail "approver uses ./softwary $c" ;; esac
 	done
@@ -256,7 +256,35 @@ test_ac_v3_13_short_and_known_commands() {
 		done
 	done
 	for c in $(commands_in "$SKILLS/run/SKILL.md"); do
-		case $c in run | job | status) ;; *) fail "run uses ./softwary $c" ;; esac
+		case $c in run | job | queue | status) ;; *) fail "run uses ./softwary $c" ;; esac
+	done
+}
+
+# AC-V4-14: the run skill applies every line of run next, runs at most
+# concurrency jobs and drains the queue; implementer, reviewer and approver
+# know the worktree and the queue.
+test_ac_v4_14_parallel_texts() {
+	f=$SKILLS/run/SKILL.md
+	for t in "one line for each thing to do" "\`concurrency\`" "./softwary queue drain" "\`merging: <jobs>\`" "\`waiting: <jobs>\`" "\`stop: <why>\`" \
+		"already has an agent working on it" ".softwary/worktrees/<job>" "\`queued\`" "in the background"; do
+		assert_contains "$f" "$t"
+	done
+	assert_contains "$AGENTS/implementer.md" ".softwary/worktrees/<job>"
+	assert_contains "$AGENTS/implementer.md" "only there"
+	assert_contains "$AGENTS/reviewer.md" "git diff origin/<integration>...softwary/<job>"
+	assert_contains "$AGENTS/reviewer.md" ".softwary/worktrees/<job>/specs/NNN-<name>/reviews/S<n>.md"
+	assert_contains "$AGENTS/approver.md" "\`merged\` (the script printed"
+	assert_contains "$AGENTS/approver.md" "\`queued\`"
+	assert_contains "$AGENTS/approver.md" "\`escalated: <question>\`"
+	known=$(sh "$PKG_ROOT/src/bin/softwary" help | awk '/^commands:/ { on = 1; next } on && /^  [a-z]/ { print $1 }' | sort -u)
+	for f in $V3_FILES; do
+		[ "$(wc -l <"$f" | tr -d ' ')" -le 80 ] || fail "${f#"$PKG_ROOT"/} is longer than 80 lines"
+		for c in $(commands_in "$f"); do
+			printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "${f#"$PKG_ROOT"/} uses unknown command: ./softwary $c"
+		done
+	done
+	for c in $(commands_in "$AGENTS/approver.md"); do
+		case $c in merge | job) ;; *) fail "approver uses ./softwary $c" ;; esac
 	done
 }
 

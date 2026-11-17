@@ -102,6 +102,80 @@ test_ac_v2_13_next_order() {
 	assert_eq "$(cat "$OUT")" "start 002-S1" "slice of the next spec"
 }
 
+# AC-V4-08: run next writes one line for everything there is to do: a resume
+# for every active job that is not queued, a start for as many ready slices as
+# there is room for that cross neither a job that is not final nor each other,
+# drain or merging for the queue, waiting for the escalated; none otherwise.
+test_ac_v4_08_run_next_lines() {
+	setup_repo
+	conf_all true
+	add_product
+	add_blueprint
+	sw approve product
+	sw approve blueprint
+	add_parallel_plan
+	loop_set concurrency 3
+	add_origin
+	sw run start
+	sw run next
+	assert_eq "$RC" 0 "exit code"
+	assert_eq "$(cat "$OUT")" "start 001-S1
+start 001-S2" "two slices that cross nothing, not the one that crosses S1"
+	put_job 001-S1 gating
+	put_job 001-S2 implementing
+	sw run next
+	assert_eq "$(cat "$OUT")" "resume 001-S1 gating
+resume 001-S2 implementing" "two resumes, S3 crosses S1 and there is one place"
+	put_job 001-S1 merged
+	sw run next
+	assert_eq "$(cat "$OUT")" "resume 001-S2 implementing
+start 001-S3" "room for S3 once S1 is final"
+	put_job 001-S3 escalated
+	sw run next
+	assert_eq "$(cat "$OUT")" "resume 001-S2 implementing
+waiting: 001-S3" "an escalated job waits"
+	loop_set concurrency 1
+	put_job 001-S3 abandoned
+	sw run next
+	assert_eq "$(cat "$OUT")" "resume 001-S2 implementing" "no room: no start"
+	put_job 001-S2 merged
+	sw run next
+	assert_eq "$(cat "$OUT")" none "nothing left"
+}
+
+# AC-V4-08: a queue nobody drains is `drain`, one a live process drains is
+# `merging: <jobs>`; queued jobs are not resumed.
+test_ac_v4_08_run_next_queue() {
+	plan_repo
+	sw run start
+	put_job 001-S1 queued
+	mkdir -p "$REPO/.softwary/state"
+	printf '001-S1\n' >"$REPO/.softwary/state/queue"
+	sw run next
+	assert_eq "$(cat "$OUT")" "drain" "no lock"
+	mkdir -p "$REPO/.softwary/state/locks/merge"
+	printf 'pid=%s host=%s time=%s\n' "$(sh -c 'echo $$')" "$(uname -n)" "$(date +%s)" >"$REPO/.softwary/state/locks/merge/owner"
+	sw run next
+	assert_eq "$(cat "$OUT")" "drain" "a lock of a dead owner"
+	sleep 30 &
+	holder=$!
+	printf 'pid=%s host=%s time=%s\n' "$holder" "$(uname -n)" "$(date +%s)" >"$REPO/.softwary/state/locks/merge/owner"
+	sw run next
+	kill "$holder"
+	assert_eq "$(cat "$OUT")" "merging: 001-S1" "a live drainer"
+}
+
+# AC-V4-08: a halted run or an exceeded limit gives `stop: <why>` alone and 1.
+test_ac_v4_08_run_next_stop() {
+	plan_repo
+	sw run start
+	printf 'halted=integration red after 001-S1 (revert PR #4)\n' >>"$REPO/$RUN_REL"
+	put_job 001-S2 implementing
+	sw run next
+	assert_eq "$RC" 1 "exit code"
+	assert_eq "$(cat "$OUT")" "stop: integration red after 001-S1 (revert PR #4)" "output"
+}
+
 # AC-V2-13: next stops the run when a run limit is exceeded; without a run it exits 2.
 test_ac_v2_13_next_stop_on_run_limit() {
 	plan_repo

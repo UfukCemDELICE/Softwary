@@ -29,7 +29,7 @@ test_ac_v2_11_loop_conf_validation() {
 	loop_set max_rounds 0
 	loop_set max_job_minutes -5
 	loop_set max_run_minutes soon
-	loop_set concurrency 2
+	loop_set concurrency 4
 	loop_set max_job_tokens UNSET
 	loop_set max_run_tokens 12.5
 	sw doctor
@@ -37,7 +37,7 @@ test_ac_v2_11_loop_conf_validation() {
 	assert_match "$OUT" "$LOOP_RE:1: max_rounds: '0' is not a positive integer\)$"
 	assert_match "$OUT" "$LOOP_RE:2: max_job_minutes: '-5' is not a positive integer\)$"
 	assert_match "$OUT" "$LOOP_RE:3: max_run_minutes: 'soon' is not a positive integer\)$"
-	assert_match "$OUT" "$LOOP_RE:4: concurrency above 1 arrives with parallel jobs \(V4\)\)$"
+	assert_match "$OUT" "$LOOP_RE:4: concurrency must be 1, 2 or 3\)$"
 	assert_match "$OUT" "$LOOP_RE:5: max_job_tokens: is UNSET \(set a positive integer or 'NONE: <reason>'\)\)$"
 	assert_match "$OUT" "$LOOP_RE:6: max_run_tokens: '12.5' is not a positive integer or 'NONE: <reason>'\)$"
 	assert_no_match "$OUT" "^loop\.conf +PASS"
@@ -54,7 +54,7 @@ test_ac_v2_11_loop_conf_shape() {
 	loop_set max_job_tokens 'NONE'
 	sw doctor
 	assert_eq "$RC" 2 "doctor exit code"
-	assert_match "$OUT" "$LOOP_RE:[0-9]+: concurrency: '0' is not a positive integer\)$"
+	assert_match "$OUT" "$LOOP_RE:[0-9]+: concurrency must be 1, 2 or 3\)$"
 	assert_match "$OUT" "$LOOP_RE:[0-9]+: max_rounds: 'NONE: unlimited' is not a positive integer\)$"
 	assert_match "$OUT" "$LOOP_RE:[0-9]+: unknown key 'mystery'"
 	assert_match "$OUT" "$LOOP_RE: 'max_run_minutes' is missing\)$"
