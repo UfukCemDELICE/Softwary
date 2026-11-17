@@ -89,3 +89,67 @@ sw_waiver() {
 	[ "$(printf '%s' "$SW_WAIVER_DATE" | tr -d -)" -ge "$_wtoday" ] || SW_WAIVER_EXPIRED=1
 	return 0
 }
+
+# sw_date_days DATE: the number of days from 1970-01-01 to DATE (YYYY-MM-DD,
+# valid), by the calendar and without `date` arithmetic, which is not POSIX.
+sw_date_days() {
+	_dd_y=${1%%-*}
+	_dd_m=${1#*-}
+	_dd_m=${_dd_m%-*}
+	_dd_d=${1##*-}
+	while :; do case $_dd_y in 0?*) _dd_y=${_dd_y#0} ;; *) break ;; esac; done
+	while :; do case $_dd_m in 0?*) _dd_m=${_dd_m#0} ;; *) break ;; esac; done
+	while :; do case $_dd_d in 0?*) _dd_d=${_dd_d#0} ;; *) break ;; esac; done
+	[ "$_dd_m" -gt 2 ] || _dd_y=$((_dd_y - 1))
+	_dd_era=$((_dd_y / 400))
+	_dd_yoe=$((_dd_y - _dd_era * 400))
+	if [ "$_dd_m" -gt 2 ]; then _dd_mp=$((_dd_m - 3)); else _dd_mp=$((_dd_m + 9)); fi
+	_dd_doy=$(((153 * _dd_mp + 2) / 5 + _dd_d - 1))
+	_dd_doe=$((_dd_yoe * 365 + _dd_yoe / 4 - _dd_yoe / 100 + _dd_doy))
+	printf '%s\n' $((_dd_era * 146097 + _dd_doe - 719468))
+}
+
+# sw_days_left DATE: the days from today (local time) to DATE; negative once
+# DATE is past.
+sw_days_left() {
+	_dl_to=$(date +%Y-%m-%d)
+	printf '%s\n' $(($(sw_date_days "$1") - $(sw_date_days "$_dl_to")))
+}
+
+# sw_until_text DATE: "(<n> days left)" or "(expired)".
+sw_until_text() {
+	_ut_n=$(sw_days_left "$1")
+	if [ "$_ut_n" -lt 0 ]; then
+		printf '(expired)'
+	elif [ "$_ut_n" -eq 1 ]; then
+		printf '(1 day left)'
+	else
+		printf '(%s days left)' "$_ut_n"
+	fi
+}
+
+# sw_status_waivers: what is waived or recorded as a finding, one line each:
+#   waiver <key>: until <date> (<n> days left|expired): <reason>
+#   finding <spec>/<invariant>: until <date> (...): <reason>
+# Problems of waivers.conf come first, as doctor prints them. Writes nothing.
+sw_status_waivers() {
+	sw_waivers_load
+	[ -z "$SW_WAIVERS_ERRORS" ] || printf '%s' "$SW_WAIVERS_ERRORS"
+	for _sw_k in $SW_WAIVERS; do
+		sw_waiver "$_sw_k"
+		printf 'waiver %s: until %s %s: %s\n' "$_sw_k" "$SW_WAIVER_DATE" "$(sw_until_text "$SW_WAIVER_DATE")" "$SW_WAIVER_REASON"
+	done
+	for _sw_md in "$SOFTWARY_ROOT/$SW_FORMAL_DIR"/*.md; do
+		[ -f "$_sw_md" ] || continue
+		_sw_ad=${_sw_md##*/}
+		_sw_ad=${_sw_ad%.md}
+		sw_formal_findings "$_sw_ad" | while IFS='|' read -r _sw_i _sw_u _sw_r; do
+			[ -n "$_sw_i" ] || continue
+			if sw_valid_date "$_sw_u"; then
+				printf 'finding %s/%s: until %s %s: %s\n' "$_sw_ad" "$_sw_i" "$_sw_u" "$(sw_until_text "$_sw_u")" "$_sw_r"
+			else
+				printf 'finding %s/%s: until %s (invalid date): %s\n' "$_sw_ad" "$_sw_i" "$_sw_u" "$_sw_r"
+			fi
+		done
+	done
+}
