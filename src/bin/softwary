@@ -63,6 +63,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/risk.sh"
 # shellcheck source=src/lib/guard.sh
 . "$SOFTWARY_HOME/lib/guard.sh"
+# shellcheck source=src/lib/drift.sh
+. "$SOFTWARY_HOME/lib/drift.sh"
 # shellcheck source=src/lib/eval.sh
 . "$SOFTWARY_HOME/lib/eval.sh"
 # shellcheck source=src/lib/adr.sh
@@ -142,6 +144,12 @@ commands:
                    project with a deliberately broken or a clean change)
   eval score <dir> read the reviewer's record of every case and write the
                    result to .softwary/config/eval.conf
+  drift            list where the code and the blueprint differ (a file no
+                   component owns, a path that is not there, an active
+                   component without a file, a planned one with code, a product
+                   example no test names) and the decision the human took for
+                   each in architecture/drift.md; 1 while one is undecided or
+                   expired
   trace            check that specs, slices, ADRs and tests trace to each other
   adr [--base <ref>]
                    a changed model or contract needs an accepted ADR in the
@@ -243,6 +251,10 @@ guard)
 eval)
 	shift
 	sw_eval "$@"
+	;;
+drift)
+	shift
+	sw_drift "$@"
 	;;
 status)
 	shift
