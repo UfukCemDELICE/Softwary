@@ -21,7 +21,7 @@ par_repo() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_parallel_plan
 	loop_set concurrency 3
 	add_eval
@@ -252,7 +252,7 @@ red_repo() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_parallel_plan
 	loop_set concurrency 3
 	add_eval

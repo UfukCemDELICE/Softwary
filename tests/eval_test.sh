@@ -275,7 +275,7 @@ test_ac_v3_12_min_catch_percent_validation() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_plan
 	add_origin
 	for bad in -1 101 x 9.5 07 UNSET; do

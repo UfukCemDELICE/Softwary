@@ -204,7 +204,7 @@ sw_blueprint_check() {
 			return 2
 		fi
 		printf '%s\n' "$_bfo"
-		_bn=$((_bn + $(printf '%s\n' "$_bfo" | grep -Ec '^formal [^ :]+: (FAIL|variant)' || :)))
+		_bn=$((_bn + $(printf '%s\n' "$_bfo" | grep -Ec '^formal [^ :]+: (FAIL|variant .* (did not fail|failed on|could not be checked))' || :)))
 	fi
 	[ "$_bn" -eq 0 ]
 }
@@ -218,10 +218,14 @@ sw_blueprint_inventory() {
 	printf 'blueprint: %s flow(s), %s state machine(s)\n' "$_bi_f" "$_bi_s"
 }
 
-# sw_blueprint [check]
+# sw_blueprint [check|digest]
 sw_blueprint() {
+	if [ $# -eq 1 ] && [ "$1" = digest ]; then
+		sw_digest blueprint
+		return 0
+	fi
 	if [ $# -ne 1 ] || [ "$1" != check ]; then
-		printf 'usage: ./softwary blueprint check\n' >&2
+		printf 'usage: ./softwary blueprint check | blueprint digest\n' >&2
 		return 2
 	fi
 	_rc=0
@@ -261,13 +265,19 @@ sw_digest() {
 				[ ! -f "$SOFTWARY_ROOT/$SW_MODEL_REL" ] || printf '%s\n' "$SW_MODEL_REL"
 				[ ! -f "$SOFTWARY_ROOT/$SW_DATA_REL" ] || printf '%s\n' "$SW_DATA_REL"
 				(cd "$SOFTWARY_ROOT" && find architecture/contracts -type f 2>/dev/null)
+				# Of a specification's record only the invariants table is
+				# bound: it is the sentence a human approves.
+				(cd "$SOFTWARY_ROOT" && find architecture/formal -type f -name '*.md' 2>/dev/null) | sed 's/$/#invariants/'
 				;;
 			esac
 		} | LC_ALL=C sort
 	)
 	printf '%s\n' "$_dg_paths" | while IFS= read -r _dg_p; do
 		[ -n "$_dg_p" ] || continue
-		printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p"
+		case $_dg_p in
+		*'#invariants') printf '%s %s\n' "$(sw_formal_invariants_raw "$SOFTWARY_ROOT/${_dg_p%#invariants}" | git -C "$SOFTWARY_ROOT" hash-object --stdin)" "$_dg_p" ;;
+		*) printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$_dg_p")" "$_dg_p" ;;
+		esac
 	done | git -C "$SOFTWARY_ROOT" hash-object --stdin
 }
 
@@ -323,6 +333,27 @@ sw_approvals_put() {
 		END { if (!done) print k " = " v }' "$_ap_f" >"$_ap_f.tmp" && mv "$_ap_f.tmp" "$_ap_f"
 }
 
+# sw_critique_problem: prints why the blueprint critic's record does not
+# allow the approval (nothing when it does) and returns 1; 0 when it allows.
+# The record is architecture/critique.md: `digest` is the blueprint's digest
+# when the critic wrote it and `decision` is pass or changes.
+sw_critique_problem() {
+	_cq_f=$SOFTWARY_ROOT/architecture/critique.md
+	if [ ! -f "$_cq_f" ]; then
+		printf 'blueprint: no critique (architecture/critique.md); call the blueprint-critic\n'
+		return 1
+	fi
+	sw_fm_read "$_cq_f"
+	if [ "$(sw_fm_get decision)" != pass ]; then
+		printf "blueprint: the critique's decision is %s, not pass (architecture/critique.md)\n" "$(sw_fm_get decision)"
+		return 1
+	fi
+	if [ "$(sw_fm_get digest)" != "$(sw_digest blueprint)" ]; then
+		printf 'blueprint: critique is stale (the blueprint changed after it was written); call the blueprint-critic again\n'
+		return 1
+	fi
+}
+
 # sw_approve product|blueprint: records the digest when the checks pass.
 sw_approve() {
 	case ${1:-} in
@@ -354,10 +385,15 @@ sw_approve() {
 			return 1
 		fi
 		_apr=$(sw_blueprint_check) || _apc=$?
+		_apw="$_apk check does not pass"
+		if [ "$_apc" -eq 0 ]; then
+			_apr=$(sw_critique_problem) || _apc=1
+			_apw="the blueprint critique does not allow it"
+		fi
 	fi
 	if [ "$_apc" -ne 0 ]; then
 		printf '%s\n' "$_apr"
-		printf 'approve: %s check does not pass; nothing was approved\n' "$_apk"
+		printf 'approve: %s; nothing was approved\n' "${_apw:-$_apk check does not pass}"
 		return 1
 	fi
 	_apd=$(sw_digest "$_apk")

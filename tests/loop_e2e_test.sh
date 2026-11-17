@@ -31,7 +31,7 @@ loop_repo() {
 	write_adr 0001 accepted "$MODEL_REL"
 	sw approve product
 	assert_eq "$RC" 0 "approve product"
-	sw approve blueprint
+	approve_blueprint
 	assert_eq "$RC" 0 "approve blueprint"
 	add_plan
 	rm -r "$REPO/specs/002-tasks"

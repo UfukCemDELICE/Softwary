@@ -84,8 +84,11 @@ commands:
   views [--check]  generate architecture/views/system.mmd from the model
                    (--check: report a missing or stale view, write nothing)
   product check    check product/PRODUCT.md: sections, features, examples
-  blueprint check  check the model, the data model and that every product
+  blueprint check  check the model, the data model, the flows, the state
+                   machines, the specifications and that every product
                    feature is delivered by a component
+  blueprint digest print the digest the blueprint approval binds (the
+                   blueprint-critic's record names it)
   formal check [<spec>]
                    run TLC on the specifications under architecture/formal/:
                    the model passes and every variant fails the invariant the

@@ -176,13 +176,14 @@ FORMALFIX=$PKG_ROOT/tests/fixtures/formal
 
 # add_formal: adds the sample state machine of the order, its TLA+ model with
 # two invariants and a variant for each (tests/fixtures/formal), and the order
-# entity to the data model. Call it after add_blueprint.
+# entity to the data model, and generates the views. Call it after add_blueprint.
 add_formal() {
 	mkdir -p "$REPO/architecture"
 	cp -R "$FORMALFIX/architecture/." "$REPO/architecture/"
 	jq '.entities += [{"id": "order", "name": "Order", "fields": [{"name": "id", "type": "uuid", "required": true}, {"name": "status", "type": "string"}]}]' \
 		"$REPO/architecture/data/model.json" >"$T/data.tmp" || fail "jq failed adding the order entity"
 	mv "$T/data.tmp" "$REPO/architecture/data/model.json"
+	(cd "$REPO" && ./softwary views) >"$T/views.out" 2>&1 || fail "views failed: $(cat "$T/views.out")"
 }
 
 # need_tlc: TLC can be run (Java and the pinned jar), else the test fails. With
@@ -194,6 +195,23 @@ need_tlc() {
 		return 1
 	fi
 	sh "$PKG_ROOT/tests/tlc.sh" --check >"$OUT" 2>&1 || fail "TLC is not available (set SW_SKIP_FORMAL=<reason> to skip)"
+}
+
+CRITIQUE_REL=architecture/critique.md
+
+# add_critique [DECISION]: the blueprint critic's record for the blueprint as
+# it is now (decision pass unless DECISION says otherwise).
+add_critique() {
+	_cq=$(cd "$REPO" && ./softwary blueprint digest) || fail "blueprint digest failed"
+	mkdir -p "$REPO/architecture"
+	printf -- '---\ndigest: %s\ndecision: %s\n---\n\n# Critique\n' "$_cq" "${1:-pass}" >"$REPO/$CRITIQUE_REL"
+}
+
+# approve_blueprint: a passing critique of the current blueprint, then
+# `approve blueprint` (sets RC and OUT like sw).
+approve_blueprint() {
+	add_critique
+	sw approve blueprint
 }
 
 # add_plan: copies the sample plan (an approved spec 001 with two slices and a

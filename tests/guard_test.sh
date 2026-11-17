@@ -18,7 +18,7 @@ guard_repo() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_plan
 	mkdir -p "$REPO/tests" "$REPO/src/api"
 	printf '# covers AC-001-01\n' >"$REPO/tests/test_login.py"
@@ -67,6 +67,24 @@ test_ac_v3_01_protected_paths() {
 	done
 	assert_no_match "$OUT" "^guard: protected: src/"
 	assert_match "$OUT" "^guard: [0-9]+ problem\(s\)$"
+}
+
+# AC-V5-07: architecture/formal/ is protected: the loop does not change the
+# specifications.
+test_ac_v5_07_formal_is_protected() {
+	guard_repo
+	for p in architecture/formal/order.tla architecture/formal/order.md architecture/formal/deep/x.cfg; do
+		mkdir -p "$(dirname "$REPO/$p")"
+		printf 'x\n' >"$REPO/$p"
+	done
+	put architecture/formals.txt "x"
+	commit_all "formal"
+	sw guard $JOB --base main
+	assert_eq "$RC" 1 "exit code"
+	for p in architecture/formal/order.tla architecture/formal/order.md architecture/formal/deep/x.cfg; do
+		assert_match "$OUT" "^guard: protected: $(printf '%s' "$p" | sed 's/\./\\./g')$"
+	done
+	assert_no_match "$OUT" "protected: architecture/formals"
 }
 
 # AC-V3-01: the diff is taken from the common ancestor with the base, and
@@ -159,7 +177,7 @@ test_ac_v3_07_plan_check_touches() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_plan
 	sw plan check
 	assert_eq "$RC" 0 "clean plan"

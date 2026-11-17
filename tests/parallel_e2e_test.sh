@@ -22,7 +22,7 @@ test_ac_v4_15_three_slices_parallel() {
 	add_blueprint
 	write_adr 0001 accepted "$MODEL_REL"
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_parallel_plan
 	fm_set "$REPO/specs/001-login/spec.md" status draft
 	digest=$(git -C "$REPO" hash-object "specs/001-login/spec.md")

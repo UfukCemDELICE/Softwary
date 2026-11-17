@@ -15,7 +15,7 @@ plan_repo() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_plan
 	add_origin
 }
@@ -112,7 +112,7 @@ test_ac_v4_08_run_next_lines() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_parallel_plan
 	loop_set concurrency 3
 	add_origin

@@ -27,7 +27,7 @@ loop_repo() {
 	add_product
 	add_blueprint
 	sw approve product
-	sw approve blueprint
+	approve_blueprint
 	add_plan
 	add_origin
 	open_run
