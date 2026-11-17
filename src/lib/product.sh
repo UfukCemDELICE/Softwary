@@ -232,6 +232,7 @@ sw_blueprint() {
 	_probs=$(sw_blueprint_check) || _rc=$?
 	case $_rc in
 	0)
+		[ -z "$_probs" ] || printf '%s\n' "$_probs"
 		printf 'blueprint: valid (%s nodes, %s entities, %s features)\n' \
 			"$(jq '.nodes | length' "$SOFTWARY_ROOT/$SW_MODEL_REL")" \
 			"$(jq '.entities | length' "$SOFTWARY_ROOT/$SW_DATA_REL")" "$(sw_count "$(sw_product_features)")"
@@ -244,7 +245,9 @@ sw_blueprint() {
 		;;
 	esac
 	printf '%s\n' "$_probs"
-	printf 'blueprint: %s problem(s)\n' "$(sw_count "$_probs")"
+	# What formal check prints besides its problems (the steps of a path, the
+	# passing models) is not counted.
+	printf 'blueprint: %s problem(s)\n' "$(sw_count "$(printf '%s\n' "$_probs" | grep -Ev '^[[:space:]]|^formal [^ :]+: (PASS|variant .* fails on [A-Za-z0-9_]+$)' || :)")"
 	return 1
 }
 
