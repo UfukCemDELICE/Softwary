@@ -67,6 +67,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/drift.sh"
 # shellcheck source=src/lib/ship.sh
 . "$SOFTWARY_HOME/lib/ship.sh"
+# shellcheck source=src/lib/repro.sh
+. "$SOFTWARY_HOME/lib/repro.sh"
 # shellcheck source=src/lib/eval.sh
 . "$SOFTWARY_HOME/lib/eval.sh"
 # shellcheck source=src/lib/adr.sh
@@ -146,6 +148,10 @@ commands:
                    project with a deliberately broken or a clean change)
   eval score <dir> read the reviewer's record of every case and write the
                    result to .softwary/config/eval.conf
+  repro <job> [--base <ref>]
+                   prove test first for a slice that has a repro: its tests
+                   fail on the base (the code before the job, in a temporary
+                   worktree) and pass on the job
   drift            list where the code and the blueprint differ (a file no
                    component owns, a path that is not there, an active
                    component without a file, a planned one with code, a product
@@ -264,6 +270,10 @@ eval)
 drift)
 	shift
 	sw_drift "$@"
+	;;
+repro)
+	shift
+	sw_repro "$@"
 	;;
 ship)
 	shift

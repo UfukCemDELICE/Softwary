@@ -343,9 +343,10 @@ sw_job_verify_base() {
 	fi
 }
 
-# sw_job_gate JOB: guard, then the full verify on the job's worktree; one
-# retry of the verify tells a flaky test from a failing one. A guard violation
-# is deterministic: it is gate_fail at once, with no verify and no retry.
+# sw_job_gate JOB: guard, repro, then the full verify on the job's worktree;
+# one retry of the verify tells a flaky test from a failing one. A guard
+# violation, and a repro that does not hold, are deterministic: gate_fail at
+# once, with no verify and no retry.
 sw_job_gate() {
 	_jg_job=$1
 	[ -f "$(sw_job_file "$_jg_job")" ] || { printf 'job: unknown job %s\n' "$_jg_job"; return 2; }
@@ -359,6 +360,16 @@ sw_job_gate() {
 	[ "$_jg_rc" -ne 2 ] || { cat "$_jg_log"; return 2; }
 	if [ "$_jg_rc" -ne 0 ]; then
 		sw_job_apply "$_jg_job" gate_fail "$(head -n 1 "$_jg_log")"
+		return $?
+	fi
+	# repro (V7): the tests that reproduce the bug fail on the base and pass on
+	# the job. Deterministic like guard: no verify and no retry.
+	_jg_rlog=$SW_STATE_ROOT/$SW_JOBS_REL/$_jg_job/repro-$(sw_job_get "$_jg_job" round).log
+	_jg_rc=0
+	sw_wt_softwary "$_jg_job" repro "$_jg_job" --base "$_jg_base" >"$_jg_rlog" 2>&1 || _jg_rc=$?
+	[ "$_jg_rc" -ne 2 ] || { cat "$_jg_rlog"; return 2; }
+	if [ "$_jg_rc" -ne 0 ]; then
+		sw_job_apply "$_jg_job" gate_fail "$(sw_repro_first_problem <"$_jg_rlog")"
 		return $?
 	fi
 	_jg_rc=0

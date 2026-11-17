@@ -194,6 +194,34 @@ add_production() {
 	fi
 }
 
+# add_repro_slice [PATHS]: slice S1 of the sample plan becomes the fix of a bug:
+# repro: PATHS (default tests/test_bug.sh), touches src/api and tests, the
+# command that runs given tests (test_files = sh {files}) and a src/api/calc.sh
+# whose add is wrong. Committed on the integration branch.
+# shellcheck disable=SC2016 # the shell code in the printf formats is not for this shell
+add_repro_slice() {
+	conf_set test_paths tests
+	conf_set test_files 'sh {files}'
+	_sl=$REPO/specs/001-login/slices/S1.md
+	fm_set "$_sl" touches "src/api, tests"
+	fm_set "$_sl" repro "${1:-tests/test_bug.sh}"
+	mkdir -p "$REPO/src/api"
+	printf 'add() { echo $(($1 - $2)); }\n' >"$REPO/src/api/calc.sh"
+	commit_all "a bug and the slice that fixes it"
+}
+
+# repro_commit DIR [nofix]: what the job commits in DIR (its worktree, or a
+# checkout of its branch): the slice in review, the test that reproduces the
+# bug (adding 2 and 3 gives 5) and, unless nofix, the fix.
+# shellcheck disable=SC2016 # the shell code in the printf formats is not for this shell
+repro_commit() {
+	fm_set "$1/specs/001-login/slices/S1.md" status review
+	mkdir -p "$1/tests"
+	printf '#!/bin/sh\n# covers AC-001-01: adding 2 and 3 gives 5\n. "$(dirname "$0")/../src/api/calc.sh"\n[ "$(add 2 3)" = 5 ]\n' >"$1/tests/test_bug.sh"
+	[ "${2-}" = nofix ] || printf 'add() { echo $(($1 + $2)); }\n' >"$1/src/api/calc.sh"
+	commit_in "$1" "fix the sum"
+}
+
 # add_blueprint: replaces the model with the sample one that names product
 # features, regenerates its view and adds the sample data model and the flow
 # that F1 (delivered by two components) needs.

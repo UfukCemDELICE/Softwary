@@ -69,6 +69,17 @@ sw_merge_conditions() {
 		sw_merge_refuse "$_mc_job" "$_mc_first"
 		return 1
 	fi
+	# 3b. repro (V7): the tests that reproduce the bug fail on the base and pass
+	# on the commit to merge
+	_mc_rrc=0
+	_mc_r=$(sw_wt_softwary "$_mc_job" repro "$_mc_job" --base "$_mc_ref" 2>&1) || _mc_rrc=$?
+	if [ "$_mc_rrc" -eq 2 ]; then
+		sw_merge_refuse "$_mc_job" "repro could not run: $(printf '%s\n' "$_mc_r" | head -n 1)"
+		return 1
+	elif [ "$_mc_rrc" -ne 0 ]; then
+		sw_merge_refuse "$_mc_job" "$(printf '%s\n' "$_mc_r" | sw_repro_first_problem)"
+		return 1
+	fi
 	# 4. approvals
 	for _mc_k in $SW_APPROVAL_KINDS; do
 		_mc_a=$(sw_approval_state "$_mc_k") || _mc_a=malformed

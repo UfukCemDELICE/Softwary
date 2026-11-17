@@ -73,6 +73,66 @@ EOF
 	[ "$_pt_n" -gt 0 ] || printf '%s: touches is empty\n' "$1"
 }
 
+# sw_plan_repro_problems REL REPRO TOUCHES: the problems (one "REL: repro: ..."
+# line each) of a slice's repro (V7): every path is under test_paths and in the
+# slice's touches, and test_files, the command that runs them, is set.
+sw_plan_repro_problems() {
+	[ -n "$2" ] || return 0
+	sw_conf_load "$SOFTWARY_ROOT/$SW_CONF_REL"
+	_rr_tp=
+	! sw_conf_has test_paths || _rr_tp=$(sw_conf_get test_paths)
+	case $_rr_tp in UNSET | NONE*) _rr_tp= ;; esac
+	set -f
+	for _rr_p in $2; do
+		sw_scoped_under "$_rr_p" "$_rr_tp" ||
+			printf "%s: repro: '%s' is not under test_paths (%s)\n" "$1" "$_rr_p" "${_rr_tp:-not set}"
+		_rr_hit=0
+		while IFS= read -r _rr_e; do
+			[ -n "$_rr_e" ] || continue
+			if sw_guard_covers "$_rr_e" "$_rr_p"; then
+				_rr_hit=1
+				break
+			fi
+		done <<REPRO_TOUCHES
+$(sw_list "$3")
+REPRO_TOUCHES
+		[ "$_rr_hit" -eq 1 ] || printf "%s: repro: '%s' is not in touches\n" "$1" "$_rr_p"
+	done
+	set +f
+	sw_plan_test_files_usable ||
+		printf '%s: repro: test_files must be a command that takes {files} in %s (it is %s)\n' "$1" "$SW_CONF_REL" "$SW_PLAN_TF_STATE"
+}
+
+# sw_plan_test_files_usable: true when test_files in the loaded commands.conf is
+# a command; else SW_PLAN_TF_STATE is UNSET or NONE.
+sw_plan_test_files_usable() {
+	SW_PLAN_TF_STATE=UNSET
+	_tu_v=
+	! sw_conf_has test_files || _tu_v=$(sw_conf_get test_files)
+	case $_tu_v in
+	'' | UNSET) return 1 ;;
+	NONE | NONE:*)
+		SW_PLAN_TF_STATE=NONE
+		return 1
+		;;
+	esac
+}
+
+# sw_plan_repro_slices: the slices that have a repro, in the specs that are
+# draft or approved, one repo-relative path per line.
+sw_plan_repro_slices() {
+	for _rs_d in "$SOFTWARY_ROOT"/specs/*/; do
+		[ -f "${_rs_d}spec.md" ] || continue
+		sw_fm_read "${_rs_d}spec.md"
+		case $(sw_fm_get status) in draft | approved) ;; *) continue ;; esac
+		for _rs_f in "${_rs_d}slices"/*.md; do
+			[ -f "$_rs_f" ] || continue
+			sw_fm_read "$_rs_f"
+			[ -z "$(sw_fm_get repro)" ] || printf '%s\n' "${_rs_f#"$SOFTWARY_ROOT"/}"
+		done
+	done
+}
+
 # sw_plan_problems [SPECDIR]: prints the problems of the plan, one per line;
 # with SPECDIR (a directory name under specs/) only those that concern that
 # spec, and the approvals. Returns 0 clean, 1 problems.
@@ -129,9 +189,14 @@ LINKS
 			_pl_nodes="${_pl_nodes}N $_pl_id-$_pl_sn
 "
 			sw_fm_read "$_pl_sf"
+			_pl_repro=$(sw_fm_get repro)
+			_pl_touches=$(sw_fm_get touches)
 			if [ "$_pl_chk" -eq 1 ]; then
-				_pl_tp=$(sw_plan_touches_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$(sw_fm_get touches)")
+				_pl_tp=$(sw_plan_touches_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$_pl_touches")
 				[ -z "$_pl_tp" ] || _pl_out="${_pl_out}$_pl_tp
+"
+				_pl_rp=$(sw_plan_repro_problems "specs/$_pl_dn/slices/$_pl_sn.md" "$_pl_repro" "$_pl_touches")
+				[ -z "$_pl_rp" ] || _pl_out="${_pl_out}$_pl_rp
 "
 			fi
 			for _pl_d in $(sw_list "$(sw_fm_get depends_on)"); do
