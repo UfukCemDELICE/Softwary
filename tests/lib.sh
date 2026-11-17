@@ -185,6 +185,17 @@ add_formal() {
 	mv "$T/data.tmp" "$REPO/architecture/data/model.json"
 }
 
+# need_tlc: TLC can be run (Java and the pinned jar), else the test fails. With
+# SW_SKIP_FORMAL=<reason> set the test is skipped, visibly: use it as
+# `need_tlc || return 0`.
+need_tlc() {
+	if [ -n "${SW_SKIP_FORMAL:-}" ]; then
+		printf 'SKIP (%s)\n' "$SW_SKIP_FORMAL"
+		return 1
+	fi
+	sh "$PKG_ROOT/tests/tlc.sh" --check >"$OUT" 2>&1 || fail "TLC is not available (set SW_SKIP_FORMAL=<reason> to skip)"
+}
+
 # add_plan: copies the sample plan (an approved spec 001 with two slices and a
 # draft spec 002 whose slice depends on 001-S2) into the repo.
 add_plan() {

@@ -1,0 +1,40 @@
+TLC2 Version 2026.11.15.002146 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 124 and seed -1754768734846641754 with 1 worker on 4 cores with 3040MB heap and 64MB offheap memory [pid: 24737] (Linux 6.18.44-fc-v553 amd64, Ubuntu 21.0.12.1 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /work/order.tla
+Parsing file /tmp/tlc-1590131431002054391/Naturals.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-1590131431002054391/_TLCTrace.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/_TLCTrace.tla)
+Parsing file /tmp/tlc-1590131431002054391/TLC.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /tmp/tlc-1590131431002054391/TLCExt.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/TLCExt.tla)
+Parsing file /tmp/tlc-1590131431002054391/Sequences.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-1590131431002054391/FiniteSets.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-1590131431002054391/Integers.tla (jar:file:/root/.cache/softwary/tla2tools-1.8.0.jar!/tla2sany/StandardModules/Integers.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module Integers
+Semantic processing of module TLCExt
+Semantic processing of module _TLCTrace
+Semantic processing of module order
+Linting of module TLCExt
+Linting of module _TLCTrace
+Linting of module order
+Starting... (2026-11-17 07:23:52)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-17 07:23:52.
+Error: Invariant ShippedWasPaid is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ everShipped = FALSE
+/\ status = "created"
+/\ paid = FALSE
+
+State 2: <ship line 31, col 9 to line 35, col 25 of module order>
+/\ everShipped = TRUE
+/\ status = "shipped"
+/\ paid = FALSE
+
+3 states generated, 3 distinct states found, 1 states left on queue.
+The depth of the complete state graph search is 2.
+Finished in 00s at (2026-11-17 07:23:52)
+Trace exploration spec path: ./order_TTrace_1794900232.tla

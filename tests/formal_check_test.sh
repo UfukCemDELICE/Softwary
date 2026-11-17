@@ -142,4 +142,252 @@ test_ac_v5_03_template() {
 	done
 }
 
+# trace_of LOG: the trace of a TLC log in the order record's sentences, as
+# the package's sw_formal_trace prints it.
+trace_of() {
+	sh -c '. "$1" && sw_formal_trace "$2" "$3"' sh "$PKG_ROOT/src/lib/formal.sh" "$1" "$REPO/$MD"
+}
+
+# cfg_put FILE: variant cfg FILE gets the stdin as its content.
+cfg_put() {
+	cat >"$REPO/$F/$1"
+}
+
+# AC-V5-04: the good model passes (with its state count) and every variant
+# fails on the invariant the record says it breaks.
+test_ac_v5_04_good_and_variants() {
+	need_tlc || return 0
+	ready
+	sw formal check
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg fails on ShippedWasPaid$"
+	assert_match "$OUT" "^formal order: variant order-shipcancelled\\.cfg fails on CancelledNeverShipped$"
+	assert_match "$OUT" "^formal order: PASS \\([0-9]+ states\\)$"
+	[ -s "$REPO/.softwary/state/logs/formal-order.log" ] || fail "no log of the good model"
+	[ -s "$REPO/.softwary/state/logs/formal-order-shipunpaid.log" ] || fail "no log of a variant"
+	[ -z "$(find "$REPO/$F" -name '*TTrace*' -o -name states)" ] || fail "TLC left files in architecture/formal"
+	sw formal check order
+	assert_eq "$RC" 0 "exit code for one specification"
+}
+
+# AC-V5-04: a model that really breaks an invariant: FAIL, the shortest path in
+# the record's own sentences, with the variables that changed.
+test_ac_v5_04_violation_path() {
+	need_tlc || return 0
+	ready
+	cp "$FORMALFIX/broken/order.cfg" "$REPO/$F/order.cfg"
+	sw formal check
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^formal order: FAIL: ShippedWasPaid violated$"
+	assert_match "$OUT" '^  1\. A new order is created and has not been paid \(Init\): everShipped = FALSE, paid = FALSE, status = "created"$'
+	assert_match "$OUT" '^  2\. A paid order is shipped \(ship\): everShipped = TRUE, status = "shipped"$'
+	assert_no_match "$OUT" "^  3\\."
+	assert_no_match "$OUT" "PASS"
+}
+
+# AC-V5-04: the trace is read from TLC's real output (a model of the fixture,
+# run with 1 worker); no Java is needed for this one.
+test_ac_v5_04_trace_from_real_tlc_output() {
+	ready
+	trace_of "$FORMALFIX/tlc-violation.out" >"$OUT" 2>&1 || fail "sw_formal_trace failed"
+	assert_eq "$(wc -l <"$OUT" | tr -d ' ')" 2 "steps"
+	assert_match "$OUT" '^  1\. A new order is created and has not been paid \(Init\): '
+	assert_match "$OUT" '^  2\. A paid order is shipped \(ship\): everShipped = TRUE, status = "shipped"$'
+}
+
+# AC-V5-04: an action the record does not describe is printed by its name; a
+# liveness counter-example loops back; a step that changes nothing says so.
+test_ac_v5_04_trace_odd_shapes() {
+	ready
+	printf 'State 1: <Initial predicate>\nx = 0\n\nState 2: <Tick line 5, col 9 to line 5, col 24 of module l>\nx = 1\n\nState 3: <Idle line 6, col 1 to line 6, col 9 of module l>\nx = 1\n\nBack to state 1: <Tick line 5, col 9 to line 5, col 24 of module l>\n\n3 states generated\n' >"$T/tlc.out"
+	trace_of "$T/tlc.out" >"$OUT" 2>&1 || fail "sw_formal_trace failed"
+	assert_match "$OUT" '^  1\. A new order is created and has not been paid \(Init\): x = 0$'
+	assert_match "$OUT" '^  2\. Tick \(Tick\): x = 1$'
+	assert_match "$OUT" '^  3\. Idle \(Idle\): no variable changed$'
+	assert_match "$OUT" '^  then it goes back to step 1 \(Tick\)$'
+}
+
+# AC-V5-04: a variant that does not fail, and one that fails on another invariant.
+test_ac_v5_04_variant_did_not_fail() {
+	need_tlc || return 0
+	ready
+	cfg_put order-shipunpaid.cfg <<'CFG'
+SPECIFICATION Spec
+CHECK_DEADLOCK FALSE
+CONSTANTS
+  Bug = "none"
+INVARIANTS
+  TypeOK
+  ShippedWasPaid
+CFG
+	cfg_put order-shipcancelled.cfg <<'CFG'
+SPECIFICATION Spec
+CHECK_DEADLOCK FALSE
+CONSTANTS
+  Bug = "shipunpaid"
+INVARIANTS
+  TypeOK
+  ShippedWasPaid
+CFG
+	sw formal check
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^formal order: variant order-shipunpaid\\.cfg did not fail \\(expected ShippedWasPaid\\)$"
+	assert_match "$OUT" "^formal order: variant order-shipcancelled\\.cfg failed on ShippedWasPaid \\(expected CancelledNeverShipped\\)$"
+	assert_no_match "$OUT" "PASS"
+}
+
+# AC-V5-04: the environment, not the model, is wrong: exit 2 with what to do.
+test_ac_v5_04_environment_problems() {
+	ready
+	RC=0
+	(PATH=$(path_without java) && export PATH && cd "$REPO" && ./softwary formal check) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code without java"
+	assert_match "$OUT" "^formal: java not found"
+	assert_contains "$OUT" "install"
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/none.jar ./softwary formal check) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code without the jar"
+	assert_contains "$OUT" "$T/none.jar not found"
+	assert_contains "$OUT" "./softwary formal install"
+	printf 'not a jar\n' >"$T/other.jar"
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/other.jar ./softwary formal check) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code with another jar"
+	assert_contains "$OUT" "is not tla2tools 1.8.0"
+	assert_contains "$OUT" "./softwary formal install"
+}
+
+# AC-V5-04: no specification: nothing to do; an unknown name is a usage error;
+# a record with problems is not run.
+test_ac_v5_04_no_specs_unknown_and_broken_record() {
+	setup_repo
+	sw formal check
+	assert_eq "$RC" 0 "exit code without specs"
+	assert_match "$OUT" "^formal: no specs$"
+	ready
+	sw formal check ghost
+	assert_eq "$RC" 2 "exit code for an unknown specification"
+	assert_match "$OUT" "^formal: no specification 'ghost'"
+	md_drop '^## Variants'
+	sw formal check
+	assert_eq "$RC" 1 "exit code with a broken record"
+	assert_match "$OUT" "^$MD: missing section '## Variants'$"
+	assert_match "$OUT" "^formal order: FAIL: the record has problems \\(./softwary blueprint check\\)$"
+}
+
+# AC-V5-05: install downloads from the pinned address (overridden here by a
+# local file), checks the SHA-256, prints the path, and does not download a
+# jar that is already right.
+test_ac_v5_05_install() {
+	need_tlc || return 0
+	jar=${SW_TLA2TOOLS:-$HOME/.cache/softwary/tla2tools-1.8.0.jar}
+	ready
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/dest/tla2tools.jar SW_TLA2TOOLS_URL=file://$jar ./softwary formal install) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 0 "exit code"
+	assert_contains "$OUT" "$T/dest/tla2tools.jar"
+	cmp -s "$jar" "$T/dest/tla2tools.jar" || fail "the jar was not installed"
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/dest/tla2tools.jar SW_TLA2TOOLS_URL=file://$T/nothing ./softwary formal install) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 0 "exit code when the jar is already right"
+	assert_contains "$OUT" "already"
+}
+
+# AC-V5-05: a download with the wrong SHA-256 is deleted and is exit 2.
+test_ac_v5_05_install_digest_mismatch() {
+	ready
+	printf 'not a jar\n' >"$T/bad.jar"
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/dest/tla2tools.jar SW_TLA2TOOLS_URL=file://$T/bad.jar ./softwary formal install) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code"
+	assert_contains "$OUT" "SHA-256"
+	[ ! -e "$T/dest/tla2tools.jar" ] || fail "the wrong jar was kept"
+	[ ! -e "$T/dest/tla2tools.jar.part" ] || fail "the partial download was kept"
+	RC=0
+	(cd "$REPO" && SW_TLA2TOOLS=$T/dest/tla2tools.jar SW_TLA2TOOLS_URL=file://$T/missing ./softwary formal install) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "exit code when the download fails"
+	assert_contains "$OUT" "could not download"
+}
+
+# AC-V5-05: the CI template installs Java and the jar for a project with specs.
+test_ac_v5_05_ci_template() {
+	f=$PKG_ROOT/src/templates/github/softwary.yml
+	assert_contains "$f" "hashFiles('architecture/formal/*.tla')"
+	assert_contains "$f" "actions/setup-java"
+	assert_contains "$f" "./softwary formal install"
+}
+
+# AC-V5-06: with a specification and model_check not set (or NONE), verify and
+# doctor report FAIL; without one, verify skips it.
+test_ac_v5_06_model_check_required() {
+	ready
+	conf_all true
+	sw verify
+	assert_eq "$RC" 1 "verify exit code"
+	assert_match "$OUT" "^model_check +FAIL \\(required: architecture/formal has specs\\)$"
+	conf_set model_check "NONE: not now"
+	sw verify
+	assert_eq "$RC" 1 "verify exit code with NONE"
+	assert_match "$OUT" "^model_check +FAIL \\(required"
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "^model_check +FAIL \\(required: architecture/formal has specs\\)$"
+}
+
+# AC-V5-06: a waiver turns the required check's failure into WAIVED.
+test_ac_v5_06_model_check_waiver() {
+	ready
+	conf_all true
+	printf 'model_check = 2099-01-01: models are being written\n' >"$REPO/.softwary/config/waivers.conf"
+	sw verify
+	assert_eq "$RC" 0 "verify exit code"
+	assert_match "$OUT" "^model_check +WAIVED \\(models are being written, until 2099-01-01\\)$"
+}
+
+# AC-V5-06: without specs the key is skipped, and doctor says nothing about it.
+test_ac_v5_06_skip_without_specs() {
+	setup_repo
+	conf_all true
+	sw verify
+	assert_eq "$RC" 0 "verify exit code"
+	assert_match "$OUT" "^model_check +SKIP \\(no specs\\)$"
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code"
+	assert_no_match "$OUT" "^model_check"
+}
+
+# AC-V5-06: configured, verify runs it (and the model passes); doctor reports
+# Java and the jar on lines of their own.
+test_ac_v5_06_model_check_runs() {
+	need_tlc || return 0
+	ready
+	conf_all true
+	conf_set model_check "./softwary formal check"
+	sw verify
+	assert_eq "$RC" 0 "verify exit code"
+	assert_match "$OUT" "^model_check +PASS "
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code"
+	assert_match "$OUT" "^model_check +PASS \\(configured, not run\\)$"
+	assert_match "$OUT" "^java +PASS"
+	assert_match "$OUT" "^tla2tools +PASS"
+}
+
+# AC-V5-06: doctor reports a missing Java and a missing jar, each on its own line.
+test_ac_v5_06_doctor_java_and_jar() {
+	ready
+	conf_all true
+	conf_set model_check "./softwary formal check"
+	RC=0
+	(PATH=$(path_without java) && export PATH && cd "$REPO" && SW_TLA2TOOLS=$T/none.jar ./softwary doctor) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "^java +FAIL \\(not found"
+	assert_match "$OUT" "^tla2tools +FAIL \\($T/none.jar not found"
+}
+
+# AC-V5-06: the commands template carries model_check as a comment.
+test_ac_v5_06_template() {
+	assert_contains "$PKG_ROOT/src/templates/commands.conf" "# model_check = ./softwary formal check"
+}
+
 run_tests "$0"

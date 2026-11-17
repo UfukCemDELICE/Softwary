@@ -86,6 +86,12 @@ commands:
   product check    check product/PRODUCT.md: sections, features, examples
   blueprint check  check the model, the data model and that every product
                    feature is delivered by a component
+  formal check [<spec>]
+                   run TLC on the specifications under architecture/formal/:
+                   the model passes and every variant fails the invariant the
+                   record says it breaks; a violation is printed as the
+                   shortest path, in the record's sentences
+  formal install   download the pinned tla2tools.jar and check its SHA-256
   approve product|blueprint
                    record the human's approval of the product definition or
                    the blueprint (a digest of the files they bind)
@@ -206,6 +212,10 @@ product)
 blueprint)
 	shift
 	sw_blueprint "$@"
+	;;
+formal)
+	shift
+	sw_formal "$@"
 	;;
 risk)
 	shift

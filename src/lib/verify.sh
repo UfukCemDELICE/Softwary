@@ -132,6 +132,18 @@ sw_verify() {
 		fi
 	fi
 	for _k in $_checks; do
+		if [ "$_k" = model_check ] && sw_formal_specs_exist; then
+			# A specification makes the model check required: not configured
+			# (or skipped on purpose) fails, unless a waiver holds.
+			if sw_conf_is_unset model_check || case $(sw_conf_get model_check) in NONE | NONE:*) true ;; *) false ;; esac; then
+				sw_verify_required model_check "required: architecture/formal has specs"
+				continue
+			fi
+		elif [ "$_k" = model_check ] && sw_conf_is_unset model_check; then
+			sw_line model_check "SKIP (no specs)"
+			_skip=$((_skip + 1))
+			continue
+		fi
 		if sw_conf_is_unset "$_k"; then
 			sw_line "$_k" "SKIP (not configured)"
 			_skip=$((_skip + 1))
@@ -150,6 +162,18 @@ sw_verify() {
 	printf 'verify: %s passed, %s failed, %s skipped, %s waived\n' "$_pass" "$_failc" "$_skip" "$_waived"
 	[ "$_failc" -eq 0 ] || return 1
 	return 0
+}
+
+# sw_verify_required NAME WHY: a check that is required and not configured
+# fails, unless a waiver that has not expired holds.
+sw_verify_required() {
+	if sw_waiver "$1" && [ "$SW_WAIVER_EXPIRED" -eq 0 ]; then
+		sw_line "$1" "WAIVED ($SW_WAIVER_REASON, until $SW_WAIVER_DATE)"
+		_waived=$((_waived + 1))
+		return 0
+	fi
+	sw_line "$1" "FAIL ($2)"
+	_failc=$((_failc + 1))
 }
 
 # sw_verify_run NAME COMMAND: runs one check from the repo root and reports

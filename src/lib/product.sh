@@ -141,8 +141,10 @@ sw_model_features() {
 		| "\($id) \(.)"' "$SOFTWARY_ROOT/$SW_MODEL_REL" 2>/dev/null
 }
 
-# sw_blueprint_check: prints one problem per line. Returns 0 valid,
-# 1 problems, 2 an input is missing (each missing input has its own line).
+# sw_blueprint_check [--no-formal]: prints one problem per line. Returns 0
+# valid, 1 problems, 2 an input is missing (each missing input has its own
+# line) or the models cannot be checked (no Java, no jar). --no-formal does
+# not run TLC.
 sw_blueprint_check() {
 	_bmiss=0
 	if [ ! -f "$SOFTWARY_ROOT/$SW_PRODUCT_REL" ]; then
@@ -193,6 +195,17 @@ sw_blueprint_check() {
 	[ -z "$_bsm" ] || printf '%s\n' "$_bsm"
 	_bfm=$(sw_formal_record_check) || _bn=$((_bn + $(sw_count "$_bfm")))
 	[ -z "$_bfm" ] || printf '%s\n' "$_bfm"
+	# The models are checked when everything else is in order.
+	if [ "$_bn" -eq 0 ] && [ "${1-}" != --no-formal ] && [ -n "$(sw_formal_names)" ]; then
+		_bfc=0
+		_bfo=$(sw_formal_check) || _bfc=$?
+		if [ "$_bfc" -eq 2 ]; then
+			printf 'blueprint: formal check could not run: %s\n' "$(printf '%s\n' "$_bfo" | head -n 1 | sed 's/^formal: //')"
+			return 2
+		fi
+		printf '%s\n' "$_bfo"
+		_bn=$((_bn + $(printf '%s\n' "$_bfo" | grep -Ec '^formal [^ :]+: (FAIL|variant)' || :)))
+	fi
 	[ "$_bn" -eq 0 ]
 }
 

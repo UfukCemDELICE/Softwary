@@ -16,6 +16,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install Java (the TLA+ model checker needs it)
+        if: ${{ hashFiles('architecture/formal/*.tla') != '' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install the TLA+ tools
+        if: ${{ hashFiles('architecture/formal/*.tla') != '' }}
+        run: ./softwary formal install
       - name: Install tools
         run: UNSET # replace with the commands that install the tools commands.conf uses
       - name: Verify the pull request against its base

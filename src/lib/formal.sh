@@ -197,3 +197,289 @@ sw_formal_record_check() {
 	[ -z "$_fc_out" ] || printf '%s' "$_fc_out"
 	[ -z "$_fc_out" ]
 }
+
+
+# --- TLC ----------------------------------------------------------------------
+
+# The jar is pinned: version and SHA-256 are the package's. SW_TLA2TOOLS names
+# another place for it; SW_TLA2TOOLS_URL replaces the address (for tests).
+SW_TLA_VERSION=1.8.0
+SW_TLA_SHA256=7e53aa636dac8a3cb0533f343115c0548e03fc0ce5edc7739becf58d3d0fb84f
+SW_TLA_URL=https://github.com/tlaplus/tlaplus/releases/download/v$SW_TLA_VERSION/tla2tools.jar
+
+sw_formal_jar() {
+	printf '%s\n' "${SW_TLA2TOOLS:-${HOME:-}/.cache/softwary/tla2tools-$SW_TLA_VERSION.jar}"
+}
+
+# sw_formal_sha256 FILE: the SHA-256 of FILE (nothing when no tool can tell).
+sw_formal_sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d' ' -f1
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" | cut -d' ' -f1
+	fi
+}
+
+# sw_formal_ready: returns 0 when TLC can run; otherwise prints the one line
+# that says what to do and returns 2.
+sw_formal_ready() {
+	if ! command -v java >/dev/null 2>&1; then
+		printf 'formal: java not found; TLC needs a Java runtime (11 or later): install one, then run ./softwary formal check again\n'
+		return 2
+	fi
+	_fy_jar=$(sw_formal_jar)
+	if [ ! -f "$_fy_jar" ]; then
+		printf 'formal: %s not found; run ./softwary formal install\n' "$_fy_jar"
+		return 2
+	fi
+	if [ "$(sw_formal_sha256 "$_fy_jar")" != "$SW_TLA_SHA256" ]; then
+		printf 'formal: %s is not tla2tools %s (SHA-256 %s); run ./softwary formal install\n' "$_fy_jar" "$SW_TLA_VERSION" "$SW_TLA_SHA256"
+		return 2
+	fi
+}
+
+# sw_formal_install: downloads the pinned jar unless it is there and right.
+# Returns 0, or 2 (download failed, wrong SHA-256, no tool to download or check).
+sw_formal_install() {
+	_fi_jar=$(sw_formal_jar)
+	if [ -f "$_fi_jar" ] && [ "$(sw_formal_sha256 "$_fi_jar")" = "$SW_TLA_SHA256" ]; then
+		printf 'formal install: %s (already installed)\n' "$_fi_jar"
+		return 0
+	fi
+	if [ -z "$(sw_formal_sha256 /dev/null)" ]; then
+		printf 'formal install: neither sha256sum nor shasum found; cannot check the download\n'
+		return 2
+	fi
+	_fi_url=${SW_TLA2TOOLS_URL:-$SW_TLA_URL}
+	mkdir -p "$(dirname "$_fi_jar")" || { printf 'formal install: cannot make %s\n' "$(dirname "$_fi_jar")"; return 2; }
+	rm -f "$_fi_jar.part"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL -o "$_fi_jar.part" "$_fi_url" || { rm -f "$_fi_jar.part"; printf 'formal install: could not download %s\n' "$_fi_url"; return 2; }
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "$_fi_jar.part" "$_fi_url" || { rm -f "$_fi_jar.part"; printf 'formal install: could not download %s\n' "$_fi_url"; return 2; }
+	else
+		printf 'formal install: neither curl nor wget found; download %s to %s yourself\n' "$_fi_url" "$_fi_jar"
+		return 2
+	fi
+	if [ "$(sw_formal_sha256 "$_fi_jar.part")" != "$SW_TLA_SHA256" ]; then
+		rm -f "$_fi_jar.part" "$_fi_jar"
+		printf 'formal install: the download is not tla2tools %s (its SHA-256 is not %s); it was deleted\n' "$SW_TLA_VERSION" "$SW_TLA_SHA256"
+		return 2
+	fi
+	mv "$_fi_jar.part" "$_fi_jar" || return 2
+	printf 'formal install: installed %s\n' "$_fi_jar"
+}
+
+# sw_formal_tlc DIR CFG TLA WORKERS LOG: runs TLC on a copy of the model and
+# the configuration (TLC writes trace files next to the model when it finds an
+# error) and keeps its whole output in LOG. Returns TLC's exit code.
+sw_formal_tlc() {
+	_ft_work=$(mktemp -d "${TMPDIR:-/tmp}/softwary-tlc.XXXXXX") || return 2
+	cp "$1"/*.tla "$1/$2" "$_ft_work/" || { rm -rf "$_ft_work"; return 2; }
+	_ft_rc=0
+	(cd "$_ft_work" && java -XX:+UseParallelGC -cp "$(sw_formal_jar)" tlc2.TLC -workers "$4" -config "$2" -metadir "$_ft_work/states" "$3") \
+		>"$5" 2>&1 </dev/null || _ft_rc=$?
+	rm -rf "$_ft_work"
+	return "$_ft_rc"
+}
+
+# sw_formal_result LOG: what TLC found, in one line: "pass <n>" (n distinct
+# states), "violated <name>" (a name of ? when TLC names none), "deadlock" or
+# "error".
+sw_formal_result() {
+	awk '
+		/^Model checking completed\. No error has been found\./ { ok = 1 }
+		/^[0-9,.]+ states generated, [0-9,.]+ distinct states found/ { n = $4; gsub(/[^0-9]/, "", n) }
+		/^Error: Invariant .* is violated\./ { v = $0; sub(/^Error: Invariant /, "", v); sub(/ is violated\..*$/, "", v); name = v }
+		/^Error: Action property .* is violated\./ { v = $0; sub(/^Error: Action property /, "", v); sub(/ is violated\..*$/, "", v); name = v }
+		/^Error: Temporal property .* was violated/ { v = $0; sub(/^Error: Temporal property /, "", v); sub(/ was violated.*$/, "", v); name = v }
+		/^Error: Temporal properties were violated/ { name = "?" }
+		/^Error: Deadlock reached/ { dead = 1 }
+		END {
+			if (name != "") print "violated " name
+			else if (dead) print "deadlock"
+			else if (ok) print "pass " n
+			else print "error"
+		}' "$1"
+}
+
+# sw_formal_trace LOG RECORD: the counter-example of a TLC log, one line per
+# step: "  <n>. <the action's sentence> (<action>): <changed variables>". The
+# sentences come from the record's Actions table; an action the record does
+# not describe is written by its name.
+sw_formal_trace() {
+	_fa=$(sw_formal_table "$2" Actions | awk -F'|' '$1 == "R" { print $2 "|" $3 }')
+	awk -v acts="$_fa" '
+		BEGIN {
+			n = split(acts, l, "\n")
+			for (i = 1; i <= n; i++) { k = index(l[i], "|"); if (k > 0) sent[substr(l[i], 1, k - 1)] = substr(l[i], k + 1) }
+		}
+		function flush(   i, j, t, out, names, nn, changed, v, s) {
+			if (!instate) return
+			nn = 0
+			for (v in cur) names[++nn] = v
+			for (i = 2; i <= nn; i++) { t = names[i]; for (j = i - 1; j >= 1 && names[j] > t; j--) names[j + 1] = names[j]; names[j + 1] = t }
+			out = ""; changed = 0
+			for (i = 1; i <= nn; i++) {
+				v = names[i]
+				if (step == 1 || !(v in prev) || prev[v] != cur[v]) { out = out (changed++ ? ", " : "") v " = " cur[v] }
+			}
+			if (out == "") out = "no variable changed"
+			s = (act in sent) ? sent[act] : (act == "Init" ? "initial state" : act)
+			sub(/\.$/, "", s)
+			printf "  %d. %s (%s): %s\n", step, s, act, out
+			for (v in prev) delete prev[v]
+			for (v in cur) { prev[v] = cur[v]; delete cur[v] }
+			instate = 0
+		}
+		/^State [0-9]+: / {
+			flush()
+			step = $2; sub(/:$/, "", step); step += 0
+			a = $0; sub(/^State [0-9]+: /, "", a)
+			if (a ~ /^<Initial predicate>/) act = "Init"
+			else if (a ~ /^</) { sub(/^</, "", a); sub(/[ >(].*$/, "", a); act = a }
+			else act = "stuttering"
+			instate = 1; last = ""
+			next
+		}
+		/^Back to state [0-9]+/ {
+			flush()
+			a = $0; k = $4; sub(/:$/, "", k)
+			sub(/^Back to state [0-9]+: </, "", a); sub(/[ >(].*$/, "", a)
+			printf "  then it goes back to step %s (%s)\n", k, a
+			next
+		}
+		instate && /^[ \t]*$/ { flush(); next }
+		instate && /^(\/\\ )?[A-Za-z_][A-Za-z0-9_]* = / {
+			line = $0; sub(/^\/\\ /, "", line)
+			k = index(line, " = "); last = substr(line, 1, k - 1)
+			cur[last] = substr(line, k + 3)
+			next
+		}
+		instate && last != "" { t = $0; gsub(/^[ \t]+/, "", t); cur[last] = cur[last] " " t; next }
+		END { flush() }' "$1"
+}
+
+# --- formal check ---------------------------------------------------------------
+
+# sw_formal_variant_rows AD: "<file> <invariant>" of the record's variants.
+sw_formal_variant_rows() {
+	sw_formal_table "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.md" Variants | awk -F'|' '$1 == "R" { print $2 " " $3 }'
+}
+
+# sw_formal_check_one AD: checks one specification, printing its lines.
+# Returns 0 when it passes, 1 when not.
+sw_formal_check_one() {
+	_fo_ad=$1
+	_fo_dir=$SOFTWARY_ROOT/$SW_FORMAL_DIR
+	_fo_logs=$SOFTWARY_ROOT/.softwary/state/logs
+	mkdir -p "$_fo_logs" || return 1
+	if ! _fo_p=$(sw_formal_record_check "$_fo_ad"); then
+		printf '%s\n' "$_fo_p"
+		printf 'formal %s: FAIL: the record has problems (./softwary blueprint check)\n' "$_fo_ad"
+		return 1
+	fi
+	_fo_log=$_fo_logs/formal-$_fo_ad.log
+	sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" auto "$_fo_log" || :
+	_fo_res=$(sw_formal_result "$_fo_log")
+	case $_fo_res in
+	"pass "*) _fo_states=${_fo_res#pass } ;;
+	violated* | deadlock)
+		_fo_name=${_fo_res#violated }
+		[ "$_fo_res" != deadlock ] || _fo_name=deadlock
+		printf 'formal %s: FAIL: %s violated\n' "$_fo_ad" "$_fo_name"
+		# One worker searches breadth first and reports the shortest path.
+		sw_formal_tlc "$_fo_dir" "$_fo_ad.cfg" "$_fo_ad.tla" 1 "$_fo_log" || :
+		sw_formal_trace "$_fo_log" "$_fo_dir/$_fo_ad.md"
+		printf '    log: .softwary/state/logs/formal-%s.log\n' "$_fo_ad"
+		return 1
+		;;
+	*)
+		printf 'formal %s: FAIL: TLC could not check the model\n' "$_fo_ad"
+		tail -n 8 "$_fo_log" | sed 's/^/    /'
+		printf '    log: .softwary/state/logs/formal-%s.log\n' "$_fo_ad"
+		return 1
+		;;
+	esac
+	_fo_bad=0
+	_fo_vars=$(sw_formal_variant_rows "$_fo_ad")
+	while read -r _fo_vf _fo_vb; do
+		[ -n "$_fo_vf" ] || continue
+		[ -f "$_fo_dir/$_fo_vf" ] || { _fo_bad=1; continue; }
+		_fo_vlog=$_fo_logs/formal-${_fo_vf%.cfg}.log
+		sw_formal_tlc "$_fo_dir" "$_fo_vf" "$_fo_ad.tla" auto "$_fo_vlog" || :
+		_fo_vr=$(sw_formal_result "$_fo_vlog")
+		case $_fo_vr in
+		"violated $_fo_vb") printf 'formal %s: variant %s fails on %s\n' "$_fo_ad" "$_fo_vf" "$_fo_vb" ;;
+		"violated ?")
+			if grep -Ew -e "$_fo_vb" "$_fo_dir/$_fo_vf" >/dev/null 2>&1; then
+				printf 'formal %s: variant %s fails on %s\n' "$_fo_ad" "$_fo_vf" "$_fo_vb"
+			else
+				printf 'formal %s: variant %s failed on an unnamed property (expected %s)\n' "$_fo_ad" "$_fo_vf" "$_fo_vb"
+				_fo_bad=1
+			fi
+			;;
+		violated*)
+			printf 'formal %s: variant %s failed on %s (expected %s)\n' "$_fo_ad" "$_fo_vf" "${_fo_vr#violated }" "$_fo_vb"
+			_fo_bad=1
+			;;
+		deadlock)
+			printf 'formal %s: variant %s failed on deadlock (expected %s)\n' "$_fo_ad" "$_fo_vf" "$_fo_vb"
+			_fo_bad=1
+			;;
+		"pass "*)
+			printf 'formal %s: variant %s did not fail (expected %s)\n' "$_fo_ad" "$_fo_vf" "$_fo_vb"
+			_fo_bad=1
+			;;
+		*)
+			printf 'formal %s: variant %s could not be checked (see .softwary/state/logs/formal-%s.log)\n' "$_fo_ad" "$_fo_vf" "${_fo_vf%.cfg}"
+			_fo_bad=1
+			;;
+		esac
+	done <<VARIANTS
+$_fo_vars
+VARIANTS
+	[ "$_fo_bad" -eq 0 ] || return 1
+	printf 'formal %s: PASS (%s states)\n' "$_fo_ad" "$_fo_states"
+}
+
+# sw_formal_check [AD]: checks every specification (or AD). Returns 0 all pass,
+# 1 one fails, 2 TLC cannot run or AD is unknown.
+sw_formal_check() {
+	_fk_names=$(sw_formal_names)
+	if [ -n "${1-}" ]; then
+		if ! printf '%s\n' "$_fk_names" | grep -Fqx -e "$1"; then
+			printf "formal: no specification '%s' (see architecture/formal/)\n" "$1"
+			return 2
+		fi
+		_fk_names=$1
+	fi
+	if [ -z "$_fk_names" ]; then
+		printf 'formal: no specs\n'
+		return 0
+	fi
+	sw_formal_ready || return 2
+	_fk_rc=0
+	for _fk_n in $_fk_names; do
+		sw_formal_check_one "$_fk_n" || _fk_rc=1
+	done
+	return "$_fk_rc"
+}
+
+# sw_formal check [<spec>] | install
+sw_formal() {
+	case ${1:-} in
+	check)
+		[ $# -le 2 ] || { printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2; return 2; }
+		sw_formal_check "${2-}"
+		;;
+	install)
+		[ $# -eq 1 ] || { printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2; return 2; }
+		sw_formal_install
+		;;
+	*)
+		printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2
+		return 2
+		;;
+	esac
+}
