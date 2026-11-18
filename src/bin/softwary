@@ -112,9 +112,10 @@ commands:
                    record the verdict on a specification after the code it
                    covers or its model changed: compatible (the model still
                    describes the code) or updated (the model was changed to);
-                   writes the commit and the verdict in '## Last verified'
-                   when the model checks and the tree is committed (bug and
-                   blocked are for the human: job escalate)
+                   writes the commit, the verdict and the digests of the model
+                   and of the covered code in '## Last verified' when the model
+                   checks and the tree is committed (bug and blocked are for
+                   the human: job escalate)
   formal trace <spec> <invariant>
                    print the counter-example of a finding of the record: its
                    identifier (CE-<spec>-<invariant>) and the steps of the

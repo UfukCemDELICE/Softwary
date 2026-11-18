@@ -133,13 +133,70 @@ sw_fmaint_commit() {
 	git -C "$SOFTWARY_ROOT" cat-file -e "$1^{commit}" 2>/dev/null
 }
 
+# sw_fmaint_model_files AD: the model and its configurations that there are,
+# one repo-relative path per line, sorted.
+sw_fmaint_model_files() {
+	for _mf in "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.tla" "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.cfg" "$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1"-*.cfg; do
+		[ -f "$_mf" ] && printf '%s/%s\n' "$SW_FORMAL_DIR" "${_mf##*/}"
+	done | LC_ALL=C sort
+}
+
+# sw_fmaint_blob PATH: "<blob id> <path>" of a file of the working tree (the
+# blob git would store: the package hashes files this way everywhere).
+sw_fmaint_blob() {
+	printf '%s %s\n' "$(git -C "$SOFTWARY_ROOT" hash-object -- "$1")" "$1"
+}
+
+# sw_fmaint_model_digest AD: a git hash of the manifest of the model: one
+# "<blob id> <path>" line for the .tla and each configuration, sorted by path.
+sw_fmaint_model_digest() {
+	while IFS= read -r _md_f; do
+		[ -z "$_md_f" ] || sw_fmaint_blob "$_md_f"
+	done <<MODEL_FILES | LC_ALL=C sort -k2,2 | git -C "$SOFTWARY_ROOT" hash-object --stdin
+$(sw_fmaint_model_files "$1")
+MODEL_FILES
+}
+
+# sw_fmaint_code_digest AD: a git hash of the manifest of the covered code: one
+# "<blob id> <path>" line for each file of each covered path (a directory
+# stands for the files in it, tracked or not and not ignored), "missing <path>"
+# for a path that is not there, sorted by path, then the raw rows of the
+# record's ## Coverage table.
+sw_fmaint_code_digest() {
+	{
+		while IFS= read -r _cd_p; do
+			[ -n "$_cd_p" ] || continue
+			if [ -d "$SOFTWARY_ROOT/$_cd_p" ]; then
+				git -C "$SOFTWARY_ROOT" -c core.quotePath=false ls-files --cached --others --exclude-standard -- "$_cd_p" 2>/dev/null |
+					while IFS= read -r _cd_f; do
+						[ ! -f "$SOFTWARY_ROOT/$_cd_f" ] || sw_fmaint_blob "$_cd_f"
+					done
+			elif [ -f "$SOFTWARY_ROOT/$_cd_p" ]; then
+				sw_fmaint_blob "$_cd_p"
+			else
+				printf 'missing %s\n' "$_cd_p"
+			fi
+		done <<COVERED_PATHS | LC_ALL=C sort -k2,2
+$(sw_fmaint_covered "$1" | cut -f1)
+COVERED_PATHS
+		sw_fmaint_section_raw Coverage <"$SOFTWARY_ROOT/$SW_FORMAL_DIR/$1.md"
+	} | git -C "$SOFTWARY_ROOT" hash-object --stdin
+}
+
 # sw_fmaint_stale_problems AD: the lines that say a model is not held to its
-# code: never verified against code that is there, a commit that is not
-# there, or something changed since the commit.
+# code: never verified against code that is there, and, once verified, the
+# code or the model differing from what was verified. A line with digests is
+# judged by them and needs no commit object (a squash merge leaves the commit
+# behind); an older line (a commit, with or without a verdict) is judged by
+# the commit: its absence is a problem.
 sw_fmaint_stale_problems() {
 	_fm_ad=$1
 	_fm_lv=$(sw_fmaint_lv "$_fm_ad")
-	_fm_c=${_fm_lv%% *}
+	# shellcheck disable=SC2086 # the line is blank-separated words, none a glob
+	set -- $_fm_lv
+	_fm_c=${1-}
+	_fm_mdig=${3-}
+	_fm_cdig=${4-}
 	if [ "$_fm_c" = never ]; then
 		while IFS= read -r _fm_p; do
 			[ -z "$_fm_p" ] || printf 'formal %s: never verified against %s\n' "$_fm_ad" "$_fm_p"
@@ -151,14 +208,40 @@ NEVER
 	# A value that is none of the forms is a problem of the record.
 	case $_fm_c in *[!0-9a-f]* | '') return 0 ;; esac
 	[ "${#_fm_c}" -eq 40 ] || return 0
+	_fm_s7=$(printf '%s' "$_fm_c" | cut -c1-7)
+	if [ -n "$_fm_mdig" ] && [ -n "$_fm_cdig" ]; then
+		_fm_mnow=$(sw_fmaint_model_digest "$_fm_ad")
+		_fm_cnow=$(sw_fmaint_code_digest "$_fm_ad")
+		[ "$_fm_mnow" != "$_fm_mdig" ] || [ "$_fm_cnow" != "$_fm_cdig" ] || return 0
+		_fm_ch=
+		! sw_fmaint_commit "$_fm_c" || _fm_ch=$(sw_fmaint_changed "$_fm_ad" "$_fm_c")
+		if [ -n "$_fm_ch" ]; then
+			printf 'formal %s: stale since %s: %s changed; check the model and record a verdict (./softwary formal verified %s compatible|updated)\n' \
+				"$_fm_ad" "$_fm_s7" "$(printf '%s\n' "$_fm_ch" | paste -sd' ' -)" "$_fm_ad"
+			return 0
+		fi
+		# The commit is not there: the digests say what kind of change it was.
+		_fm_ch=
+		[ "$_fm_mnow" = "$_fm_mdig" ] || _fm_ch=$(sw_fmaint_model_files "$_fm_ad")
+		if [ "$_fm_cnow" != "$_fm_cdig" ]; then
+			_fm_ch=$(
+				printf '%s\n' "$_fm_ch"
+				printf '## Coverage\n'
+				sw_fmaint_covered "$_fm_ad" | cut -f1
+			)
+		fi
+		printf 'formal %s: stale: the code or the model changed since it was verified (%s): %s; check the model and record a verdict (./softwary formal verified %s compatible|updated)\n' \
+			"$_fm_ad" "$_fm_s7" "$(printf '%s\n' "$_fm_ch" | grep . | LC_ALL=C sort -u | paste -sd' ' -)" "$_fm_ad"
+		return 0
+	fi
 	if ! sw_fmaint_commit "$_fm_c"; then
-		printf 'formal %s: last verified commit %s is unknown\n' "$_fm_ad" "$(printf '%s' "$_fm_c" | cut -c1-7)"
+		printf 'formal %s: last verified commit %s is unknown\n' "$_fm_ad" "$_fm_s7"
 		return 0
 	fi
 	_fm_ch=$(sw_fmaint_changed "$_fm_ad" "$_fm_c")
 	[ -z "$_fm_ch" ] ||
 		printf 'formal %s: stale since %s: %s changed; check the model and record a verdict (./softwary formal verified %s compatible|updated)\n' \
-			"$_fm_ad" "$(printf '%s' "$_fm_c" | cut -c1-7)" "$(printf '%s\n' "$_fm_ch" | paste -sd' ' -)" "$_fm_ad"
+			"$_fm_ad" "$_fm_s7" "$(printf '%s\n' "$_fm_ch" | paste -sd' ' -)" "$_fm_ad"
 }
 
 # --- formal verified ------------------------------------------------------------
@@ -214,28 +297,45 @@ sw_fmaint_verified() {
 		[ "$_fv_rc" -eq 2 ] || printf 'formal verified: formal check %s fails; nothing was written\n' "$_fv_ad"
 		return "$_fv_rc"
 	fi
-	# 3. the verdict is what the files say
-	_fv_c=${_fv_lv%% *}
+	# 3. the verdict is what the files say: judged by the recorded model digest
+	# when the line has one, else by the commit (older lines); a commit that is
+	# not there and no digest say nothing, and either verdict is taken
+	# shellcheck disable=SC2086 # the line is blank-separated words, none a glob
+	set -- $_fv_lv
+	_fv_c=${1-}
+	_fv_mrec=${3-}
+	_fv_mnow=$(sw_fmaint_model_digest "$_fv_ad")
+	_fv_cnow=$(sw_fmaint_code_digest "$_fv_ad")
+	_fv_judge=
 	if [ "$_fv_c" != never ]; then
-		if ! sw_fmaint_commit "$_fv_c"; then
-			printf "formal verified: last verified commit %s is unknown; write never in '## Last verified' to start again\n" "$(printf '%s' "$_fv_c" | cut -c1-7)"
-			return 1
+		if [ -n "$_fv_mrec" ] && [ -n "${4-}" ]; then
+			if [ "$_fv_mnow" = "$_fv_mrec" ]; then _fv_mc=; else _fv_mc=$(sw_fmaint_model_files "$_fv_ad"); fi
+			_fv_judge=1
+			if [ -n "$_fv_mc" ] && sw_fmaint_commit "$_fv_c"; then
+				_fv_mc2=$(sw_fmaint_changed "$_fv_ad" "$_fv_c" model)
+				[ -z "$_fv_mc2" ] || _fv_mc=$_fv_mc2
+			fi
+		elif sw_fmaint_commit "$_fv_c"; then
+			_fv_mc=$(sw_fmaint_changed "$_fv_ad" "$_fv_c" model)
+			_fv_judge=1
 		fi
-		_fv_mc=$(sw_fmaint_changed "$_fv_ad" "$_fv_c" model)
+	fi
+	if [ -n "$_fv_judge" ]; then
+		_fv_s7c=$(printf '%s' "$_fv_c" | cut -c1-7)
 		if [ "$_fv_verdict" = compatible ] && [ -n "$_fv_mc" ]; then
 			printf 'formal verified: compatible needs the model to be unchanged since %s, but %s changed; use updated\n' \
-				"$(printf '%s' "$_fv_c" | cut -c1-7)" "$(printf '%s\n' "$_fv_mc" | paste -sd' ' -)"
+				"$_fv_s7c" "$(printf '%s\n' "$_fv_mc" | paste -sd' ' -)"
 			return 1
 		fi
 		if [ "$_fv_verdict" = updated ] && [ -z "$_fv_mc" ]; then
 			printf 'formal verified: updated needs the model to have changed since %s, but %s/%s.tla and its configurations are the same; use compatible\n' \
-				"$(printf '%s' "$_fv_c" | cut -c1-7)" "$SW_FORMAL_DIR" "$_fv_ad"
+				"$_fv_s7c" "$SW_FORMAL_DIR" "$_fv_ad"
 			return 1
 		fi
 	fi
 	# the record: its first line of '## Last verified' only
 	_fv_tmp=$(mktemp "${TMPDIR:-/tmp}/softwary-verified.XXXXXX") || return 2
-	awk -v v="$_fv_head $_fv_verdict" '
+	awk -v v="$_fv_head $_fv_verdict $_fv_mnow $_fv_cnow" '
 		/^##[ \t]/ { t = $0; sub(/^##[ \t]+/, "", t); sub(/[ \t\r]+$/, "", t); on = (t == "Last verified"); print; next }
 		on && !done && $0 ~ /[^ \t\r]/ { print v ($0 ~ /\r$/ ? "\r" : ""); done = 1; next }
 		{ print }' "$_fv_rec" >"$_fv_tmp" || { rm -f "$_fv_tmp"; return 2; }

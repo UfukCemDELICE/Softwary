@@ -166,7 +166,7 @@ test_ac_v8_02_commit_and_verdict_forms() {
 	lv_set "$(git -C "$REPO" rev-parse HEAD) bug"
 	sw blueprint check
 	assert_eq "$RC" 1 "exit code with bug"
-	assert_match "$OUT" "^$MD: '## Last verified' must be never, a 40-digit commit, or a commit and compatible or updated$"
+	assert_match "$OUT" "^$MD: '## Last verified' must be never, a 40-digit commit, a commit and compatible or updated, or those and two 40-digit digests$"
 }
 
 # AC-V8-02: the covered file changed in a later commit: stale, and the paths
@@ -253,7 +253,7 @@ test_ac_v8_03_records_the_verdict() {
 	sw formal verified order compatible
 	assert_eq "$RC" 0 "exit code"
 	head=$(git -C "$REPO" rev-parse HEAD)
-	assert_eq "$(lv_get)" "$head compatible" "Last verified"
+	assert_match "$REPO/$MD" "^$head compatible [0-9a-f]{40} [0-9a-f]{40}$"
 	diff "$T/before.md" "$REPO/$MD" >"$T/diff" || :
 	assert_eq "$(grep -c '^[<>]' "$T/diff")" 2 "changed lines"
 	assert_match "$REPO/$EVENTS_REL" '"event":"formal_verified".*"detail":"order compatible '"$(printf '%s' "$head" | cut -c1-7)"'"'
@@ -321,7 +321,7 @@ test_ac_v8_03_verdict_follows_the_model() {
 	cmp -s "$T/before.md" "$REPO/$MD" || fail "the record was written"
 	sw formal verified order updated
 	assert_eq "$RC" 0 "updated with a changed model"
-	assert_eq "$(lv_get)" "$(git -C "$REPO" rev-parse HEAD) updated" "Last verified"
+	assert_match "$REPO/$MD" "^$(git -C "$REPO" rev-parse HEAD) updated [0-9a-f]{40} [0-9a-f]{40}$"
 }
 
 # AC-V8-03: a record that was never verified takes either verdict.
@@ -356,16 +356,148 @@ test_ac_v8_03_usage_and_human_verdicts() {
 	cmp -s "$T/before.md" "$REPO/$MD" || fail "the record was written"
 }
 
-# AC-V8-03: a commit that is not there tells nothing about the model, so the
-# verdict cannot be checked against it.
-test_ac_v8_03_unknown_commit() {
+# AC-V8-03: a commit that is not there, and no digests (the older form), tell
+# nothing about the model: either verdict is accepted, and the record gets the
+# digests.
+test_ac_v8_03_unknown_commit_takes_either_verdict() {
 	need_tlc || return 0
 	covered
 	lv_set 1234567890123456789012345678901234567890
 	commit_all "verified at a commit nobody has"
 	sw formal verified order compatible
-	assert_eq "$RC" 1 "exit code"
-	assert_match "$OUT" "^formal verified: last verified commit 1234567 is unknown; write never in '## Last verified' to start again$"
+	assert_eq "$RC" 0 "compatible: $(cat "$OUT")"
+	assert_match "$REPO/$MD" "^[0-9a-f]{40} compatible [0-9a-f]{40} [0-9a-f]{40}$"
+	git -C "$REPO" checkout -q "$MD"
+	sw formal verified order updated
+	assert_eq "$RC" 0 "updated: $(cat "$OUT")"
+	assert_match "$REPO/$MD" "^[0-9a-f]{40} updated [0-9a-f]{40} [0-9a-f]{40}$"
+}
+
+# digests_of: the model digest and the code digest of the record, as words.
+digests_of() {
+	lv_get | cut -d' ' -f3,4
+}
+
+# AC-V8-03: with digests, the verdict is judged by the recorded model digest
+# and not by the commit: the commit may be anything.
+test_ac_v8_03_digest_decides_not_the_commit() {
+	need_tlc || return 0
+	covered
+	sw formal verified order compatible
+	assert_eq "$RC" 0 "first verdict: $(cat "$OUT")"
+	d=$(digests_of)
+	lv_set "1234567890123456789012345678901234567890 compatible $d"
+	commit_all "a commit nobody has, the digests of the model and the code"
+	sw formal check order
+	assert_eq "$RC" 0 "formal check with equal digests: $(cat "$OUT")"
+	assert_no_match "$OUT" "unknown|stale"
+	cp "$REPO/$MD" "$T/before.md"
+	sw formal verified order updated
+	assert_eq "$RC" 1 "updated with an unchanged model digest"
+	assert_match "$OUT" "^formal verified: updated needs the model to have changed since 1234567, but "
+	cmp -s "$T/before.md" "$REPO/$MD" || fail "the record was written"
+	printf '\\* a comment\n' >>"$REPO/$F/order.tla"
+	commit_all "the model changes"
+	sw formal verified order compatible
+	assert_eq "$RC" 1 "compatible with a changed model digest"
+	assert_match "$OUT" "^formal verified: compatible needs the model to be unchanged since 1234567, but .*architecture/formal/order\\.tla"
+	sw formal verified order updated
+	assert_eq "$RC" 0 "updated with a changed model digest: $(cat "$OUT")"
+}
+
+# AC-V8-02: a verdict with digests is stale when the code or the model differs
+# from what was verified, whatever the commit says: the covered directory's
+# untracked file, a deleted file and a new row of the coverage table count.
+test_ac_v8_02_digest_working_tree() {
+	need_tlc || return 0
+	covered
+	md_sub "| app/order.sh | $FNS |" "| app | $FNS |"
+	commit_all "the model covers app/"
+	sw formal verified order compatible
+	assert_eq "$RC" 0 "verified: $(cat "$OUT")"
+	commit_all "verdict"
+	sw formal check order
+	assert_eq "$RC" 0 "exit code before the changes"
+	printf 'new() { :; }\n' >"$REPO/app/new.sh"
+	sw formal check order
+	assert_eq "$RC" 1 "exit code with an untracked file"
+	assert_match "$OUT" "^formal order: stale since [0-9a-f]{7}: app/new\\.sh changed; "
+	rm "$REPO/app/new.sh"
+	sw formal check order
+	assert_eq "$RC" 0 "exit code once it is gone"
+	for f in order.tla order-shipunpaid.cfg; do
+		printf '\\* a comment\n' >>"$REPO/$F/$f"
+		sw formal check order
+		assert_eq "$RC" 1 "exit code with a changed $f"
+		assert_match "$OUT" "^formal order: stale since [0-9a-f]{7}: $F/$(printf '%s' "$f" | sed 's/\./\\./') changed; "
+		git -C "$REPO" checkout -q "$F/$f"
+	done
+	rm "$REPO/app/order.sh"
+	sw formal check order
+	assert_eq "$RC" 1 "exit code with a deleted file"
+	assert_match "$OUT" "^formal order: stale since [0-9a-f]{7}: app/order\\.sh changed; "
+	git -C "$REPO" checkout -q app/order.sh
+	md_sub "| app | $FNS |" "| app | $FNS |
+| planned | - |"
+	sw formal check order
+	assert_eq "$RC" 1 "exit code with a new row"
+	assert_match "$OUT" "^formal order: stale since [0-9a-f]{7}: ## Coverage changed; "
+}
+
+# AC-V8-02: the verdict outlives the commit it was written at. The job verifies
+# on its branch, the branch is squash-merged and deleted and the repository is
+# pruned: the commit is gone, the squashed branch passes and still sees a later
+# change, and `formal verified` still judges by the digest.
+test_ac_v8_02_survives_a_squash_merge() {
+	need_tlc || return 0
+	covered
+	git -C "$REPO" checkout -q -b job
+	printf '# a change of the job\n' >>"$REPO/app/order.sh"
+	commit_all "the job changes the code"
+	sw formal verified order compatible
+	assert_eq "$RC" 0 "verified: $(cat "$OUT")"
+	sha=$(lv_get | cut -d' ' -f1)
+	commit_all "the job records the verdict"
+	git -C "$REPO" checkout -q main
+	git -C "$REPO" merge -q --squash job >/dev/null 2>&1 || fail "squash merge failed"
+	commit_all "squashed"
+	git -C "$REPO" branch -q -D job
+	git -C "$REPO" reflog expire --expire=now --all
+	git -C "$REPO" gc -q --prune=now
+	git -C "$REPO" cat-file -e "$sha^{commit}" 2>/dev/null && fail "the verified commit is still there"
+	sw formal check order
+	assert_eq "$RC" 0 "formal check on the squashed branch: $(cat "$OUT")"
+	assert_no_match "$OUT" "unknown|stale"
+	sha7=$(printf '%s' "$sha" | cut -c1-7)
+	printf '# a later change\n' >>"$REPO/app/order.sh"
+	commit_all "the code changes"
+	sw formal check order
+	assert_eq "$RC" 1 "exit code after a later change"
+	assert_match "$OUT" "^formal order: stale: the code or the model changed since it was verified \\($sha7\\): ## Coverage app/order\\.sh; check the model and record a verdict "
+	sw formal verified order updated
+	assert_eq "$RC" 1 "updated: the model digest is the recorded one"
+	sw formal verified order compatible
+	assert_eq "$RC" 0 "compatible: $(cat "$OUT")"
+}
+
+# AC-V8-02: the forms of the line: the commit alone, with a verdict, and with the
+# two digests; anything else (a verdict that is not one, one digest, a digest
+# that is not 40 digits) is a problem of the record.
+test_ac_v8_02_line_forms() {
+	covered
+	sha=$(git -C "$REPO" rev-parse HEAD)
+	d=0123456789012345678901234567890123456789
+	for ok in "$sha" "$sha updated" "$sha compatible $d $d"; do
+		lv_set "$ok"
+		sw blueprint check
+		assert_no_match "$OUT" "Last verified"
+	done
+	for bad in "$sha compatible $d" "$sha bug $d $d" "$sha compatible $d xyz" "$sha $d $d" "$sha compatible $d $d $d"; do
+		lv_set "$bad"
+		sw blueprint check
+		assert_eq "$RC" 1 "exit code for [$bad]"
+		assert_match "$OUT" "^$MD: '## Last verified' must be "
+	done
 }
 
 run_tests "$0"

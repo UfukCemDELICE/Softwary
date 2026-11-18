@@ -102,10 +102,14 @@ sw_formal_record_problems() {
 		-v cfg="$_fr_cfg" -v files="$2" -v secs="$SW_FORMAL_SECTIONS" '
 		function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 		function prob(m) { print rel ": " m }
+		function hex40(x) { return (length(x) == 40 && x ~ /^[0-9a-f]+$/) }
 		function lastvalid(v,   n, p) {
 			n = split(v, p, " ")
-			if (n < 1 || n > 2 || length(p[1]) != 40 || p[1] !~ /^[0-9a-f]+$/) return 0
-			return (n == 1 || p[2] == "compatible" || p[2] == "updated")
+			if (n != 1 && n != 2 && n != 4) return 0
+			if (!hex40(p[1])) return 0
+			if (n >= 2 && p[2] != "compatible" && p[2] != "updated") return 0
+			if (n == 4 && (!hex40(p[3]) || !hex40(p[4]))) return 0
+			return 1
 		}
 		function hasword(text, w,   p, i, a, b, at) {
 			p = 1
@@ -172,7 +176,7 @@ sw_formal_record_problems() {
 			for (i = 1; i <= nsec; i++) if (!(want[i] in seen)) prob("missing section '\''## " want[i] "'\''")
 			for (s in exphdr) if ((s in seen) && !(s in rows)) prob("'\''## " s "'\'' has no entry")
 			if (("Bounds and assumptions" in seen) && bounds == 0) prob("'\''## Bounds and assumptions'\'' has no item")
-			if (("Last verified" in seen) && lastv != "never" && !lastvalid(lastv)) prob("'\''## Last verified'\'' must be never, a 40-digit commit, or a commit and compatible or updated")
+			if (("Last verified" in seen) && lastv != "never" && !lastvalid(lastv)) prob("'\''## Last verified'\'' must be never, a 40-digit commit, a commit and compatible or updated, or those and two 40-digit digests")
 			for (i = 1; i <= ninv; i++) {
 				if (!(inv[i] in broken)) prob("invariant '\''" inv[i] "'\'' has no variant that breaks it")
 				if (cfg != "" && !hasword(cfgtext, inv[i]))

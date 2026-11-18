@@ -169,7 +169,8 @@ TEST
 	verified $job compatible
 	assert_eq "$RC" 0 "formal verified: $(cat "$OUT")"
 	commit_in "$wt" "the order model is verified against the code"
-	assert_match "$wt/$ORDER_MD" "^$(git -C "$wt" rev-parse HEAD~1) compatible$"
+	verified_sha=$(git -C "$wt" rev-parse HEAD~1)
+	assert_match "$wt/$ORDER_MD" "^$verified_sha compatible [0-9a-f]{40} [0-9a-f]{40}$"
 	assert_eq "$(jq -r 'select(.event == "formal_verified") | .detail' "$REPO/$EVENTS_REL" | tail -n 1)" "order compatible $(git -C "$wt" rev-parse --short=7 HEAD~1)" "formal_verified event"
 	sw job event $job implemented
 	sw job gate $job
@@ -193,6 +194,17 @@ TEST
 	sw formal check order
 	assert_eq "$RC" 0 "formal check on main: $(cat "$OUT")"
 	assert_no_match "$OUT" "stale"
+	# a fresh clone of the integration branch has not got the job's commit (the
+	# merge was a squash and the job's branch is gone): the model is not stale
+	git -C "$T/origin.git" branch -q -D "softwary/$job"
+	git -C "$T/origin.git" gc -q --prune=now
+	git clone -q "$T/origin.git" "$T/fresh" || fail "clone failed"
+	git -C "$T/fresh" cat-file -e "$verified_sha^{commit}" 2>/dev/null && fail "the clone has the verified commit"
+	RC=0
+	(cd "$T/fresh" && ./softwary formal check order) >"$OUT" 2>&1 || RC=$?
+	assert_eq "$RC" 0 "formal check in a fresh clone: $(cat "$OUT")"
+	assert_match "$OUT" "^formal order: PASS "
+	assert_no_match "$OUT" "unknown|stale"
 }
 
 # AC-V8-12: a job that changes the model cannot say the model is unchanged:
@@ -213,7 +225,7 @@ test_ac_v8_12_model_change_is_updated() {
 	verified $job updated
 	assert_eq "$RC" 0 "updated: $(cat "$OUT")"
 	commit_in "$wt" "the order model is verified against the code"
-	assert_match "$wt/$ORDER_MD" "^[0-9a-f]{40} updated$"
+	assert_match "$wt/$ORDER_MD" "^[0-9a-f]{40} updated [0-9a-f]{40} [0-9a-f]{40}$"
 	sw job event $job implemented
 	sw job gate $job
 	assert_eq "$RC" 0 "gate exit code"
