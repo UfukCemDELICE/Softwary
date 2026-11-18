@@ -84,6 +84,9 @@ test_ac_v9_07_yes_leaves_only_the_projects_files() {
 	[ ! -e "$REPO/CLAUDE.md" ] || fail "CLAUDE.md held only the block and should be gone"
 	[ ! -e "$REPO/softwary" ] || fail "the wrapper is still there"
 	[ -d "$REPO/.softwary" ] || fail ".softwary/ itself is gone"
+	for d in bin lib rules targets skills agents hooks templates eval; do
+		[ ! -e "$REPO/.softwary/$d" ] || fail ".softwary/$d is still there (an empty directory too)"
+	done
 	for d in .claude .codex .agents; do
 		[ ! -e "$REPO/$d" ] || fail "$d is still there"
 	done
@@ -175,6 +178,30 @@ test_ac_v9_07_refuses_with_a_run_or_a_job() {
 	assert_eq "$RC" 0 "exit code with only finished jobs and a stopped run"
 	[ -f "$REPO/.softwary/state/jobs/001-S3/job" ] || fail "the job state was removed"
 	[ ! -e "$REPO/softwary" ] || fail "the wrapper is still there"
+}
+
+# AC-V9-07: a manifest that was edited cannot make uninstall remove git's
+# files, the project's configuration, local files or state, or a file outside
+# the project; they are reported.
+test_ac_v9_07_manifest_cannot_name_project_files() {
+	project
+	for p in .git/config .softwary/config/models.conf .softwary/local/skills/mine/SKILL.md .softwary/state/logs/verify-lint.log ../outside.txt /etc/hostname; do
+		printf 'file 1 1 %s\n' "$p" >>"$REPO/.softwary/generated"
+	done
+	printf 'out\n' >"$T/outside.txt"
+	mkdir -p "$T/tmp"
+	TMPDIR=$T/tmp sw uninstall --yes
+	assert_eq "$RC" 0 "exit code"
+	for p in .git/config .softwary/config/models.conf .softwary/local/skills/mine/SKILL.md .softwary/state/logs/verify-lint.log; do
+		[ -f "$REPO/$p" ] || fail "$p is gone"
+		assert_contains "$OUT" "kept $p (not a path softwary may remove)"
+	done
+	[ -f "$T/outside.txt" ] || fail "a file outside the project is gone"
+	assert_contains "$OUT" "kept ../outside.txt (not a path softwary may remove)"
+	assert_contains "$OUT" "kept /etc/hostname (not a path softwary may remove)"
+	[ -f "$REPO/.softwary/generated" ] || fail "the manifest went while paths were kept"
+	[ ! -e "$REPO/.softwary/bin" ] || fail "the package is still there"
+	assert_eq "$(find "$T/tmp" -mindepth 1 | wc -l | tr -d ' ')" 0 "files left in TMPDIR"
 }
 
 # AC-V9-07: a softwary file that is not the package's wrapper is the project's

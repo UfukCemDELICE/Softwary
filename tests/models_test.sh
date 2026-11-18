@@ -285,6 +285,8 @@ test_ac_v9_01_translation_errors() {
 		printf 'claude-code: sonnet = a"b\n'
 		printf ': opus = x\n'
 		printf 'cursor: = x\n'
+		printf 'cursor: a/b = x\n'
+		printf 'cursor: a b = x\n'
 	} >>"$REPO/$MODELS_REL"
 	sw doctor
 	assert_eq "$RC" 2 "doctor exit code"
@@ -297,7 +299,27 @@ test_ac_v9_01_translation_errors() {
 	assert_match "$OUT" "$MODELS_RE:[0-9]+: invalid model id 'a\"b' for 'claude-code:sonnet'\)$"
 	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key ':opus'"
 	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key 'cursor:'"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key 'cursor:a/b'"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key 'cursor:a b'"
 	assert_no_match "$OUT" "^models +PASS"
+}
+
+# AC-V9-01: a translation key never takes the place of an agent's: an agent
+# called cursor-copus and the line `cursor: opus` keep their own values.
+test_ac_v9_01_keys_do_not_collide() {
+	ready
+	cp "$REPO/.softwary/agents/implementer.md" "$T/impl.md"
+	mkdir -p "$REPO/.softwary/local/agents"
+	sed 's/^name: .*/name: cursor-copus/' "$T/impl.md" >"$REPO/.softwary/local/agents/cursor-copus.md"
+	models_set cursor-copus haiku
+	printf 'cursor: opus = cursor-big\ncursor: sonnet = cursor-small\ncursor: haiku = cursor-tiny\n' >>"$REPO/$MODELS_REL"
+	tools_set claude-code on
+	tools_set cursor on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	assert_eq "$(sed -n 4p "$REPO/.claude/agents/cursor-copus.md")" "model: haiku" "the agent's class"
+	assert_eq "$(sed -n 4p "$REPO/.cursor/agents/cursor-copus.md")" "model: cursor-tiny" "the agent's id in Cursor"
+	assert_eq "$(sed -n 4p "$REPO/.cursor/agents/reviewer.md")" "model: cursor-big" "another agent's id in Cursor"
 }
 
 # AC-V9-02: sync writes the model id of each agent into the Cursor header (a

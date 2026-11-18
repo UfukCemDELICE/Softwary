@@ -121,7 +121,20 @@ test_ac_v9_06_refusals_structure() {
 	inst --archive "$BAD" --sha256 "$BADSUM" "$REPO"
 	refused "is not a softwary package"
 	printf '#!/bin/sh\n' >"$T/tree/softwary-1.0.0/install.sh"
+	mk_archive nobin.tar.gz softwary-1.0.0
+	inst --archive "$BAD" --sha256 "$BADSUM" "$REPO"
+	refused "is not a softwary package"
+	rm "$T/tree/softwary-1.0.0/install.sh"
 	printf '#!/bin/sh\n' >"$T/tree/softwary-1.0.0/src/bin/softwary"
+	mk_archive noinstall.tar.gz softwary-1.0.0
+	inst --archive "$BAD" --sha256 "$BADSUM" "$REPO"
+	refused "is not a softwary package"
+	rm "$T/tree/softwary-1.0.0/VERSION"
+	printf '#!/bin/sh\n' >"$T/tree/softwary-1.0.0/install.sh"
+	mk_archive noversion.tar.gz softwary-1.0.0
+	inst --archive "$BAD" --sha256 "$BADSUM" "$REPO"
+	refused "is not a softwary package"
+	printf '1.0.0\n' >"$T/tree/softwary-1.0.0/VERSION"
 	mkdir "$T/tree/other-1.0.0"
 	printf 'x\n' >"$T/tree/other-1.0.0/file"
 	mk_archive tworoots.tar.gz softwary-1.0.0 other-1.0.0
@@ -169,18 +182,25 @@ test_ac_v9_06_upgrade_from_archive() {
 }
 
 # AC-V9-06: an upgrade that is refused writes nothing: a wrong digest, no
-# digest, a digest given with a directory, an archive of an older version.
+# digest, a digest given with a directory, an archive of an older version; each
+# is refused for its own reason (the installed version is older than the
+# archive's, so that the version is not what refuses).
 test_ac_v9_06_upgrade_refusals() {
 	setup_repo
 	release_archive 0.9.0
-	printf '5.0.0\n' >"$REPO/.softwary/VERSION"
+	printf '0.0.1\n' >"$REPO/.softwary/VERSION"
 	snapshot >"$T/before"
 	mkdir -p "$T/tmp"
-	for args in "$ARCHIVE --sha256 $(printf '%s' "$DIGEST" | tr '0-9a-f' '1-9a-f0')" "$ARCHIVE" "$ARCHIVE --sha256 $DIGEST" "$PKG_ROOT --sha256 $DIGEST" "--sha256 $DIGEST"; do
+	wrong=$(printf '%s' "$DIGEST" | tr '0-9a-f' '1-9a-f0')
+	for case in "does not match|$ARCHIVE --sha256 $wrong" "an archive needs --sha256|$ARCHIVE" "--sha256 is only for an archive|$PKG_ROOT --sha256 $DIGEST" \
+		"usage: ./softwary upgrade|--sha256 $DIGEST" "is not a SHA-256 digest|$ARCHIVE --sha256 abc"; do
+		want=${case%%|*}
+		args=${case#*|}
 		RC=0
 		# shellcheck disable=SC2086 # the arguments are split on purpose
 		(cd "$REPO" && TMPDIR=$T/tmp ./softwary upgrade $args) >"$OUT" 2>&1 || RC=$?
 		assert_eq "$RC" 2 "exit code of upgrade $args"
+		assert_contains "$OUT" "$want"
 		tmp_clean
 	done
 	snapshot >"$T/after"
