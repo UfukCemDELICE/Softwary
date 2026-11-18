@@ -623,6 +623,48 @@ tools_all() {
 	done
 }
 
+# models_translate [TOOL...]: appends to models.conf the model ids of the two
+# classes the template uses, opus and sonnet, in the tools (default: cursor and
+# codex): <tool>-big and <tool>-small. A tool that is on needs them (V9).
+models_translate() {
+	[ $# -gt 0 ] || set -- cursor codex
+	for _mtool in "$@"; do
+		printf '%s: opus = %s-big\n%s: sonnet = %s-small\n' "$_mtool" "$_mtool" "$_mtool" "$_mtool" >>"$REPO/.softwary/config/models.conf"
+	done
+}
+
+# release_fixture DIR VERSION: a git repository at DIR that holds the package
+# as a release is built from it: install.sh, src/, tools/release.sh, VERSION,
+# README.md, LICENSE and CHANGELOG.md (a section for VERSION) and tests/ and
+# docs/ that the archive must not carry, on branch main, committed with a fixed
+# identity and date. dist/ is ignored.
+release_fixture() {
+	mkdir -p "$1/tools" "$1/tests" "$1/docs"
+	cp -R "$PKG_ROOT/install.sh" "$PKG_ROOT/src" "$1/"
+	cp "$PKG_ROOT/tools/release.sh" "$1/tools/"
+	printf '%s\n' "$2" >"$1/VERSION"
+	printf '# softwary\n' >"$1/README.md"
+	printf 'MIT License\n' >"$1/LICENSE"
+	printf '# Changelog\n\n## %s\n\n- A change.\n' "$2" >"$1/CHANGELOG.md"
+	printf 'test\n' >"$1/tests/a_test.sh"
+	printf 'doc\n' >"$1/docs/a.md"
+	printf 'dist/\n' >"$1/.gitignore"
+	git -C "$1" init -q || fail "git init failed"
+	git -C "$1" symbolic-ref HEAD refs/heads/main
+	git -C "$1" add -A
+	GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' \
+		git -C "$1" -c user.name=t -c user.email=t@example.com commit -q -m "release fixture" || fail "commit failed"
+}
+
+# release_archive VERSION: builds the archive of VERSION from a fixture in
+# $T/rel-VERSION; sets ARCHIVE (its path) and DIGEST (its SHA-256).
+release_archive() {
+	release_fixture "$T/rel-$1" "$1"
+	(cd "$T/rel-$1" && sh tools/release.sh "$1") >"$T/rel-$1.out" 2>&1 || fail "release.sh failed: $(cat "$T/rel-$1.out")"
+	ARCHIVE=$T/rel-$1/dist/softwary-$1.tar.gz
+	DIGEST=$(awk '{ print $1 }' "$T/rel-$1/dist/SHA256SUMS")
+}
+
 # add_sources: copies the sample skills and agents into the repo's .softwary/.
 add_sources() {
 	cp -R "$PKG_ROOT/tests/fixtures/sources/skills" "$PKG_ROOT/tests/fixtures/sources/agents" "$REPO/.softwary/"

@@ -219,7 +219,9 @@ sw_stage_sources() {
 		sw_stage_doc "$_d/SKILL.md" "$1/skills/softwary-$_n/SKILL.md" "softwary-$_n"
 	done
 	# models.conf: a model per agent, only when the whole file is usable (doctor
-	# reports it otherwise); targets that have no model field drop the line.
+	# reports it otherwise). The staged agent carries Claude Code's model; the
+	# model of another tool is in models/<tool>/<agent>, which its target reads
+	# (sw_agent_model): Cursor and Codex have a field for it too (V9).
 	_models_ok=0
 	sw_models_load && _models_ok=1
 	for _n in $(sw_source_names agents); do
@@ -234,7 +236,14 @@ sw_stage_sources() {
 			continue
 		fi
 		_model=
-		[ "$_models_ok" -eq 0 ] || _model=$(sw_models_get "$_n")
+		if [ "$_models_ok" -eq 1 ]; then
+			_model=$(sw_models_get "$_n" claude-code)
+			for _mt in $(sw_targets); do
+				_mid=$(sw_models_get "$_n" "$_mt") || continue
+				mkdir -p "$1/models/$_mt"
+				printf '%s\n' "$_mid" >"$1/models/$_mt/$_n"
+			done
+		fi
 		sw_stage_doc "$_f" "$1/agents/$_n.md" "$_n" "$_model"
 	done
 }

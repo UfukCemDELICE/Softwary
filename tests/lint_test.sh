@@ -7,7 +7,7 @@
 # AC-M0-10, AC-M3-09: every shell script in the package is shellcheck-clean.
 test_ac_m0_10_shellcheck_clean() {
 	command -v shellcheck >/dev/null || fail "shellcheck is required (it is not optional)"
-	(cd "$PKG_ROOT" && shellcheck -s sh -x install.sh src/bin/softwary src/lib/*.sh src/targets/*.sh src/hooks/* src/templates/softwary tests/*.sh src/eval/sample/tests/*.sh src/eval/sample/src/*.sh) \
+	(cd "$PKG_ROOT" && shellcheck -s sh -x install.sh tools/*.sh src/bin/softwary src/lib/*.sh src/targets/*.sh src/hooks/* src/templates/softwary tests/*.sh src/eval/sample/tests/*.sh src/eval/sample/src/*.sh) \
 		>"$OUT" 2>&1 || fail "shellcheck reported problems"
 }
 

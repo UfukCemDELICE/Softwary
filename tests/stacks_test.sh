@@ -28,6 +28,7 @@ run_scenarios() {
 	loop_conf
 	skip_conf
 	tools_all on
+	models_translate
 	(cd "$REPO" && ./softwary sync) >/dev/null 2>&1 || fail "$_stack: sync failed"
 	risk_set default R1
 	add_ci

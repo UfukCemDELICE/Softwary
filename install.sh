@@ -1,22 +1,57 @@
 #!/bin/sh
 # Installs softwary into a repository.
 # Usage: sh install.sh <repo> [--upgrade]
+#        sh install.sh --archive <tar.gz> --sha256 <digest> <repo> [--upgrade]
 #
 # Lists every file it will write, then writes them, only inside <repo>.
 # Managed files are overwritten; existing project-owned config files are kept.
 # --upgrade (used by `./softwary upgrade`) also removes managed files that
 # this version no longer has.
+# --archive installs a release archive (tools/release.sh) instead of this
+# package: its SHA-256 must be the one given and nothing is written otherwise;
+# it is unpacked into a temporary directory that is removed on every exit, and
+# the install.sh in it installs it.
 set -eu
 
 pkg=$(cd "$(dirname "$0")" && pwd -P)
 
 upgrade=0
-if [ $# -eq 2 ] && [ "$2" = --upgrade ]; then
-	upgrade=1
-	set -- "$1"
+archive=
+digest=
+repo=
+nrepo=0
+while [ $# -gt 0 ]; do
+	case $1 in
+	--upgrade)
+		upgrade=1
+		shift
+		;;
+	--archive | --sha256)
+		if [ $# -lt 2 ]; then
+			printf 'install: %s needs a value\n' "$1" >&2
+			exit 2
+		fi
+		if [ "$1" = --archive ]; then archive=$2; else digest=$2; fi
+		shift 2
+		;;
+	*)
+		repo=$1
+		nrepo=$((nrepo + 1))
+		shift
+		;;
+	esac
+done
+if [ "$nrepo" -ne 1 ]; then
+	printf 'usage: sh install.sh <repo> [--upgrade]\n       sh install.sh --archive <tar.gz> --sha256 <digest> <repo> [--upgrade]\n' >&2
+	exit 2
 fi
-if [ $# -ne 1 ]; then
-	printf 'usage: sh install.sh <repo> [--upgrade]\n' >&2
+set -- "$repo"
+if [ -n "$digest" ] && [ -z "$archive" ]; then
+	printf 'install: --sha256 is only for --archive\n' >&2
+	exit 2
+fi
+if [ -n "$archive" ] && [ -z "$digest" ]; then
+	printf 'install: --archive needs --sha256 <digest> (the digest from SHA256SUMS)\n' >&2
 	exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -24,6 +59,24 @@ if [ ! -d "$1" ]; then
 	exit 2
 fi
 target=$(cd "$1" && pwd -P)
+if [ -n "$archive" ]; then
+	# The archive is checked and unpacked by the shared helper, then installed
+	# by its own install.sh (the archive's version is what gets installed).
+	# shellcheck source=src/lib/archive.sh
+	. "$pkg/src/lib/archive.sh"
+	work=$(mktemp -d "${TMPDIR:-/tmp}/softwary-install.XXXXXX") || exit 2
+	trap 'rm -rf "${work:?}"' EXIT
+	trap 'exit 129' HUP
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
+	sw_archive_unpack "$archive" "$digest" "$work" install || exit 2
+	if [ "$upgrade" -eq 1 ]; then
+		sh "$SW_ARCHIVE_PKG/install.sh" "$target" --upgrade
+	else
+		sh "$SW_ARCHIVE_PKG/install.sh" "$target"
+	fi
+	exit $?
+fi
 version=$(cat "$pkg/VERSION")
 # The wrapper is the one file of the package outside .softwary/. A file or a
 # directory called softwary that is not the package's wrapper is the project's

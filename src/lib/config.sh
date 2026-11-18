@@ -49,6 +49,8 @@ sw_known_key() {
 # sw_kv_load FILE REL PREFIX MODE: parses a `key = value` file.
 #   MODE commands: keys [a-z][a-z0-9_]*, NONE values need a reason.
 #   MODE tools:    keys [a-z][a-z0-9-]*.
+#   MODE models:   like tools, and `<tool>: <class>` keys (V9), kept as
+#                  "tool:class"; a class is [A-Za-z0-9._-]+.
 # Sets ${PREFIX}_FOUND (0/1), ${PREFIX}_KEYS (keys in file order) and
 # ${PREFIX}_ERRORS (one "REL:LINE: message" per line, empty when well-formed).
 # Values and line numbers are read with sw_kv_get and sw_kv_line.
@@ -94,8 +96,17 @@ sw_kv_parse_line() {
 		sw_kv_error "$_n" "malformed line: missing key before '='"
 		return 0
 	fi
+	if [ "$_kv_mode" = models ]; then
+		case $_key in
+		*:*) _key=$(sw_trim "${_key%%:*}"):$(sw_trim "${_key#*:}") ;;
+		esac
+	fi
 	if ! sw_valid_key "$_kv_mode" "$_key"; then
-		if [ "$_kv_mode" = tools ]; then _hint="lowercase letters, digits, '-'"; else _hint="lowercase letters, digits, '_'"; fi
+		case $_kv_mode in
+		tools) _hint="lowercase letters, digits, '-'" ;;
+		models) _hint="an agent name, or '<tool>: <class>'" ;;
+		*) _hint="lowercase letters, digits, '_'" ;;
+		esac
 		sw_kv_error "$_n" "malformed line: invalid key '$_key' (use $_hint)"
 		return 0
 	fi
@@ -125,10 +136,20 @@ sw_kv_parse_line() {
 	eval "${_kv_p}_L_$_var=\$_n"
 }
 
-# sw_valid_key MODE KEY: true if KEY is a valid key for MODE (commands or tools).
+# sw_valid_key MODE KEY: true if KEY is a valid key for MODE (commands, tools
+# or models).
 sw_valid_key() {
 	case $2 in [!a-z]*) return 1 ;; esac
-	if [ "$1" = tools ]; then
+	if [ "$1" = models ]; then
+		case $2 in
+		*:*)
+			sw_valid_key tools "${2%%:*}" || return 1
+			case ${2#*:} in '' | *[!A-Za-z0-9._-]*) return 1 ;; esac
+			return 0
+			;;
+		esac
+	fi
+	if [ "$1" = tools ] || [ "$1" = models ]; then
 		case $2 in *[!a-z0-9-]*) return 1 ;; esac
 	else
 		case $2 in *[!a-z0-9_]*) return 1 ;; esac
@@ -136,9 +157,14 @@ sw_valid_key() {
 	return 0
 }
 
-# sw_key_var KEY: the variable-name form of KEY ('-' becomes '_').
+# sw_key_var KEY: the variable-name form of KEY ('-' becomes '_'). A
+# `tool:class` key (models.conf) is encoded one-to-one and starts with a capital
+# X, which no other key does: `_` is `_u`, `:` is `_c`, `.` is `_d`, `-` is `_h`.
 sw_key_var() {
-	printf '%s' "$1" | tr - _
+	case $1 in
+	*:*) printf 'X%s' "$1" | sed 's/_/_u/g; s/:/_c/g; s/\./_d/g; s/-/_h/g' ;;
+	*) printf '%s' "$1" | tr - _ ;;
+	esac
 }
 
 # sw_kv_has PREFIX KEY / sw_kv_get PREFIX KEY / sw_kv_line PREFIX KEY

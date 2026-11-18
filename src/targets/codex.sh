@@ -10,5 +10,5 @@ for f in "$1"/agents/*.md; do
 	[ -f "$f" ] || continue
 	mkdir -p "$2/.codex/agents"
 	n=${f##*/}
-	sw_agent_toml "$f" >"$2/.codex/agents/${n%.md}.toml"
+	sw_agent_toml "$f" "$(sw_agent_model "$1" codex "${n%.md}")" >"$2/.codex/agents/${n%.md}.toml"
 done
