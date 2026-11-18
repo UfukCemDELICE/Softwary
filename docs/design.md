@@ -162,7 +162,7 @@ Kapılar ve `job`, `queue`, `merge` scriptleri POSIX `sh` ve `jq` ile, dosyalar 
 
 ## 10. Paket mimarisi
 
-Kurulum dosya kopyalamaktır. Scriptler POSIX `sh` ile yazılır; ek bağımlılıklar `git` ve `jq`. Paket içeriği İngilizce, paketin kendi belgeleri Türkçedir.
+Kurulum dosya kopyalamaktır. Scriptler POSIX `sh` ile yazılır; ek bağımlılıklar `git` ve `jq`. Paket içeriği ve kullanıcı belgeleri (`README.md`, `docs/guide/`) İngilizcedir; geliştirme kaydı (bu belge, kararlar, spec ve planlar) Türkçe kalır (V9, D-198).
 
 ```
 <repo>/
@@ -203,7 +203,7 @@ Bir değer üç biçimden biridir: bir komut (çıkış kodu 0 ise geçer), `UNS
 
 Muaf tutulabilir her denetimin (`format_check lint typecheck test build security contract_check arch_check model_check`) isteğe bağlı bir `<anahtar>_files` karşılığı vardır: aynı denetimin yalnızca değişen dosyalardaki hali. Değeri `{files}` yer tutucusunu taşıyan bir komut ya da `NONE: <gerekçe>`'dir; `{files}` geçmeyen komut yapılandırma hatasıdır. Muafiyeti olan bir anahtarın `<anahtar>_files`'ı ayarlı olmalıdır (`doctor` ve `run start` aksi hâlde başarısızdır): muafiyet döngüyü kör bırakmaz.
 
-Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`, `ship` ve `repro`; V8 ile `formal verified`, `formal trace` ve `states tests`. Her biri ilgili kilometre taşında eklenir.
+Paketin kendi komutları: `verify` (`--fast`, `--base`), `trace`, `adr`, `changes`, `model validate`, `views`, `risk`, `status`, `sync`, `doctor`, `upgrade`; v2 ile `approve`, `product check`, `blueprint check`, `job`, `run`, `drift`, `ship` ve `repro`; V8 ile `formal verified`, `formal trace` ve `states tests`. V9 ile `uninstall` ve `version`; `upgrade` bir sürüm arşivini de (`--sha256` ile) kabul eder. Her biri ilgili kilometre taşında eklenir.
 
 `verify` ucuzdan pahalıya çalışır ve ilk hatada durmaz: paketin kendi denetimleri (`sync`, `model`, `views`, `trace`, sonra entegrasyon dalına ya da `--base`'e karşı `adr` ve `changes`; henüz commit yoksa bu ikisi `SKIP (no commits yet)`), biçim ve statik denetimler, test ve derleme, sözleşme ve mimari ve güvenlik. `--fast` yalnızca biçim, lint ve tip denetimlerini çalıştırır. Çıktı ajanın okuması içindir:
 
@@ -225,9 +225,11 @@ Kaynak bir kez yazılır, `sync` her araç için bir hedef scriptiyle çevirir. 
 
 Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı desteklemeyen araçta rol skill olarak üretilir ve temiz bir oturumda çalıştırılır.
 
+**Model çevirisi (V9).** Her subagent'ın modeli `.softwary/config/models.conf`'ta bir sınıftır (`implementer = sonnet`); sınıfın bir araçtaki adı ayrı bir satırdır: `<araç>: <sınıf> = <model kimliği>`. `sync` kimliği Claude Code'un ve Cursor'un subagent üst bilgisine (`model: <kimlik>`) ve Codex'in TOML'una (`model = "<kimlik>"`) yazar; Claude Code'da satır yoksa sınıf adı yazılır, `tools.conf`'ta açık olan Cursor ve Codex için her sınıfın satırı şarttır. `reviewer` ve `approver` her açık araçta `implementer`'ın çevrilmiş kimliğinden farklı olmalıdır; `doctor` ve `run start` denetler (D-191, D-192). Skill ve ajan metinleri hiçbir aracın adını anmaz; araca özgü not `docs/guide/tools.md`'dedir (D-193).
+
 ## 13. Verilmiş kararlar
 
-- Paket adı `softwary`, repo herkese açık, lisans MIT. POSIX `sh`, `git`, `jq`; düz `anahtar = değer` yapılandırma. Üretilen dosyalar commit'lenir.
+- Paket adı `softwary`, repo herkese açık, lisans MIT (yıl 2026, sahip Ufuk Cem Delice); telemetri yoktur ve paket ağa yalnızca `git`, `gh` ve `formal install`'ın sabit adresli indirmesiyle çıkar (V9, `tests/network_test.sh`); sürümler anlamsal sürümlemeye uyar, kurulum bir etiketten klonla ya da sağlaması doğrulanan bir sürüm arşiviyle yapılır (`curl | sh` yok), etiketi atmak ve sürümü yayımlamak insanındır (V9). POSIX `sh`, `git`, `jq`; düz `anahtar = değer` yapılandırma. Üretilen dosyalar commit'lenir.
 - Kaynaklardan yalnızca fikir alınır, metin ya da kod alınmaz (zazencodes GPL-3.0).
 - Döngü worktree'den entegrasyon dalına (`main`) PR ile birleştirir; üretim dalı (`master`) ayrıdır ve ona alma insan onayıyla yapılır.
 - Onay güven sınırı içerik özetleridir (tamper-evident); daha güçlü sınır sonraya bırakıldı.
