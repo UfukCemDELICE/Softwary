@@ -81,10 +81,11 @@ test_ac_v2_11_installed_template_fails_on_tokens() {
 }
 
 # AC-V2-14: sync writes each agent's model into the Claude Code subagent
-# header, right after the description; Cursor and Codex files carry none.
+# header, right after the description. (V9: Cursor and Codex carry their own
+# model ids, see AC-V9-02; here they are off.)
 test_ac_v2_14_sync_writes_model() {
 	ready
-	tools_all on
+	tools_set claude-code on
 	sw sync
 	assert_eq "$RC" 0 "sync exit code"
 	assert_eq "$(sed -n 4p "$REPO/.claude/agents/implementer.md")" "model: sonnet" "implementer model line"
@@ -93,10 +94,6 @@ test_ac_v2_14_sync_writes_model() {
 	for f in "$REPO"/.claude/agents/*.md; do
 		assert_contains "$f" "model: "
 	done
-	for f in "$REPO"/.cursor/agents/*.md "$REPO"/.codex/agents/*.toml; do
-		! grep -E '^model' "$f" >/dev/null || fail "${f#"$REPO"/} carries a model"
-	done
-	assert_contains "$REPO/.cursor/agents/implementer.md" "description:"
 	sw sync --check
 	assert_eq "$RC" 0 "sync --check exit code"
 	models_set implementer haiku
@@ -187,6 +184,250 @@ test_ac_v2_14_install_keeps_owned_files() {
 	sw upgrade "$PKG_ROOT"
 	assert_eq "$(cat "$REPO/.softwary/config/loop.conf")" "max_rounds = 7" "loop.conf after upgrade"
 	assert_eq "$(cat "$REPO/$MODELS_REL")" "implementer = haiku" "models.conf after upgrade"
+}
+
+# tr_set TOOL CLASS ID: sets the model id of CLASS in TOOL in models.conf.
+tr_set() {
+	sed "/^$1: $2 = /d" "$REPO/$MODELS_REL" >"$T/m" && cp "$T/m" "$REPO/$MODELS_REL"
+	printf '%s: %s = %s\n' "$1" "$2" "$3" >>"$REPO/$MODELS_REL"
+}
+
+# plan_repo: approved product and blueprint, the sample plan and an origin, so
+# that `run start` can open a run.
+plan_repo() {
+	setup_repo
+	conf_all true
+	add_product
+	add_blueprint
+	sw approve product
+	approve_blueprint
+	add_plan
+	add_origin
+}
+
+# AC-V9-01: a class has one line per tool; the lines of a tool that is off may
+# be there, Claude Code uses its line, and a tool without one gets the class name.
+test_ac_v9_01_translation_lines_are_read() {
+	ready
+	models_translate cursor codex claude-code
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code"
+	assert_match "$OUT" "^models +PASS"
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	assert_eq "$(sed -n 4p "$REPO/.claude/agents/implementer.md")" "model: claude-code-small" "translated Claude Code model"
+	assert_eq "$(sed -n 4p "$REPO/.claude/agents/reviewer.md")" "model: claude-code-big" "translated Claude Code model of the reviewer"
+	sed '/^claude-code:/d' "$REPO/$MODELS_REL" >"$T/m" && cp "$T/m" "$REPO/$MODELS_REL"
+	sw sync
+	assert_eq "$(sed -n 4p "$REPO/.claude/agents/implementer.md")" "model: sonnet" "Claude Code without a translation is the class"
+}
+
+# AC-V9-01: Cursor or Codex on without a model id for a class is a doctor
+# failure, one line for each class; a tool that is off needs none.
+test_ac_v9_01_missing_translation_fails_when_tool_on() {
+	ready
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code with every tool off"
+	tools_set cursor on
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "$MODELS_RE: cursor is on but the class 'opus' has no model id \(add 'cursor: opus = <model id>'\)\)$"
+	assert_match "$OUT" "$MODELS_RE: cursor is on but the class 'sonnet' has no model id"
+	assert_eq "$(grep -Ec '^models +FAIL' "$OUT")" 2 "failing models lines"
+	printf 'cursor: opus = big\n' >>"$REPO/$MODELS_REL"
+	sw doctor
+	assert_eq "$(grep -Ec '^models +FAIL' "$OUT")" 1 "failing models lines with one class translated"
+	assert_match "$OUT" "the class 'sonnet' has no model id"
+	printf 'cursor: sonnet = small\n' >>"$REPO/$MODELS_REL"
+	sw sync
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code with Cursor translated"
+	tools_set codex on
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code with Codex on"
+	assert_match "$OUT" "$MODELS_RE: codex is on but the class 'opus' has no model id"
+	tools_set codex off
+	tools_set claude-code on
+	sw sync
+	sw doctor
+	assert_eq "$RC" 0 "Claude Code needs no translation"
+}
+
+# AC-V9-01: `run start` stops (2) on a missing translation of a tool that is on
+# and opens no run; with the translation it opens one.
+test_ac_v9_01_run_start_stops_on_missing_translation() {
+	plan_repo
+	tools_set cursor on
+	commit_all "cursor on"
+	sw run start
+	assert_eq "$RC" 2 "exit code"
+	assert_contains "$OUT" "cursor is on but the class 'opus' has no model id"
+	[ ! -e "$REPO/.softwary/state/run" ] || fail "a run was opened"
+	models_translate cursor
+	commit_all "translated"
+	sw run start
+	assert_eq "$RC" 0 "exit code with the translation"
+}
+
+# AC-V9-01: an unknown tool, a class no agent uses, a duplicate line, an UNSET,
+# empty or malformed id are each a problem of their own, with the line number.
+test_ac_v9_01_translation_errors() {
+	ready
+	{
+		printf 'vim: opus = big\n'
+		printf 'cursor: haiku = small\n'
+		printf 'cursor: opus = big\n'
+		printf 'cursor: opus = other\n'
+		printf 'codex: opus = UNSET\n'
+		printf 'codex: sonnet =\n'
+		printf 'claude-code: opus = has space\n'
+		printf 'claude-code: sonnet = a"b\n'
+		printf ': opus = x\n'
+		printf 'cursor: = x\n'
+	} >>"$REPO/$MODELS_REL"
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: unknown tool 'vim' in 'vim:opus' \(known: claude-code codex cursor\)\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: no agent uses the class 'haiku' \('cursor:haiku'\)\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: duplicate key 'cursor:opus'"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: invalid model id 'UNSET' for 'codex:opus'\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: empty value for 'codex:sonnet'"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: invalid model id 'has space' for 'claude-code:opus'\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: invalid model id 'a\"b' for 'claude-code:sonnet'\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key ':opus'"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: malformed line: invalid key 'cursor:'"
+	assert_no_match "$OUT" "^models +PASS"
+}
+
+# AC-V9-02: sync writes the model id of each agent into the Cursor header (a
+# `model:` line after the description) and into the Codex TOML (`model = "..."`),
+# the class or its Claude Code line into the Claude Code file.
+test_ac_v9_02_sync_writes_model_in_cursor_and_codex() {
+	ready
+	tools_all on
+	models_translate
+	tr_set cursor opus "claude-opus-5[effort=high]"
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	assert_eq "$(sed -n 4p "$REPO/.cursor/agents/reviewer.md")" "model: claude-opus-5[effort=high]" "reviewer in Cursor"
+	assert_eq "$(sed -n 3p "$REPO/.cursor/agents/reviewer.md" | cut -c1-12)" "description:" "description line"
+	assert_eq "$(sed -n 5p "$REPO/.cursor/agents/reviewer.md")" "---" "closing line"
+	assert_eq "$(sed -n 4p "$REPO/.cursor/agents/implementer.md")" "model: cursor-small" "implementer in Cursor"
+	assert_eq "$(sed -n 4p "$REPO/.codex/agents/reviewer.toml")" 'model = "codex-big"' "reviewer in Codex"
+	assert_eq "$(sed -n 4p "$REPO/.codex/agents/implementer.toml")" 'model = "codex-small"' "implementer in Codex"
+	assert_eq "$(sed -n 3p "$REPO/.codex/agents/reviewer.toml" | cut -c1-15)" "description = \"" "description line in Codex"
+	assert_eq "$(sed -n 5p "$REPO/.codex/agents/reviewer.toml")" 'developer_instructions = """' "instructions line in Codex"
+	assert_eq "$(sed -n 4p "$REPO/.claude/agents/reviewer.md")" "model: opus" "reviewer in Claude Code"
+	for f in "$REPO"/.cursor/agents/*.md; do
+		assert_eq "$(grep -c '^model: ' "$f")" 1 "model lines of ${f#"$REPO"/}"
+	done
+	for f in "$REPO"/.codex/agents/*.toml; do
+		assert_eq "$(grep -c '^model = ' "$f")" 1 "model lines of ${f#"$REPO"/}"
+	done
+	sw sync --check
+	assert_eq "$RC" 0 "sync --check exit code"
+	tr_set codex sonnet codex-medium
+	sw sync --check
+	assert_eq "$RC" 1 "sync --check after a translation change"
+	assert_contains "$OUT" ".codex/agents/implementer.toml"
+	assert_no_match "$OUT" "\.cursor/agents"
+	sw sync
+	assert_eq "$(sed -n 4p "$REPO/.codex/agents/implementer.toml")" 'model = "codex-medium"' "changed model in Codex"
+}
+
+# AC-V9-02: a local agent gets its models too; only the tools that are on are written.
+test_ac_v9_02_local_agent_and_tools_off() {
+	ready
+	add_sources
+	models_translate
+	models_set helper haiku
+	printf 'cursor: haiku = cursor-tiny\ncodex: haiku = codex-tiny\n' >>"$REPO/$MODELS_REL"
+	tools_set cursor on
+	tools_set codex off
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	assert_eq "$(sed -n 4p "$REPO/.cursor/agents/helper.md")" "model: cursor-tiny" "local agent in Cursor"
+	[ ! -e "$REPO/.codex" ] || fail "Codex is off but .codex was written"
+}
+
+# AC-V9-02: without a usable models.conf no tool gets a model field (the V2
+# rule); sync still works and doctor complains.
+test_ac_v9_02_unusable_models_conf_writes_no_field() {
+	ready
+	tools_all on
+	models_translate
+	models_set implementer 'bad/model'
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	for f in "$REPO"/.claude/agents/*.md "$REPO"/.cursor/agents/*.md "$REPO"/.codex/agents/*.toml; do
+		! grep -E '^model' "$f" >/dev/null || fail "${f#"$REPO"/} carries a model"
+	done
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: invalid model 'bad/model' for 'implementer'\)$"
+	rm -f "${REPO:?}/${MODELS_REL:?}"
+	sw sync
+	assert_eq "$RC" 0 "sync exit code without models.conf"
+	assert_no_match "$REPO/.cursor/agents/reviewer.md" "^model"
+}
+
+# AC-V9-03: in a tool that is on the reviewer and the approver must not end up
+# with the implementer's model id; every tool is worked out by itself, and a
+# tool that is off is not compared.
+test_ac_v9_03_cursor_reviewer_uses_the_implementers_model() {
+	ready
+	{
+		printf 'cursor: opus = same-id\ncursor: sonnet = same-id\n'
+		printf 'codex: opus = codex-big\ncodex: sonnet = codex-small\n'
+	} >>"$REPO/$MODELS_REL"
+	sw doctor
+	assert_eq "$RC" 0 "doctor exit code with Cursor off"
+	tools_set cursor on
+	tools_set codex on
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: reviewer uses the implementer's model in cursor \(same-id\)\)$"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: approver uses the implementer's model in cursor \(same-id\)\)$"
+	assert_eq "$(grep -Ec '^models +FAIL' "$OUT")" 2 "failing models lines"
+	assert_no_match "$OUT" "in codex"
+	assert_no_match "$OUT" "in claude-code"
+	assert_no_match "$OUT" "must not use the same model"
+	tr_set codex opus codex-small
+	sw doctor
+	assert_match "$OUT" "reviewer uses the implementer's model in codex \(codex-small\)"
+	assert_match "$OUT" "reviewer uses the implementer's model in cursor \(same-id\)"
+	assert_eq "$(grep -Ec '^models +FAIL' "$OUT")" 4 "failing models lines"
+}
+
+# AC-V9-03: `run start` stops (2) on it and opens no run.
+test_ac_v9_03_run_start_stops_on_it() {
+	plan_repo
+	printf 'cursor: opus = same-id\ncursor: sonnet = same-id\n' >>"$REPO/$MODELS_REL"
+	tools_set cursor on
+	commit_all "cursor on"
+	sw run start
+	assert_eq "$RC" 2 "exit code"
+	assert_contains "$OUT" "reviewer uses the implementer's model in cursor (same-id)"
+	[ ! -e "$REPO/.softwary/state/run" ] || fail "a run was opened"
+}
+
+# AC-V9-03: the Claude Code rule is the V2 one (by class name, one line each),
+# and a translation that makes two classes one id is caught there too.
+test_ac_v9_03_claude_code_rule_is_kept() {
+	ready
+	tools_all on
+	models_translate
+	models_set reviewer sonnet
+	sw doctor
+	assert_eq "$RC" 2 "doctor exit code"
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: reviewer must not use the same model as implementer \(sonnet\)\)$"
+	assert_no_match "$OUT" "in claude-code"
+	assert_match "$OUT" "reviewer uses the implementer's model in cursor \(cursor-small\)"
+	models_set reviewer opus
+	printf 'claude-code: opus = one\nclaude-code: sonnet = one\n' >>"$REPO/$MODELS_REL"
+	sw doctor
+	assert_match "$OUT" "$MODELS_RE:[0-9]+: reviewer uses the implementer's model in claude-code \(one\)\)$"
 }
 
 run_tests "$0"

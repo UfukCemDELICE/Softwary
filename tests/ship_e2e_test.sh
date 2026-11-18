@@ -32,6 +32,7 @@ shop() {
 	printf 'lint = %s: legacy lint debt\ntest = %s: legacy report test\n' "$FAR" "$FAR" >"$REPO/$WAIVERS_REL"
 	tools_set claude-code on
 	tools_set codex on
+	models_translate codex
 	sw sync
 	assert_eq "$RC" 0 "sync"
 	commit_all "softwary installed"

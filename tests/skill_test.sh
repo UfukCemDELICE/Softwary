@@ -575,4 +575,54 @@ test_ac_v8_11_distributed_short_and_known_commands() {
 	assert_eq "$RC" 0 "sync --check exit code"
 }
 
+# V9_FORBIDDEN: the names of one tool's own tools and the names of the products
+# (D-193). The skills, the agents and the core rules are written for every tool;
+# what is specific to a tool is in docs/guide/tools.md.
+V9_FORBIDDEN='Task tool
+Agent tool
+SendMessage
+subagent_type
+TodoWrite
+Claude Code
+Cursor
+Codex'
+
+# forbidden_in FILE...: the forbidden words that the files use, one per line.
+forbidden_in() {
+	printf '%s\n' "$V9_FORBIDDEN" | while IFS= read -r _w; do
+		grep -F -e "$_w" "$@" >/dev/null 2>&1 && printf '%s\n' "$_w"
+	done
+	return 0
+}
+
+# AC-V9-04: no skill, agent or core rule names a tool's own tools or a product;
+# the list catches each word (checked on a sample file).
+test_ac_v9_04_no_tool_names_in_the_package_texts() {
+	printf 'Use the Task tool.\nAsk the Agent tool, or SendMessage.\nsubagent_type and TodoWrite.\nIn Claude Code, Cursor or Codex.\n' >"$T/sample"
+	assert_eq "$(forbidden_in "$T/sample" | wc -l | tr -d ' ')" 8 "words found in the sample"
+	assert_eq "$(forbidden_in "$SKILLS/define/SKILL.md" | wc -l | tr -d ' ')" 0 "a clean file has none"
+	files=$(find "$PKG_ROOT/src/skills" "$PKG_ROOT/src/agents" "$PKG_ROOT/src/rules" -type f | sort)
+	[ -n "$files" ] || fail "no package texts found"
+	for f in $files; do
+		found=$(forbidden_in "$f" | tr '\n' ' ')
+		[ -z "$found" ] || fail "${f#"$PKG_ROOT"/} names a tool or a product: $found"
+	done
+}
+
+# AC-V9-04: the run skill calls an agent by its name and runs the long steps in
+# the background only "if the tool can"; the other loop skills name no tool either.
+test_ac_v9_04_run_text_is_tool_neutral() {
+	f=$SKILLS/run/SKILL.md
+	assert_contains "$f" "call an agent by its name"
+	assert_contains "$f" "in the background"
+	assert_contains "$f" "if the tool can"
+	for s in run implement review plan; do
+		[ "$(forbidden_in "$SKILLS/$s/SKILL.md" | wc -l | tr -d ' ')" -eq 0 ] || fail "$s names a tool"
+		[ "$(wc -l <"$SKILLS/$s/SKILL.md" | tr -d ' ')" -le 80 ] || fail "$s is longer than 80 lines"
+	done
+	for a in "$AGENTS"/*.md; do
+		[ "$(wc -l <"$a" | tr -d ' ')" -le 80 ] || fail "${a#"$PKG_ROOT"/} is longer than 80 lines"
+	done
+}
+
 run_tests "$0"

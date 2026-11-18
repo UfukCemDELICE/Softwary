@@ -623,6 +623,16 @@ tools_all() {
 	done
 }
 
+# models_translate [TOOL...]: appends to models.conf the model ids of the two
+# classes the template uses, opus and sonnet, in the tools (default: cursor and
+# codex): <tool>-big and <tool>-small. A tool that is on needs them (V9).
+models_translate() {
+	[ $# -gt 0 ] || set -- cursor codex
+	for _mtool in "$@"; do
+		printf '%s: opus = %s-big\n%s: sonnet = %s-small\n' "$_mtool" "$_mtool" "$_mtool" "$_mtool" >>"$REPO/.softwary/config/models.conf"
+	done
+}
+
 # add_sources: copies the sample skills and agents into the repo's .softwary/.
 add_sources() {
 	cp -R "$PKG_ROOT/tests/fixtures/sources/skills" "$PKG_ROOT/tests/fixtures/sources/agents" "$REPO/.softwary/"

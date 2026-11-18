@@ -32,9 +32,9 @@ Every job works in its own worktree, `.softwary/worktrees/<job>`, on branch
    - `stop: <why>` alone: do not call `run stop`. Report `./softwary status`
      and the reason: after a red merge the human decides about the revert PR,
      then `./softwary run start` goes on; for a run limit `./softwary run stop`.
-3. By state of the job (each job on its own; run agents and long commands such
-   as `job gate` and `job ci` in the background, and when one finishes ask
-   `./softwary run next` again):
+3. By state of the job (each job on its own; call an agent by its name, and run
+   agents and long commands such as `job gate` and `job ci` in the background
+   if the tool can; when one finishes ask `./softwary run next` again):
    - `implementing`: call the `implementer` with the job id. It replies
      `done`, `blocked: <reason>` or `advice: <question>`.
      `done`: `./softwary job event <job> implemented`, then
