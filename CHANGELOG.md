@@ -5,7 +5,7 @@ All notable changes to softwary are listed here. The format follows
 [semantic versioning](https://semver.org). The date of a release is added when
 it is tagged.
 
-## 0.1.0
+## 0.1.0 - 2026-11-18
 
 The first release.
 

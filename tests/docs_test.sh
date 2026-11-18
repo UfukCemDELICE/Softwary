@@ -40,8 +40,8 @@ test_ac_v9_10_files_license_changelog() {
 	assert_contains "$PKG_ROOT/LICENSE" "Copyright (c) 2026 Ufuk Cem Delice"
 	assert_contains "$PKG_ROOT/LICENSE" "Permission is hereby granted, free of charge, to any person obtaining a copy"
 	assert_contains "$PKG_ROOT/LICENSE" "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND"
-	assert_match "$PKG_ROOT/CHANGELOG.md" '^## 0\.1\.0$'
-	assert_eq "$(awk '/^## / { on = ($0 == "## 0.1.0"); next } on && /[^[:space:]]/ { n++ } END { print n + 0 }' "$PKG_ROOT/CHANGELOG.md" | awk '{ print ($1 > 5) ? "yes" : "no" }')" yes "lines under ## 0.1.0"
+	assert_match "$PKG_ROOT/CHANGELOG.md" '^## 0\.1\.0( - [0-9]{4}-[0-9]{2}-[0-9]{2})?$'
+	assert_eq "$(awk '/^## / { on = ($2 == "0.1.0"); next } on && /[^[:space:]]/ { n++ } END { print n + 0 }' "$PKG_ROOT/CHANGELOG.md" | awk '{ print ($1 > 5) ? "yes" : "no" }')" yes "lines under ## 0.1.0"
 	assert_contains "$PKG_ROOT/README.md" "MIT"
 	assert_contains "$PKG_ROOT/README.md" "[LICENSE](LICENSE)"
 	for g in $GUIDE; do
