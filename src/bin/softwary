@@ -77,6 +77,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/adr.sh"
 # shellcheck source=src/lib/changes.sh
 . "$SOFTWARY_HOME/lib/changes.sh"
+# shellcheck source=src/lib/uninstall.sh
+. "$SOFTWARY_HOME/lib/uninstall.sh"
 # shellcheck source=src/lib/archive.sh
 . "$SOFTWARY_HOME/lib/archive.sh"
 # shellcheck source=src/lib/upgrade.sh
@@ -217,6 +219,13 @@ commands:
                    checkout, or a release archive whose SHA-256 is the digest
                    given: nothing is written when it is not), then run sync
   version          print the installed version: softwary <version>
+  uninstall [--yes]
+                   list what removes the package from the project: its managed
+                   files, the wrapper, the files and blocks sync generated (not
+                   the ones edited by hand) and core.hooksPath; --yes removes
+                   them. The project's own files, .softwary/config, local and
+                   state stay. Stops (1) while a run is open or a job is not
+                   finished
 EOF
 }
 
@@ -341,6 +350,10 @@ upgrade)
 version)
 	shift
 	sw_version_cmd "$@"
+	;;
+uninstall)
+	shift
+	sw_uninstall "$@"
 	;;
 help | -h | --help)
 	sw_usage
