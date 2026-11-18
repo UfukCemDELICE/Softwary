@@ -48,8 +48,9 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/softwary-release.XXXXXX")
 trap 'rm -rf "${work:?}"' EXIT
 name=softwary-$version.tar.gz
 # shellcheck disable=SC2086 # the paths are split on purpose
-git -c tar.umask=0002 archive --format=tar --prefix="softwary-$version/" HEAD -- $paths | gzip -n -9 >"$work/$name" ||
+git -c tar.umask=0002 archive --format=tar --prefix="softwary-$version/" -o "$work/archive.tar" HEAD -- $paths ||
 	die "git archive failed (is every one of: $paths committed?)"
+gzip -n -9 <"$work/archive.tar" >"$work/$name" || die "gzip failed"
 if command -v sha256sum >/dev/null 2>&1; then
 	(cd "$work" && sha256sum "$name") >"$work/SHA256SUMS"
 elif command -v shasum >/dev/null 2>&1; then
