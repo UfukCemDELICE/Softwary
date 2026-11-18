@@ -77,6 +77,8 @@ sw_lock_install_traps
 . "$SOFTWARY_HOME/lib/adr.sh"
 # shellcheck source=src/lib/changes.sh
 . "$SOFTWARY_HOME/lib/changes.sh"
+# shellcheck source=src/lib/archive.sh
+. "$SOFTWARY_HOME/lib/archive.sh"
 # shellcheck source=src/lib/upgrade.sh
 . "$SOFTWARY_HOME/lib/upgrade.sh"
 
@@ -210,8 +212,11 @@ commands:
                    events) for the next session; its ## Notes are kept
   doctor           report installation and configuration problems
   upgrade <package-path>
-                   replace the managed files with those of a newer package,
-                   then run sync
+  upgrade <archive.tar.gz> --sha256 <digest>
+                   replace the managed files with those of a newer package (a
+                   checkout, or a release archive whose SHA-256 is the digest
+                   given: nothing is written when it is not), then run sync
+  version          print the installed version: softwary <version>
 EOF
 }
 
@@ -332,6 +337,10 @@ changes)
 upgrade)
 	shift
 	sw_upgrade "$@"
+	;;
+version)
+	shift
+	sw_version_cmd "$@"
 	;;
 help | -h | --help)
 	sw_usage
