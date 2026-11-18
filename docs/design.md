@@ -110,6 +110,7 @@ Sınırlar ve gözlem (`.softwary/config/loop.conf`, varsayılanlar insan onayl�
 - iş başına 45 dakika, koşu başına 4 saat,
 - aynı anda 1 iş; paralel kilometre taşından sonra 3,
 - token üst sınırı (iş ve koşu başına; abonelikte maliyet dolar değil token ile sınırlanır),
+- CI beklemesi: `max_ci_minutes` (isteğe bağlı, yoksa 30 dakika). `job ci` ve birleştirme `gh pr checks --watch`'u değil, sınırlı bir yoklamayı kullanır: GitHub kontrolleri push'tan birkaç saniye sonra oluşturur, o süre görünmeyen kontrol "kırmızı" sayılmaz. Hiç görünmeyen, süresi dolan ya da `gh`'nin okuyamadığı CI uygulayıcının hatası değil, insana soru olur (`job ci` escalate eder, birleştirme reddeder); kırmızı kontrol yeni tur açar,
 - kararsız testler için kural: bir kez yeniden çalıştır; yine kararsızsa işi durdur ve insana bildir, testi asla gevşetme,
 - `./softwary status`: işler, aşamalar, süreler ve escalate kutusu; bir iş insanı beklerken diğerleri sürer.
 

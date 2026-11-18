@@ -145,7 +145,9 @@ commands:
                    job's worktree
   job pr|ci|review|merged|show <job>
                    push the branch and open the PR; check the PR's head and
-                   CI; read the review record; record a human's merge; print
+                   CI (waits for the checks to appear and to finish, at most
+                   max_ci_minutes; CI that cannot be read goes to the human);
+                   read the review record; record a human's merge; print
   job escalate <job> <question>
                    hand the job to the human with one concrete question
   job resume <job> <answer>, job abandon <job> <reason>

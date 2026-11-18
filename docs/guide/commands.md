@@ -56,7 +56,7 @@ the command was used wrongly. `./softwary help` prints the list below in short.
 | `./softwary run start\|next\|stop` | Opens the run (after its checks), prints what to do next, closes the run |
 | `./softwary job start <job>` | Admits a planned slice, opens its worktree and branch `softwary/<job>` and takes it into its first round |
 | `./softwary job gate <job>` | Runs the full `verify` on the job's worktree |
-| `./softwary job pr <job>`, `job ci <job>` | Pushes the branch and opens the pull request; checks the pull request's head and CI |
+| `./softwary job pr <job>`, `job ci <job>` | Pushes the branch and opens the pull request; checks the pull request's head and CI. `job ci` waits for the checks to appear and to finish (at most `max_ci_minutes`); red checks start a new round, and CI that cannot be read (no check appeared, still pending after the limit, `gh` failing) is handed to you with a question |
 | `./softwary job review <job>` | Reads the reviewer's record |
 | `./softwary job merged <job>` | Records a merge you did by hand |
 | `./softwary job show <job>` | Prints the job |

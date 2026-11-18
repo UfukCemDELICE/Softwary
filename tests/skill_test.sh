@@ -244,6 +244,34 @@ test_ac_v3_13_setup_asks() {
 	assert_contains "$PKG_ROOT/src/rules/core.md" "protected paths"
 }
 
+# AC-V10-10, AC-V10-11: rule 3 of core.md lists the protected paths in
+# backticks, each of guard's SW_PROTECTED exactly once and no other path; the
+# next sentence says what `architecture/formal/` protects, and who rules on
+# the rest. The list and SW_PROTECTED are compared both ways.
+test_ac_v10_11_rule_lists_protected_paths() {
+	rule=$(grep '^3\. ' "$PKG_ROOT/src/rules/core.md")
+	[ -n "$rule" ] || fail "core.md has no rule 3"
+	list=${rule#*protected paths (}
+	list=${list%%)*}
+	formal=${rule#*protected paths (*)}
+	listed=$(printf '%s\n' "$list" | grep -o '`[^`]*`' | tr -d '`')
+	want=$(sed -n 's/^SW_PROTECTED="\(.*\)"$/\1/p' "$PKG_ROOT/src/lib/guard.sh" | tr ' ' '\n')
+	[ -n "$want" ] || fail "could not read SW_PROTECTED from guard.sh"
+	for p in $want; do
+		n=$(printf '%s\n' "$listed" | grep -Fxc -e "$p")
+		[ "$n" -ge 1 ] || fail "rule 3 does not list the protected path $p"
+		[ "$n" -le 1 ] || fail "rule 3 lists the protected path $p more than once"
+	done
+	for p in $listed; do
+		printf '%s\n' "$want" | grep -Fqx -e "$p" || fail "rule 3 lists $p, which guard does not protect"
+	done
+	case $formal in *'`architecture/formal/`'*) ;; *) fail "rule 3 does not say what architecture/formal/ protects" ;; esac
+	case $list in *architecture/formal/*) fail "rule 3 lists architecture/formal/ as a protected path" ;; esac
+	printf '%s\n' "$formal" | grep -qi 'invariants' || fail "rule 3 does not name the invariants of a record"
+	printf '%s\n' "$formal" | grep -qi 'findings' || fail "rule 3 does not name the findings of a record"
+	case $formal in *'`./softwary formal verified`'*) ;; *) fail "rule 3 does not say that formal verified rules on the rest" ;; esac
+}
+
 # AC-V3-13: none of them is longer than 80 lines or names a command that help
 # does not list.
 test_ac_v3_13_short_and_known_commands() {

@@ -52,7 +52,10 @@ in its own git worktree and branch (`softwary/<job>`):
 
 State lives in files (`.softwary/state/`) and every transition is applied by a
 script from a table and written to an event log, so a dead session resumes from
-the files. The limits are in `loop.conf`: rounds, minutes and tokens.
+the files. The limits are in `loop.conf`: rounds, minutes and tokens, and
+`max_ci_minutes` (optional, 30 when missing), how long CI checks that are
+still pending are waited for. Checks that never appear, or are still pending
+after that, are not counted against the job: they come to you as a question.
 
 You are asked in four places: the approvals, a job escalated with a question,
 drift decisions, and taking the integration branch to production.

@@ -451,34 +451,104 @@ sw_job_pr() {
 	sw_job_apply "$_jp_job" pr_opened "PR #$_jp_n"
 }
 
-# sw_job_pr_green JOB SHA: true when the PR's head is SHA and its checks pass.
-# On failure SW_JOB_WHY says which.
+# sw_job_pr_green JOB SHA [LABEL]: reads the PR's checks until they decide.
+# Returns 0 when the PR's head is SHA and every check passed (or was skipped),
+# 1 when the head is not SHA (LABEL names it, default HEAD) or a check failed
+# or was cancelled, 2 when CI cannot be read: no check appeared, checks are
+# still pending after max_ci_minutes, or gh keeps failing. SW_JOB_WHY says why
+# on 1 and 2.
+#
+# `gh pr checks --watch` is not used: GitHub creates the checks a few seconds
+# after the push, the PR's head can show the old commit as long, and --watch
+# never times out. Instead `gh pr checks --json name,bucket` is read every
+# SW_CI_POLL_SECONDS (default 10; tests only). For the first
+# SW_CI_APPEAR_SECONDS (default 120; tests only) a head that is not SHA yet,
+# "no checks reported" and any gh failure (of `pr view` too) are waited out.
+# Once a read has shown checks, pending checks, a gh failure and "no checks
+# reported" are all waited out until sw_ci_timeout_seconds: a network blip in
+# a long CI wait is no reason to hand the job to the human. A readable head
+# that is not SHA is decided when the first window ends. Every read is
+# appended to the job's ci.log, which the call empties first.
 sw_job_pr_green() {
-	_jq_n=$(sw_job_get "$1" pr)
-	_jq_head=$(gh pr view "$_jq_n" --json headRefOid --jq .headRefOid 2>/dev/null) || _jq_head=
-	if [ "$_jq_head" != "$2" ]; then
-		SW_JOB_WHY="PR head is not ${3:-HEAD}"
-		return 1
-	fi
-	if ! gh pr checks "$_jq_n" --watch >"$SW_STATE_ROOT/$SW_JOBS_REL/$1/ci.log" 2>&1; then
-		SW_JOB_WHY="CI checks are not green"
-		return 1
-	fi
+	_pg_job=$1
+	_pg_n=$(sw_job_get "$_pg_job" pr)
+	_pg_poll=${SW_CI_POLL_SECONDS:-10}
+	_pg_appear=${SW_CI_APPEAR_SECONDS:-120}
+	_pg_limit=$(sw_ci_timeout_seconds)
+	: >"$SW_STATE_ROOT/$SW_JOBS_REL/$_pg_job/ci.log"
+	_pg_seen=0
+	_pg_start=$(date +%s)
+	while :; do
+		_pg_room=$_pg_appear
+		[ "$_pg_seen" -eq 0 ] || _pg_room=$_pg_limit
+		_pg_hrc=0
+		_pg_hout=$(gh pr view "$_pg_n" --json headRefOid --jq .headRefOid 2>&1) || _pg_hrc=$?
+		# gh can write a warning next to the answer: only a commit id is the head.
+		_pg_head=$(printf '%s\n' "$_pg_hout" | grep -Ex '[0-9a-f]{40}([0-9a-f]{24})?' | tail -n 1)
+		if [ "$_pg_hrc" -ne 0 ] || [ -z "$_pg_head" ]; then
+			printf 'gh pr view failed: %s\n' "$_pg_hout" >>"$SW_STATE_ROOT/$SW_JOBS_REL/$_pg_job/ci.log"
+			_pg_why="gh pr view failed: $(printf '%s\n' "${_pg_hout:-no output}" | sed -n 1p)"
+			_pg_rc=2
+		elif [ "$_pg_head" != "$2" ]; then
+			printf 'PR head is %s, not %s\n' "$_pg_head" "$2" >>"$SW_STATE_ROOT/$SW_JOBS_REL/$_pg_job/ci.log"
+			_pg_why="PR head is not ${3:-HEAD}"
+			_pg_rc=1
+			_pg_room=$_pg_appear
+		elif _pg_out=$(gh pr checks "$_pg_n" --json name,bucket --jq '.[] | "\(.bucket) \(.name)"' 2>&1); then
+			printf '%s\n' "$_pg_out" >>"$SW_STATE_ROOT/$SW_JOBS_REL/$_pg_job/ci.log"
+			# Only the lines of checks count; a warning of gh is not a check.
+			_pg_out=$(printf '%s\n' "$_pg_out" | grep -E '^(pass|fail|pending|skipping|cancel) ') || _pg_out=
+			_pg_bad=$(printf '%s\n' "$_pg_out" | grep -E '^(fail|cancel) ') || _pg_bad=
+			if [ -n "$_pg_bad" ]; then
+				SW_JOB_WHY="CI checks are not green: $(printf '%s\n' "$_pg_bad" | sed -n '1s/^[a-z]* //p')"
+				_pg_more=$(($(printf '%s\n' "$_pg_bad" | grep -c .) - 1))
+				[ "$_pg_more" -eq 0 ] || SW_JOB_WHY="$SW_JOB_WHY (+$_pg_more more)"
+				return 1
+			fi
+			if [ -z "$_pg_out" ]; then
+				_pg_why="no CI checks were reported for $(printf '%.7s' "$2") within ${_pg_appear}s"
+				_pg_rc=2
+			elif printf '%s\n' "$_pg_out" | grep -Evq '^(pass|skipping) '; then
+				_pg_seen=1
+				_pg_room=$_pg_limit
+				_pg_why="CI checks still pending after $(sw_ci_minutes) minutes"
+				_pg_rc=2
+			else
+				return 0
+			fi
+		else
+			printf '%s\n' "$_pg_out" >>"$SW_STATE_ROOT/$SW_JOBS_REL/$_pg_job/ci.log"
+			case $_pg_out in
+			*"no checks reported"*) _pg_why="no CI checks were reported for $(printf '%.7s' "$2") within ${_pg_appear}s" ;;
+			*) _pg_why="gh pr checks failed: $(printf '%s\n' "$_pg_out" | sed -n 1p)" ;;
+			esac
+			_pg_rc=2
+		fi
+		_pg_el=$(($(date +%s) - _pg_start))
+		if [ "$_pg_el" -ge "$_pg_room" ]; then
+			SW_JOB_WHY=$_pg_why
+			return "$_pg_rc"
+		fi
+		sleep "$_pg_poll"
+	done
 }
 
 # sw_job_ci JOB: ci_pass when the PR's head is the worktree's HEAD and its
-# checks pass.
+# checks pass, ci_fail when they do not (a new round), and an escalation (the
+# same as `job escalate`) when CI could not be read.
 sw_job_ci() {
 	_jc_job=$1
 	sw_job_known "$_jc_job" || return 2
 	sw_job_state_is "$_jc_job" ci || return 1
 	sw_wt_check "$_jc_job" || return 2
 	[ -n "$(sw_job_get "$_jc_job" pr)" ] || { sw_job_refuse "$_jc_job" "no PR recorded"; return 1; }
-	if sw_job_pr_green "$_jc_job" "$(git -C "$(sw_wt_path "$_jc_job")" rev-parse HEAD)"; then
-		sw_job_apply "$_jc_job" ci_pass
-	else
-		sw_job_apply "$_jc_job" ci_fail "$SW_JOB_WHY"
-	fi
+	_jc_rc=0
+	sw_job_pr_green "$_jc_job" "$(git -C "$(sw_wt_path "$_jc_job")" rev-parse HEAD)" || _jc_rc=$?
+	case $_jc_rc in
+	0) sw_job_apply "$_jc_job" ci_pass ;;
+	1) sw_job_apply "$_jc_job" ci_fail "$SW_JOB_WHY" ;;
+	*) sw_job_text "$_jc_job" escalate "CI could not be read: $SW_JOB_WHY" "" ;;
+	esac
 }
 
 # sw_fm_status_set FILE VALUE: sets the front matter's status line.
