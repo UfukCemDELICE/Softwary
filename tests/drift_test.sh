@@ -353,4 +353,134 @@ test_ac_v7_08_template() {
 	assert_no_match "$OUT" ": decided|stale"
 }
 
+# order_repo: drift_repo with the order's state machine and the record of its
+# model, which has a finding: twelve tests the machine owes and one
+# counter-example to replay. Everything is committed.
+order_repo() {
+	drift_repo
+	cp -R "$FORMALFIX/architecture/." "$REPO/architecture/"
+	printf '\n## Findings\n\n| Invariant | Until | Reason |\n| --- | --- | --- |\n| `ShippedWasPaid` | %s | The old order code ships a created order. |\n' "$FAR" \
+		>>"$REPO/architecture/formal/order.md"
+	commit_all "the order model"
+}
+
+# order_ids: the identifiers of the tests the order owes, then the finding's.
+order_ids() {
+	sw states tests
+	[ "$RC" -eq 0 ] || fail "states tests: $(cat "$OUT")"
+	cut -d' ' -f1 "$OUT"
+	printf 'CE-order-ShippedWasPaid\n'
+}
+
+# AC-V8-09: a state machine owes a test for every state and event, and a
+# finding a test that replays its counter-example: until the tests name them
+# they are drift, an item each.
+test_ac_v8_09_untested_and_unreplayed() {
+	order_repo
+	sw drift
+	assert_eq "$RC" 1 "exit code"
+	assert_eq "$(grep -c '^drift: untested ST-order-[a-z_]*-[a-z_]*: undecided$' "$OUT")" 12 "untested"
+	assert_match "$OUT" "^drift: untested ST-order-created-pay: undecided$"
+	assert_match "$OUT" "^drift: untested ST-order-cancelled-ship: undecided$"
+	assert_match "$OUT" "^drift: unreplayed CE-order-ShippedWasPaid: undecided$"
+	assert_match "$OUT" "^drift: 13 item\\(s\\), 13 undecided$"
+	# the new items come last
+	assert_eq "$(sed -n 1p "$OUT")" "drift: untested ST-order-created-pay: undecided" "first line"
+}
+
+# AC-V8-09: a test under test_paths that names the identifier closes the item;
+# the others stay.
+test_ac_v8_09_a_test_names_it() {
+	order_repo
+	printf '# covers ST-order-paid-ship and CE-order-ShippedWasPaid\n' >>"$REPO/tests/t.sh"
+	commit_all "a test"
+	sw drift
+	assert_no_match "$OUT" "ST-order-paid-ship:"
+	assert_no_match "$OUT" "CE-order-ShippedWasPaid"
+	assert_match "$OUT" "^drift: untested ST-order-paid-cancel: undecided$"
+	assert_match "$OUT" "^drift: 11 item\\(s\\), 11 undecided$"
+	order_ids | sed 's/^/# /' >>"$REPO/tests/t.sh"
+	commit_all "every identifier"
+	sw drift
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^drift: 0 item\\(s\\), 0 undecided$"
+}
+
+# AC-V8-09: only the tests close an item: a source file that names the
+# identifier does not, and neither does a file git does not track.
+test_ac_v8_09_only_tracked_tests_count() {
+	order_repo
+	order_ids | sed 's/^/# /' >"$REPO/src/core/notes.txt"
+	commit_all "the identifiers in the source"
+	order_ids | sed 's/^/# /' >"$REPO/tests/untracked.sh"
+	sw drift
+	assert_eq "$RC" 1 "exit code"
+	assert_match "$OUT" "^drift: 13 item\\(s\\), 13 undecided$"
+}
+
+# AC-V8-09: an identifier is a word: a longer one that starts with it, or that
+# it is the end of, is another; punctuation around it is not part of it.
+test_ac_v8_09_identifier_is_a_word() {
+	order_repo
+	{
+		printf '# ST-order-paid-shipped ST-order-paid-ship_x ST-order-paid-ship-y\n'
+		printf '# XST-order-paid-ship TEST-order-paid-ship CE-order-ShippedWasPaid2\n'
+	} >>"$REPO/tests/t.sh"
+	commit_all "near misses"
+	sw drift
+	assert_match "$OUT" "^drift: untested ST-order-paid-ship: undecided$"
+	assert_match "$OUT" "^drift: unreplayed CE-order-ShippedWasPaid: undecided$"
+	printf 'check "(ST-order-paid-ship)", ST-order-paid-ship. CE-order-ShippedWasPaid;\n' >>"$REPO/tests/t.sh"
+	commit_all "the words"
+	sw drift
+	assert_no_match "$OUT" "ST-order-paid-ship:"
+	assert_no_match "$OUT" "CE-order-ShippedWasPaid"
+}
+
+# AC-V8-09: the decisions of V7 hold for the new items: accept, with a date and
+# a reason, decides them; with each decided the exit code is 0.
+test_ac_v8_09_decisions() {
+	order_repo
+	sw drift
+	{
+		printf '# Drift decisions\n\n| Item | Decision | Until | Reason |\n| --- | --- | --- | --- |\n'
+		sed -n "s/^drift: \\(.*\\): undecided\$/| \\1 | accept | $FAR | checked by hand |/p" "$OUT"
+	} >"$REPO/$DRIFT_REL"
+	sw drift
+	assert_eq "$RC" 0 "exit code"
+	assert_match "$OUT" "^drift: untested ST-order-paid-ship: decided \\(accept, until $FAR\\)$"
+	assert_match "$OUT" "^drift: unreplayed CE-order-ShippedWasPaid: decided \\(accept, until $FAR\\)$"
+	assert_match "$OUT" "^drift: 13 item\\(s\\), 0 undecided$"
+	sed 's/| 2999-12-31 | checked by hand |$/| 2000-01-01 | checked by hand |/' "$REPO/$DRIFT_REL" >"$T/d" && cp "$T/d" "$REPO/$DRIFT_REL"
+	sw drift
+	assert_eq "$RC" 1 "exit code with every decision expired"
+	assert_match "$OUT" "^drift: unreplayed CE-order-ShippedWasPaid: expired 2000-01-01$"
+}
+
+# AC-V8-09: the findings of a record are counter-examples whether or not they
+# are expired; a machine without a record's findings owes tests only.
+test_ac_v8_09_findings_and_machines() {
+	order_repo
+	sed 's/2999-12-31/2000-01-01/' "$REPO/architecture/formal/order.md" >"$T/m" && cp "$T/m" "$REPO/architecture/formal/order.md"
+	sw drift
+	assert_match "$OUT" "^drift: unreplayed CE-order-ShippedWasPaid: undecided$"
+	awk '/^## Findings/ { exit } { print }' "$REPO/architecture/formal/order.md" >"$T/m" && cp "$T/m" "$REPO/architecture/formal/order.md"
+	sw drift
+	assert_no_match "$OUT" "unreplayed"
+	assert_match "$OUT" "^drift: 12 item\\(s\\), 12 undecided$"
+	rm -r "$REPO/architecture/states"
+	sw drift
+	assert_no_match "$OUT" "untested"
+}
+
+# AC-V8-09: with state machines or findings and no test_paths to look in,
+# drift cannot say: exit 2 and why.
+test_ac_v8_09_needs_test_paths() {
+	order_repo
+	conf_set test_paths UNSET
+	sw drift
+	assert_eq "$RC" 2 "exit code"
+	assert_match "$OUT" "^drift: test_paths is not set"
+}
+
 run_tests "$0"

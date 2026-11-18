@@ -464,7 +464,7 @@ test_ac_v7_11_diagnose_text() {
 		"A red test must not reach the" "You write no code that fixes it" "never edit the code that is wrong" "## Excuses"; do
 		assert_contains "$f" "$t"
 	done
-	only_commands "$f" plan repro doctor
+	only_commands "$f" plan repro doctor formal
 }
 
 # AC-V7-11: maintain runs drift and asks the human to decide each item, one at
@@ -475,7 +475,7 @@ test_ac_v7_11_maintain_text() {
 		"Only the human decides" ".softwary/templates/drift.md" "Every decision is the human's" "## Excuses"; do
 		assert_contains "$f" "$t"
 	done
-	only_commands "$f" drift
+	only_commands "$f" drift states formal
 }
 
 # AC-V7-11: run reports that ship is the human's step and never opens it; plan
@@ -489,6 +489,90 @@ test_ac_v7_11_run_and_plan_texts() {
 	assert_contains "$SKILLS/plan/SKILL.md" "repro: <test files>"
 	assert_contains "$SKILLS/plan/SKILL.md" "\`diagnose\`"
 	assert_contains "$PKG_ROOT/src/templates/artifacts/slice.md" "repro (optional"
+}
+
+# AC-V8-11: implement and implementer check the model again when the code a
+# specification covers changed, record the verdict with the record's commit,
+# hand bug and blocked to the human and never change what binds one.
+test_ac_v8_11_implement_records_the_verdict() {
+	for f in "$SKILLS/implement/SKILL.md" "$AGENTS/implementer.md"; do
+		for t in "./softwary formal check" "./softwary formal verified <spec>" "compatible" "updated" "(\`bug\`)" "\`blocked\`" \
+			"./softwary job escalate <job> <question>" "./softwary formal trace <spec> <invariant>" "an invariant's sentence, a finding" "bind a human"; do
+			assert_contains "$f" "$t"
+		done
+	done
+	assert_contains "$SKILLS/implement/SKILL.md" "suspect the model first"
+	assert_contains "$AGENTS/implementer.md" "the model is the first suspect"
+	only_commands "$SKILLS/implement/SKILL.md" verify formal job
+	only_commands "$AGENTS/implementer.md" verify formal job
+}
+
+# AC-V8-11: diagnose writes the repro test of a bug that breaks a finding with
+# the steps of formal trace and names the counter-example in it.
+test_ac_v8_11_diagnose_replays_the_counter_example() {
+	f=$SKILLS/diagnose/SKILL.md
+	for t in "## Findings" "./softwary formal trace <spec> <invariant>" "\`CE-<spec>-<invariant>\`" "the model is wrong first"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V8-11: maintain decides the two new drift items with the human, and says
+# where to read what each one asks for.
+test_ac_v8_11_maintain_new_items() {
+	f=$SKILLS/maintain/SKILL.md
+	for t in "\`untested ST-<entity>-<state>-<event>\`" "\`unreplayed CE-<spec>-<invariant>\`" "./softwary states tests" "./softwary formal trace <spec> <invariant>"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V8-11: blueprint writes the first verdict for code that exists, and
+# proposes Lean only for a pure R3 core, with the proof in architecture/proofs/
+# and its command in proof_check.
+test_ac_v8_11_blueprint_verdict_and_lean() {
+	f=$SKILLS/blueprint/SKILL.md
+	for t in "./softwary formal verified <name> compatible" "Lean only for a" "pure algorithmic core at risk R3" "\`architecture/proofs/\`" "\`proof_check\`" "Never for anything else"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V8-11: the reviewer checks that a changed model was not weakened to fit
+# the code, with the diff and formal check as evidence.
+test_ac_v8_11_reviewer_checks_the_model() {
+	f=$AGENTS/reviewer.md
+	for t in "architecture/formal/*.tla" "was not weakened to fit the code" "no invariant left out of a" "no variant that stopped failing" "./softwary formal check"; do
+		assert_contains "$f" "$t"
+	done
+}
+
+# AC-V8-11: the six files reach the three tools, stay within 80 lines and name
+# only commands that help lists.
+test_ac_v8_11_distributed_short_and_known_commands() {
+	setup_repo
+	tools_all on
+	sw sync
+	assert_eq "$RC" 0 "sync exit code"
+	known=$(sh "$PKG_ROOT/src/bin/softwary" help | awk '/^commands:/ { on = 1; next } on && /^  [a-z]/ { print $1 }' | sort -u)
+	for s in implement diagnose maintain blueprint; do
+		for d in .claude .cursor .agents; do
+			[ -s "$REPO/$d/skills/softwary-$s/SKILL.md" ] || fail "$d/skills/softwary-$s/SKILL.md missing"
+		done
+	done
+	for d in .claude .cursor; do
+		for a in implementer reviewer; do
+			[ -s "$REPO/$d/agents/$a.md" ] || fail "$d/agents/$a.md missing"
+		done
+	done
+	for f in "$SKILLS/implement/SKILL.md" "$SKILLS/diagnose/SKILL.md" "$SKILLS/maintain/SKILL.md" "$SKILLS/blueprint/SKILL.md" "$AGENTS/implementer.md" "$AGENTS/reviewer.md"; do
+		[ "$(wc -l <"$f" | tr -d ' ')" -le 80 ] || fail "${f#"$PKG_ROOT"/} is longer than 80 lines"
+		for c in $(commands_in "$f"); do
+			printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "${f#"$PKG_ROOT"/} uses unknown command: ./softwary $c"
+		done
+	done
+	for c in states formal; do
+		printf '%s\n' "$known" | grep -Fqx -e "$c" || fail "help does not list $c"
+	done
+	sw sync --check
+	assert_eq "$RC" 0 "sync --check exit code"
 }
 
 run_tests "$0"

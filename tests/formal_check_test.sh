@@ -83,7 +83,7 @@ test_ac_v5_03_section_contents() {
 	assert_match "$OUT" "^$MD: invariant 'CancelledNeverShipped' has no harm$"
 	assert_match "$OUT" "^$MD: coverage 'src/order.sh' names no functions \\(or use 'planned'\\)$"
 	assert_match "$OUT" "^$MD: '## Bounds and assumptions' has no item$"
-	assert_match "$OUT" "^$MD: '## Last verified' must be a 40-digit commit or 'never'$"
+	assert_match "$OUT" "^$MD: '## Last verified' must be never, a 40-digit commit, a commit and compatible or updated, or those and two 40-digit digests$"
 	ready
 	md_sub '| Name | Statement | Harm |' '| Name | Text |'
 	sw blueprint check

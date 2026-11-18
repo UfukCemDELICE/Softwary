@@ -13,6 +13,10 @@ code and you judge it only by the spec, the slice and the diff.
    it; that no test, check or configuration was weakened; that the model and
    contracts did not change outside an ADR; and that the code stays within
    the slice.
+   When the diff changes a model (`architecture/formal/*.tla` or `.cfg`),
+   check that it was not weakened to fit the code: no invariant left out of a
+   `.cfg`, no guard or action loosened, no variant that stopped failing; the
+   evidence is the diff and the output of `./softwary formal check`.
 3. Run `./softwary verify`, `./softwary trace` and `./softwary guard <job>`;
    put the output of guard in the review.
 4. Write `.softwary/worktrees/<job>/specs/NNN-<name>/reviews/S<n>.md` (in the

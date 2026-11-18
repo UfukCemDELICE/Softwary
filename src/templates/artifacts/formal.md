@@ -7,6 +7,16 @@ section headings. A state machine's every event is an action below, named
 exactly like the TLA+ action. The Invariants table is bound by the blueprint
 approval: a human reads those sentences.
 
+Coverage names the files and functions of the code the model describes (a
+path that is there, each function a word of it); `planned` while the code does
+not exist. Last verified is never edited by hand: `./softwary formal verified
+<name> compatible|updated` writes "<commit> <verdict> <model digest> <code
+digest>" once the model checks against the code as committed. The digests are
+hashes of the model (the .tla and the configurations) and of the covered files
+and the Coverage table: when either differs from what was verified (or the
+record says never), `formal check` reports the model as stale. The commit may
+be gone (a squash merge leaves it behind): the digests do not need it.
+
 Optional: when the code this model describes already breaks an invariant, do
 not weaken the invariant or the model. Add a section "## Findings" to the
 record, a table with the columns | Invariant | Until | Reason | and a row for

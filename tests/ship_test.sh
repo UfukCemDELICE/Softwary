@@ -540,4 +540,26 @@ test_ac_v7_04_needs_an_origin_with_both_branches_and_gh() {
 	assert_contains "$OUT" "ship: gh is not installed"
 }
 
+# AC-V8-09: the new drift items stop ship like the others (D-159): a finding
+# whose counter-example no test replays is undecided drift, and a test that
+# names it lets ship through.
+test_ac_v8_09_unreplayed_finding_stops_ship() {
+	ship_repo
+	mkdir -p "$REPO/architecture"
+	cp -R "$FORMALFIX/architecture/formal" "$REPO/architecture/"
+	printf '\n## Findings\n\n| Invariant | Until | Reason |\n| --- | --- | --- |\n| `ShippedWasPaid` | %s | The old order code ships a created order. |\n' "$FAR" \
+		>>"$REPO/architecture/formal/order.md"
+	conf_set model_check true
+	commit_all "the order model, with a finding"
+	sw ship prepare
+	assert_eq "$RC" 1 "exit code"
+	assert_contains "$OUT" "ship: drift has undecided or expired items (./softwary drift)"
+	no_note
+	printf '# replays CE-order-ShippedWasPaid\n' >>"$REPO/tests/t.sh"
+	commit_all "a test that replays it"
+	sw ship prepare
+	assert_eq "$RC" 0 "exit code with a test"
+	[ -f "$(note_of)" ] || fail "no note"
+}
+
 run_tests "$0"

@@ -102,6 +102,15 @@ sw_formal_record_problems() {
 		-v cfg="$_fr_cfg" -v files="$2" -v secs="$SW_FORMAL_SECTIONS" '
 		function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 		function prob(m) { print rel ": " m }
+		function hex40(x) { return (length(x) == 40 && x ~ /^[0-9a-f]+$/) }
+		function lastvalid(v,   n, p) {
+			n = split(v, p, " ")
+			if (n != 1 && n != 2 && n != 4) return 0
+			if (!hex40(p[1])) return 0
+			if (n >= 2 && p[2] != "compatible" && p[2] != "updated") return 0
+			if (n == 4 && (!hex40(p[3]) || !hex40(p[4]))) return 0
+			return 1
+		}
 		function hasword(text, w,   p, i, a, b, at) {
 			p = 1
 			while ((i = index(substr(text, p), w)) > 0) {
@@ -167,7 +176,7 @@ sw_formal_record_problems() {
 			for (i = 1; i <= nsec; i++) if (!(want[i] in seen)) prob("missing section '\''## " want[i] "'\''")
 			for (s in exphdr) if ((s in seen) && !(s in rows)) prob("'\''## " s "'\'' has no entry")
 			if (("Bounds and assumptions" in seen) && bounds == 0) prob("'\''## Bounds and assumptions'\'' has no item")
-			if (("Last verified" in seen) && lastv != "never" && lastv !~ /^[0-9a-f]{40}$/) prob("'\''## Last verified'\'' must be a 40-digit commit or '\''never'\''")
+			if (("Last verified" in seen) && lastv != "never" && !lastvalid(lastv)) prob("'\''## Last verified'\'' must be never, a 40-digit commit, a commit and compatible or updated, or those and two 40-digit digests")
 			for (i = 1; i <= ninv; i++) {
 				if (!(inv[i] in broken)) prob("invariant '\''" inv[i] "'\'' has no variant that breaks it")
 				if (cfg != "" && !hasword(cfgtext, inv[i]))
@@ -230,6 +239,10 @@ sw_formal_record_check() {
 		[ -z "$_fc_p" ] || _fc_out="${_fc_out}$_fc_p
 "
 		_fc_p=$(sw_formal_findings_problems "$_fc_n")
+		[ -z "$_fc_p" ] || _fc_out="${_fc_out}$_fc_p
+"
+		# The code the record says it covers is there (V8).
+		_fc_p=$(sw_fmaint_coverage_problems "$_fc_n")
 		[ -z "$_fc_p" ] || _fc_out="${_fc_out}$_fc_p
 "
 		# Every event of a state machine is an action of the record.
@@ -463,10 +476,23 @@ sw_formal_check_one() {
 	_fo_dir=$SOFTWARY_ROOT/$SW_FORMAL_DIR
 	_fo_logs=$SOFTWARY_ROOT/.softwary/state/logs
 	mkdir -p "$_fo_logs" || return 1
+	# What holds the model to the code (coverage, age) is reported and the model
+	# is checked all the same, so that a mistake of the model shows too (V8).
+	_fo_pre=0
 	if ! _fo_p=$(sw_formal_record_check "$_fo_ad"); then
 		printf '%s\n' "$_fo_p"
-		printf 'formal %s: FAIL: the record has problems (./softwary blueprint check)\n' "$_fo_ad"
-		return 1
+		if [ -n "$(printf '%s\n' "$_fo_p" | grep -Fv "formal $_fo_ad: coverage " || :)" ]; then
+			printf 'formal %s: FAIL: the record has problems (./softwary blueprint check)\n' "$_fo_ad"
+			return 1
+		fi
+		_fo_pre=1
+	fi
+	if [ -z "${SW_FORMAL_NOSTALE:-}" ]; then
+		_fo_st=$(sw_fmaint_stale_problems "$_fo_ad")
+		if [ -n "$_fo_st" ]; then
+			printf '%s\n' "$_fo_st"
+			_fo_pre=1
+		fi
 	fi
 	# The findings of the record are invariants the code is known to break: the
 	# model runs without them, and each runs alone (below).
@@ -570,6 +596,10 @@ FINDINGS
 $_fo_vars
 VARIANTS
 	[ "$_fo_bad" -eq 0 ] || return 1
+	if [ "$_fo_pre" -eq 1 ]; then
+		printf 'formal %s: FAIL: the model passes (%s states) but is not held to the code (see above)\n' "$_fo_ad" "$_fo_states"
+		return 1
+	fi
 	printf 'formal %s: PASS (%s states)\n' "$_fo_ad" "$_fo_states"
 }
 
@@ -596,19 +626,31 @@ sw_formal_check() {
 	return "$_fk_rc"
 }
 
-# sw_formal check [<spec>] | install
+sw_formal_usage() {
+	printf 'usage: ./softwary formal check [<spec>] | formal verified <spec> compatible|updated | formal trace <spec> <invariant> | formal install\n' >&2
+}
+
+# sw_formal check [<spec>] | verified <spec> <verdict> | install
 sw_formal() {
 	case ${1:-} in
 	check)
-		[ $# -le 2 ] || { printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2; return 2; }
+		[ $# -le 2 ] || { sw_formal_usage; return 2; }
 		sw_formal_check "${2-}"
 		;;
+	verified)
+		shift
+		sw_fmaint_verified "$@"
+		;;
+	trace)
+		shift
+		sw_fmaint_trace "$@"
+		;;
 	install)
-		[ $# -eq 1 ] || { printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2; return 2; }
+		[ $# -eq 1 ] || { sw_formal_usage; return 2; }
 		sw_formal_install
 		;;
 	*)
-		printf 'usage: ./softwary formal check [<spec>] | formal install\n' >&2
+		sw_formal_usage
 		return 2
 		;;
 	esac

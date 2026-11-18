@@ -15,13 +15,22 @@ worktrees at the same time, and the main checkout is not yours). If
 3. Write the least code that makes them pass.
 4. Run `./softwary verify --fast` while iterating. Then, before review, run
    the full `./softwary verify` until it passes and show its output.
-5. Add short notes to the slice and set it to `status: review`.
-6. Commit everything on the job branch (tests, code, slice). Leave the tree
+5. Code a specification covers changed (`./softwary formal check` says
+   `stale`): commit the code, then record the verdict and commit the record:
+   `./softwary formal verified <spec> compatible` (the model still describes
+   it) or, after you changed only the `.tla` and `.cfg`, `updated`.
+   The code breaks an invariant (`bug`) or no verdict is clear (`blocked`):
+   `./softwary job escalate <job> <question>`, then reply `blocked: <what>`.
+   A counter-example that does not replay against the code
+   (`./softwary formal trace <spec> <invariant>`): the model is the first suspect.
+6. Add short notes to the slice and set it to `status: review`.
+7. Commit everything on the job branch (tests, code, slice). Leave the tree
    clean. Do not push and do not open a pull request: the scripts do.
 
 Never weaken a test, a check or a gate. Never change `.softwary/config/`, the
 architecture model or a contract: that needs the blueprint stage, so reply
-`blocked: <what is needed>`. If the same failure remains after three attempts,
+`blocked: <what is needed>`. Never change an invariant's sentence, a finding or
+the files of `architecture/formal/`: they bind a human. If the same failure remains after three attempts,
 stop and reply `advice: <the question, what you tried>`. You do not review
 your own work.
 

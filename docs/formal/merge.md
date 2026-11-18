@@ -53,7 +53,7 @@ Modeldeki durumlar kodda şunlardır: `st[j]` iş dosyasının `state`'i, `queue
 - **Doğrulama sonucu:** `Verify` yalnızca "eşitlenmiş ağaçta başkasının kötü commit'i var" ise başarısız olur. `verify`'ın kendi sonuçları (kararsız testler, bütçe, tur sınırı, `merge refused` nedenleri) modellenmez; hepsi `Escalate`/`Verify` reddi içinde tek sonuçtur.
 - **Dışarıda kalanlar:** `job gate` öncesi aşamalar (`implementing`…`approving`) tek `work` durumudur; `resume`, `abandon`, token ve süre sınırları, birden çok orkestratör, birden çok makine, geri alma PR'ının içeriği (yalnızca "kırmızıysa koşu durur" modellenir) kapsam dışıdır.
 - **`Progress`:** `merged`, `escalated` ya da `halted` hedeflerinden biri yeterlidir; durmuş koşu insanın sırasıdır ve `Resume` adil değildir. Adalet: `Begin`, kuyruğa ekleme, `DrainStart` ve bir sürecin kendi adımları zayıf adildir.
-- **Belirtim ile kod arasındaki sapma** bu kilometre taşında elle bakımlıdır (V8'de bakımı otomatikleşir): bu dosyadaki eylem tablosu `src/lib/` fonksiyon adlarına işaret eder; bir fonksiyon adı ya da bölüm sınırı değişirse tablo ve model birlikte güncellenir.
+- **Belirtim ile kod arasındaki sapma** bu belirtim için elle bakımlıdır: V8'in kapsam ve eskime denetimi (`formal check`, `formal verified`) projenin `architecture/formal/` kayıtları içindir; bu dosya paketin kendi geliştirme belgesidir ve o denetime girmez. Bu dosyadaki eylem tablosu `src/lib/` fonksiyon adlarına işaret eder; bir fonksiyon adı ya da bölüm sınırı değişirse tablo ve model birlikte güncellenir.
 
 ## Varyant kaydı
 

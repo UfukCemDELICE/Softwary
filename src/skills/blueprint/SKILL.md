@@ -18,7 +18,9 @@ cannot justify from `PRODUCT.md`. Write no specs, slices or code.
    component for each part you can see, with `status: active`, its real
    `paths` and the features it delivers; the entities the code stores; the
    interfaces it exposes; the flows and state machines it runs. In each
-   record `## Coverage` names the real files and functions, not `planned`.
+   record `## Coverage` names the real files and functions, not `planned`;
+   once `./softwary formal check` passes, commit, write the first verdict
+   with `./softwary formal verified <name> compatible` and commit the record.
    Record it in `architecture/decisions/0001-model-from-code.md` (from
    `.softwary/templates/adr.md`, `status: proposed`, `affects` the model):
    list in it the paths each component is drawn from. If the code breaks an
@@ -54,7 +56,12 @@ cannot justify from `PRODUCT.md`. Write no specs, slices or code.
    Without Java: `./softwary formal install` and install a Java runtime.
    Run `./softwary formal check`. A failing good model: print its path to the
    human; fix the design or ask, never weaken the invariant so that it
-   passes (code that already exists: a finding, as in step 2).
+   passes (code that already exists: a finding, as in step 2). Lean only for a
+   pure algorithmic core at risk R3 (a money calculation, an authorization
+   rule, a parser) whose correctness for every input the human wants proved:
+   the proof goes to `architecture/proofs/`, the command that checks it to
+   `proof_check` in `commands.conf` (the project's own; softwary installs no
+   Lean). Never for anything else.
 9. Decisions: for each choice a human might later question, an ADR from
    `.softwary/templates/adr.md` in `architecture/decisions/` with
    `status: proposed` and `affects` naming what it changes. Never set

@@ -6,13 +6,21 @@
 # are ignored. A value is a shell command, UNSET, or `NONE: <reason>`.
 
 SW_REQUIRED_KEYS="format_check lint typecheck test build security"
-SW_OPTIONAL_CHECK_KEYS="model_check contract_check arch_check"
+SW_OPTIONAL_CHECK_KEYS="model_check proof_check contract_check arch_check"
 SW_OTHER_KEYS="run deploy bootstrap"
 SW_SETTING_KEYS="test_paths src_paths integration_branch production_branch"
 SW_BRANCH_KEYS="integration_branch production_branch"
 SW_VERIFY_KEYS="format_check lint typecheck test build model_check contract_check arch_check security"
 SW_FAST_KEYS="format_check lint typecheck"
 SW_CONF_REL=.softwary/config/commands.conf
+SW_PROOFS_DIR=architecture/proofs
+
+# sw_proofs_exist: true when a Lean proof is under architecture/proofs/ (V8),
+# tracked or not.
+sw_proofs_exist() {
+	[ -z "$(git -C "$SOFTWARY_ROOT" ls-files "$SW_PROOFS_DIR/*.lean" 2>/dev/null)" ] || return 0
+	[ -n "$(find "$SOFTWARY_ROOT/$SW_PROOFS_DIR" -type f -name '*.lean' 2>/dev/null | head -n 1)" ]
+}
 
 # sw_trim STRING: prints STRING without leading and trailing whitespace.
 sw_trim() {
