@@ -12,6 +12,15 @@ T=
 OUT=
 RC=
 REPO=
+SW_SETUP_CACHE=
+
+# Tests do not wait for GitHub as the loop does: a PR head that is not the
+# pushed commit yet, or checks that have not appeared, are given up on after
+# one second instead of 120 (AC-V10-02), read every second instead of every
+# ten. A test that sets them (ci_wait_test.sh) keeps its own values.
+SW_CI_APPEAR_SECONDS=${SW_CI_APPEAR_SECONDS-1}
+SW_CI_POLL_SECONDS=${SW_CI_POLL_SECONDS-1}
+export SW_CI_APPEAR_SECONDS SW_CI_POLL_SECONDS
 
 fail() {
 	printf '    assertion failed: %s\n' "$*"
@@ -58,6 +67,29 @@ setup_repo() {
 		esac
 	done
 	REPO=$T/repo
+	# The setup is the same for every test with the same options, and building
+	# it is the slowest part of most tests: the first test of a file builds it,
+	# the next ones copy it (run_tests makes $SW_SETUP_CACHE, one per file).
+	# SW_SETUP_CACHE_CHECK=1 also builds every copied setup afresh and fails if
+	# the two differ.
+	_key=$SW_SETUP_CACHE/$_git$_sync$_model
+	if [ -z "$SW_SETUP_CACHE" ] || [ -e "$REPO" ]; then
+		setup_build "$REPO"
+	elif [ -d "$_key" ]; then
+		cp -Rp "$_key" "$REPO" || fail "could not copy the cached setup"
+		[ -z "${SW_SETUP_CACHE_CHECK:-}" ] || setup_check
+	else
+		setup_build "$REPO"
+		if ! cp -Rp "$REPO" "$_key.part" || ! mv "$_key.part" "$_key"; then
+			fail "could not cache the setup"
+		fi
+	fi
+}
+
+# setup_build DIR: builds the setup of setup_repo in DIR (with $_git, $_sync
+# and $_model) and leaves REPO=DIR.
+setup_build() {
+	REPO=$1
 	mkdir -p "$REPO/src"
 	: >"$REPO/src/.gitkeep"
 	if [ "$_git" -eq 1 ]; then
@@ -75,6 +107,27 @@ setup_repo() {
 		add_ci
 		[ "$_model" -eq 0 ] || add_model
 	fi
+}
+
+# setup_check: builds the setup afresh in $T/fresh and fails if $REPO (a copy
+# from the cache) differs from it: in the files, in what git tracks and stages,
+# or in the commits. Leaves REPO=$T/repo.
+setup_check() {
+	setup_build "$T/fresh"
+	REPO=$T/repo
+	diff -r -x .git "$T/fresh" "$REPO" >"$T/setup.diff" 2>&1 || fail "the cached setup differs: $(cat "$T/setup.diff")"
+	if [ "$_git" -eq 1 ]; then
+		for _d in "$T/fresh" "$REPO"; do
+			{
+				git -C "$_d" ls-files -s
+				git -C "$_d" status --porcelain
+				git -C "$_d" log --all --format='%T %s' 2>/dev/null
+				git -C "$_d" config --local --list
+			} >"$_d.git" 2>&1
+		done
+		diff "$T/fresh.git" "$REPO.git" >"$T/setup.diff" 2>&1 || fail "the cached setup differs in git: $(cat "$T/setup.diff")"
+	fi
+	rm -rf "$T/fresh" "$T/fresh.git" "$REPO.git"
 }
 
 FIXTURES=$PKG_ROOT/tests/fixtures/artifacts
@@ -682,7 +735,7 @@ models_translate() {
 
 # release_fixture DIR VERSION: a git repository at DIR that holds the package
 # as a release is built from it: install.sh, src/, tools/release.sh, VERSION,
-# README.md, LICENSE and CHANGELOG.md (a section for VERSION) and tests/ and
+# README.md, LICENSE, NOTICE and CHANGELOG.md (a section for VERSION) and tests/ and
 # docs/ that the archive must not carry, on branch main, committed with a fixed
 # identity and date. dist/ is ignored.
 release_fixture() {
@@ -691,7 +744,8 @@ release_fixture() {
 	cp "$PKG_ROOT/tools/release.sh" "$1/tools/"
 	printf '%s\n' "$2" >"$1/VERSION"
 	printf '# softwary\n' >"$1/README.md"
-	printf 'MIT License\n' >"$1/LICENSE"
+	printf 'Apache License\n' >"$1/LICENSE"
+	printf 'softwary\n' >"$1/NOTICE"
 	printf '# Changelog\n\n## %s\n\n- A change.\n' "$2" >"$1/CHANGELOG.md"
 	printf 'test\n' >"$1/tests/a_test.sh"
 	printf 'doc\n' >"$1/docs/a.md"
@@ -792,6 +846,11 @@ path_without() {
 run_tests() {
 	_failed=0
 	_count=0
+	# SW_TEST_NO_CACHE=1 builds the setup of setup_repo in every test.
+	SW_SETUP_CACHE=
+	if [ -z "${SW_TEST_NO_CACHE:-}" ]; then
+		SW_SETUP_CACHE=$(mktemp -d "${TMPDIR:-/tmp}/softwary-setup.XXXXXX") || exit 1
+	fi
 	# shellcheck disable=SC2013 # test function names contain no whitespace
 	for _t in $(sed -n 's/^\(test_[a-z0-9_]*\)() {$/\1/p' "$1"); do
 		# SW_TEST_ONLY=<name> runs that one test (the mutation checks use it).
@@ -807,6 +866,7 @@ run_tests() {
 		fi
 		rm -rf "$T"
 	done
+	[ -z "$SW_SETUP_CACHE" ] || rm -rf "$SW_SETUP_CACHE"
 	[ "$_count" -gt 0 ] || { printf 'no tests found in %s\n' "$1"; return 1; }
 	[ "$_failed" -eq 0 ]
 }

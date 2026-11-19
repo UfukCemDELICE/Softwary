@@ -55,7 +55,8 @@ test_ac_v9_05_refusals_write_nothing() {
 }
 
 # AC-V9-05: the archive is softwary-<version>.tar.gz with the root directory
-# softwary-<version>/, what the installation needs and the README, the LICENSE
+# softwary-<version>/, what the installation needs and the README, the LICENSE,
+# the NOTICE
 # and the CHANGELOG, not tests/ nor docs/; SHA256SUMS lists it and checks out.
 test_ac_v9_05_archive_content_and_sums() {
 	FX=$T/fx
@@ -66,7 +67,7 @@ test_ac_v9_05_archive_content_and_sums() {
 	[ -f "$a" ] || fail "no archive"
 	tar -tzf "$a" >"$T/list" || fail "the archive is not a tar.gz"
 	assert_eq "$(sed 's#/.*##' "$T/list" | sort -u)" "softwary-0.1.0" "root directory"
-	for f in install.sh VERSION README.md LICENSE CHANGELOG.md src/bin/softwary src/lib/sync.sh src/templates/models.conf; do
+	for f in install.sh VERSION README.md LICENSE NOTICE CHANGELOG.md src/bin/softwary src/lib/sync.sh src/templates/models.conf; do
 		assert_contains "$T/list" "softwary-0.1.0/$f"
 	done
 	assert_no_match "$T/list" '^softwary-0\.1\.0/(tests|docs|tools|\.git)'

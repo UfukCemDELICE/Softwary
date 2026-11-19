@@ -7,6 +7,12 @@ it is tagged.
 
 ## Unreleased
 
+### Changed
+
+- The license is now the Apache License 2.0 (`LICENSE`), with the copyright
+  owner in `NOTICE`; the release archive carries both. Version 0.1.0 was
+  released under the MIT License and stays under it.
+
 ### Fixed
 
 - `./softwary job ci` and `./softwary merge` no longer count checks that GitHub

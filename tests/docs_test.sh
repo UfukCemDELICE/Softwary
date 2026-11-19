@@ -6,6 +6,7 @@
 . "$(dirname "$0")/lib.sh"
 
 GUIDE="install quickstart commands concepts tools"
+APACHE_2_SHA256=cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
 
 # user_docs: the user documentation files, repo-relative, one per line.
 user_docs() {
@@ -30,20 +31,23 @@ commands_in() {
 	}' "$1" | sort -u
 }
 
-# AC-V9-10: the files are there and are not empty; the license is MIT, 2026, by
-# Ufuk Cem Delice; the changelog has a section for 0.1.0 that is not empty.
+# AC-V9-10, AC-V11-06: the files are there and are not empty; the license is
+# the Apache License 2.0, word for word, and NOTICE names the owner (2026, Ufuk
+# Cem Delice); the changelog has a section for 0.1.0 that is not empty.
 test_ac_v9_10_files_license_changelog() {
-	for f in README.md LICENSE CHANGELOG.md $(for g in $GUIDE; do printf 'docs/guide/%s.md ' "$g"; done); do
+	for f in README.md LICENSE NOTICE CHANGELOG.md $(for g in $GUIDE; do printf 'docs/guide/%s.md ' "$g"; done); do
 		[ -s "$PKG_ROOT/$f" ] || fail "$f is missing or empty"
 	done
-	assert_eq "$(sed -n 1p "$PKG_ROOT/LICENSE")" "MIT License" "first line of LICENSE"
-	assert_contains "$PKG_ROOT/LICENSE" "Copyright (c) 2026 Ufuk Cem Delice"
-	assert_contains "$PKG_ROOT/LICENSE" "Permission is hereby granted, free of charge, to any person obtaining a copy"
-	assert_contains "$PKG_ROOT/LICENSE" "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND"
+	# the SHA-256 of https://www.apache.org/licenses/LICENSE-2.0.txt
+	assert_eq "$(sha256sum <"$PKG_ROOT/LICENSE" | cut -d' ' -f1)" "$APACHE_2_SHA256" "SHA-256 of LICENSE"
+	assert_eq "$(sed -n 1p "$PKG_ROOT/NOTICE")" "softwary" "first line of NOTICE"
+	assert_contains "$PKG_ROOT/NOTICE" "Copyright 2026 Ufuk Cem Delice"
+	assert_contains "$PKG_ROOT/NOTICE" "Apache License, Version 2.0"
 	assert_match "$PKG_ROOT/CHANGELOG.md" '^## 0\.1\.0( - [0-9]{4}-[0-9]{2}-[0-9]{2})?$'
 	assert_eq "$(awk '/^## / { on = ($2 == "0.1.0"); next } on && /[^[:space:]]/ { n++ } END { print n + 0 }' "$PKG_ROOT/CHANGELOG.md" | awk '{ print ($1 > 5) ? "yes" : "no" }')" yes "lines under ## 0.1.0"
-	assert_contains "$PKG_ROOT/README.md" "MIT"
+	assert_contains "$PKG_ROOT/README.md" "Apache License 2.0"
 	assert_contains "$PKG_ROOT/README.md" "[LICENSE](LICENSE)"
+	assert_contains "$PKG_ROOT/README.md" "[NOTICE](NOTICE)"
 	for g in $GUIDE; do
 		assert_contains "$PKG_ROOT/README.md" "docs/guide/$g.md"
 	done

@@ -27,7 +27,7 @@ die() {
 }
 
 # What the installation needs, and what a reader of the archive needs.
-paths="install.sh VERSION src README.md LICENSE CHANGELOG.md"
+paths="install.sh VERSION src README.md LICENSE NOTICE CHANGELOG.md"
 
 printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "'$version' is not a version (N.N.N)"
 [ -f VERSION ] || die "VERSION is missing"

@@ -4,7 +4,7 @@ softwary v2, beş kaynağın fikir sentezidir (D-49). Bu belge her kaynaktan ne 
 
 Kurallar:
 
-- Kaynaklardan yalnızca fikir alınır; metin ya da kod alınmaz (zazencodes GPL-3.0, softwary MIT).
+- Kaynaklardan yalnızca fikir alınır; metin ya da kod alınmaz (zazencodes GPL-3.0, softwary Apache 2.0).
 - Bir kaynağın rolü, insanın onu neden verdiği ile birlikte yazılır. Rolü yanlış okumak, örneğin bir yaklaşım örneğini paketleme hedefi sanmak, yanlış bir yol haritasına götürür.
 - Bir fikrin durumu değiştiğinde (uygulandı, ertelendi, bırakıldı) bu belge aynı değişiklikte güncellenir.
 

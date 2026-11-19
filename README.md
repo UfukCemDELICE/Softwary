@@ -77,7 +77,8 @@ the specifications and plans of each milestone) is written in Turkish.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Copyright 2026 Ufuk Cem Delice.
+Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE). Copyright 2026
+Ufuk Cem Delice. Version 0.1.0 was released under the MIT License.
 
 ## Telemetry
 
