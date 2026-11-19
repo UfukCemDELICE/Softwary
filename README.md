@@ -32,17 +32,17 @@ your repository.
 **From a tag.** Clone the repository at a release tag and run its installer:
 
 ```sh
-git clone --branch v0.1.0 <softwary-repository-url> softwary
+git clone --branch v0.2.0 <softwary-repository-url> softwary
 sh softwary/install.sh /path/to/your/repo
 ```
 
-**From a release archive.** Download `softwary-0.1.0.tar.gz` and `SHA256SUMS`
+**From a release archive.** Download `softwary-0.2.0.tar.gz` and `SHA256SUMS`
 from the release page, then install the archive with its digest:
 
 ```sh
 sha256sum -c SHA256SUMS
-tar -xzf softwary-0.1.0.tar.gz
-sh softwary-0.1.0/install.sh --archive softwary-0.1.0.tar.gz \
+tar -xzf softwary-0.2.0.tar.gz
+sh softwary-0.2.0/install.sh --archive softwary-0.2.0.tar.gz \
   --sha256 "$(cut -d' ' -f1 SHA256SUMS)" /path/to/your/repo
 ```
 

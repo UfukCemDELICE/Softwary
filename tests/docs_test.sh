@@ -33,7 +33,9 @@ commands_in() {
 
 # AC-V9-10, AC-V11-06: the files are there and are not empty; the license is
 # the Apache License 2.0, word for word, and NOTICE names the owner (2026, Ufuk
-# Cem Delice); the changelog has a section for 0.1.0 that is not empty.
+# Cem Delice); the changelog has a section for 0.1.0 that is not empty, its
+# newest section is VERSION, and the install instructions name only that tag
+# and archive.
 test_ac_v9_10_files_license_changelog() {
 	for f in README.md LICENSE NOTICE CHANGELOG.md $(for g in $GUIDE; do printf 'docs/guide/%s.md ' "$g"; done); do
 		[ -s "$PKG_ROOT/$f" ] || fail "$f is missing or empty"
@@ -45,13 +47,21 @@ test_ac_v9_10_files_license_changelog() {
 	assert_contains "$PKG_ROOT/NOTICE" "Apache License, Version 2.0"
 	assert_match "$PKG_ROOT/CHANGELOG.md" '^## 0\.1\.0( - [0-9]{4}-[0-9]{2}-[0-9]{2})?$'
 	assert_eq "$(awk '/^## / { on = ($2 == "0.1.0"); next } on && /[^[:space:]]/ { n++ } END { print n + 0 }' "$PKG_ROOT/CHANGELOG.md" | awk '{ print ($1 > 5) ? "yes" : "no" }')" yes "lines under ## 0.1.0"
+	# VERSION is the newest section of the changelog, and the install
+	# instructions name its tag and archive
+	v=$(cat "$PKG_ROOT/VERSION")
+	assert_eq "$(sed -n 's/^## \([^ ]*\).*/\1/p' "$PKG_ROOT/CHANGELOG.md" | head -n 1)" "$v" "newest section of CHANGELOG.md"
+	for f in README.md docs/guide/install.md; do
+		assert_eq "$(grep -oE -e '--branch v[0-9]+\.[0-9]+\.[0-9]+' "$PKG_ROOT/$f" | sort -u)" "--branch v$v" "tags in $f"
+		assert_eq "$(grep -oE 'softwary-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' "$PKG_ROOT/$f" | sort -u)" "softwary-$v.tar.gz" "archives in $f"
+	done
 	assert_contains "$PKG_ROOT/README.md" "Apache License 2.0"
 	assert_contains "$PKG_ROOT/README.md" "[LICENSE](LICENSE)"
 	assert_contains "$PKG_ROOT/README.md" "[NOTICE](NOTICE)"
 	for g in $GUIDE; do
 		assert_contains "$PKG_ROOT/README.md" "docs/guide/$g.md"
 	done
-	assert_eq "$(cat "$PKG_ROOT/VERSION")" 0.1.0 "VERSION"
+	assert_match "$PKG_ROOT/VERSION" '^[0-9]+\.[0-9]+\.[0-9]+$'
 	# the documentation of the tools names the three tools and the model line
 	for w in "Claude Code" "Cursor" "Codex" "cursor: opus = " "codex: sonnet = " "models.conf"; do
 		assert_contains "$PKG_ROOT/docs/guide/tools.md" "$w"
