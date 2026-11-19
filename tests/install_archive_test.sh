@@ -162,20 +162,20 @@ test_ac_v9_06_refusals_structure() {
 test_ac_v9_06_upgrade_from_archive() {
 	setup_repo
 	cur=$(cat "$REPO/.softwary/VERSION")
-	release_archive 0.9.0
+	release_archive "$NEXT_VERSION"
 	mkdir -p "$T/tmp"
 	RC=0
 	(cd "$REPO" && TMPDIR=$T/tmp ./softwary upgrade "$ARCHIVE" --sha256 "$DIGEST") >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(head -n 1 "$OUT")" "upgrade: $cur -> 0.9.0" "first line"
-	assert_eq "$(cat "$REPO/.softwary/VERSION")" 0.9.0 "installed version"
+	assert_eq "$(head -n 1 "$OUT")" "upgrade: $cur -> $NEXT_VERSION" "first line"
+	assert_eq "$(cat "$REPO/.softwary/VERSION")" "$NEXT_VERSION" "installed version"
 	tmp_clean
 	sw sync --check
 	assert_eq "$RC" 0 "sync --check exit code"
 	RC=0
 	(cd "$REPO" && TMPDIR=$T/tmp ./softwary upgrade "$ARCHIVE" --sha256 "$DIGEST") >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "the same archive again"
-	assert_eq "$(head -n 1 "$OUT")" "upgrade: 0.9.0 -> 0.9.0" "first line of the second run"
+	assert_eq "$(head -n 1 "$OUT")" "upgrade: $NEXT_VERSION -> $NEXT_VERSION" "first line of the second run"
 	sw upgrade "$PKG_ROOT"
 	assert_eq "$RC" 2 "a directory that is older"
 	assert_contains "$OUT" "older than the installed"
@@ -233,23 +233,23 @@ test_ac_v9_08_version() {
 	assert_eq "$(sh "$PKG_ROOT/src/bin/softwary" version)" "softwary $(cat "$PKG_ROOT/VERSION")" "from the package source"
 }
 
-# AC-V9-11: the package is 0.1.0; an installation of 0.0.0 (V8) upgrades to it,
-# and a downgrade from it is refused.
+# AC-V9-11: the package has a version (0.1.0 since V9); an installation of
+# 0.0.0 (V8) upgrades to it, and a downgrade from it is refused.
 test_ac_v9_11_version_0_1_0() {
-	assert_eq "$(cat "$PKG_ROOT/VERSION")" 0.1.0 "VERSION"
+	assert_match "$PKG_ROOT/VERSION" '^[0-9]+\.[0-9]+\.[0-9]+$'
 	setup_repo
 	printf '0.0.0\n' >"$REPO/.softwary/VERSION"
 	sw upgrade "$PKG_ROOT"
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(head -n 1 "$OUT")" "upgrade: 0.0.0 -> 0.1.0" "first line"
-	assert_eq "$(cat "$REPO/.softwary/VERSION")" 0.1.0 "installed version"
+	assert_eq "$(head -n 1 "$OUT")" "upgrade: 0.0.0 -> $PKG_VERSION" "first line"
+	assert_eq "$(cat "$REPO/.softwary/VERSION")" "$PKG_VERSION" "installed version"
 	mkdir "$T/old"
 	cp -R "$PKG_ROOT/install.sh" "$PKG_ROOT/VERSION" "$PKG_ROOT/src" "$T/old/"
 	printf '0.0.0\n' >"$T/old/VERSION"
 	snapshot >"$T/before"
 	sw upgrade "$T/old"
 	assert_eq "$RC" 2 "downgrade"
-	assert_contains "$OUT" "0.0.0 is older than the installed 0.1.0; downgrading is not supported"
+	assert_contains "$OUT" "0.0.0 is older than the installed $PKG_VERSION; downgrading is not supported"
 	snapshot >"$T/after"
 	assert_eq "$(changed_paths "$T/before" "$T/after")" "" "changed paths"
 }

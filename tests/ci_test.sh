@@ -206,13 +206,13 @@ test_ac_v7_10_upgrade_says_the_workflow_is_the_projects() {
 	setup_repo
 	conf_all true
 	sed 's/branches: \[main, master\]/branches: [main]/' "$REPO/$WORKFLOW" >"$T/w" && cp "$T/w" "$REPO/$WORKFLOW"
-	make_pkg "$T/pkg" 0.1.0
+	make_pkg "$T/pkg" "$PKG_VERSION"
 	sw upgrade "$T/pkg"
 	assert_eq "$RC" 0 "exit code"
 	assert_contains "$OUT" "upgrade: $WORKFLOW is the project's file and is not changed: add master to the branches of its pull_request trigger"
 	assert_contains "$REPO/$WORKFLOW" "branches: [main]"
 	sed 's/branches: \[main\]$/branches: [main, master]/' "$REPO/$WORKFLOW" >"$T/w" && cp "$T/w" "$REPO/$WORKFLOW"
-	make_pkg "$T/pkg2" 0.2.0
+	make_pkg "$T/pkg2" "$NEXT_VERSION"
 	sw upgrade "$T/pkg2"
 	assert_eq "$RC" 0 "exit code the second time"
 	assert_no_match "$OUT" "is the project's file"
