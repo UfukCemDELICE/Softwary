@@ -80,7 +80,9 @@ setup_repo() {
 		[ -z "${SW_SETUP_CACHE_CHECK:-}" ] || setup_check
 	else
 		setup_build "$REPO"
-		cp -Rp "$REPO" "$_key.part" && mv "$_key.part" "$_key" || fail "could not cache the setup"
+		if ! cp -Rp "$REPO" "$_key.part" || ! mv "$_key.part" "$_key"; then
+			fail "could not cache the setup"
+		fi
 	fi
 }
 

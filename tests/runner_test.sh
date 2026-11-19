@@ -172,12 +172,12 @@ mini_pkg() {
 test_ac_v11_10_setup_is_built_once_per_file() {
 	mini_pkg
 	RC=0
-	SW_TEST_ONLY= SW_SETUP_CACHE_CHECK= SW_TEST_NO_CACHE= sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
+	SW_TEST_ONLY='' SW_SETUP_CACHE_CHECK='' SW_TEST_NO_CACHE='' sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "exit code"
 	assert_eq "$(wc -l <"$T/installs" | tr -d ' ')" 2 "install.sh runs (default and --no-sync)"
 	rm -f "$T/installs"
 	RC=0
-	SW_TEST_ONLY= SW_SETUP_CACHE_CHECK= SW_TEST_NO_CACHE=1 sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
+	SW_TEST_ONLY='' SW_SETUP_CACHE_CHECK='' SW_TEST_NO_CACHE=1 sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "exit code with SW_TEST_NO_CACHE"
 	assert_eq "$(wc -l <"$T/installs" | tr -d ' ')" 6 "install.sh runs with SW_TEST_NO_CACHE"
 }
@@ -188,13 +188,13 @@ test_ac_v11_11_check_catches_a_spoiled_cache() {
 	mini_pkg
 	mkdir "$T/tmp"
 	RC=0
-	TMPDIR=$T/tmp SW_TEST_ONLY= SW_SETUP_CACHE_CHECK=1 SW_TEST_NO_CACHE= sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
+	TMPDIR=$T/tmp SW_TEST_ONLY='' SW_SETUP_CACHE_CHECK=1 SW_TEST_NO_CACHE='' sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "exit code with an intact cache"
 	# a file git ignores (only the file comparison sees it), and a git setting
 	# (only the git comparison sees it)
 	for spoil in file git; do
 		RC=0
-		SPOIL=$spoil TMPDIR=$T/tmp SW_TEST_ONLY= SW_SETUP_CACHE_CHECK=1 SW_TEST_NO_CACHE= sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
+		SPOIL=$spoil TMPDIR=$T/tmp SW_TEST_ONLY='' SW_SETUP_CACHE_CHECK=1 SW_TEST_NO_CACHE='' sh "$T/pkg/tests/cache_test.sh" >"$OUT" 2>&1 || RC=$?
 		assert_eq "$RC" 1 "exit code with a spoiled cache ($spoil)"
 		assert_contains "$OUT" "FAIL  test_f_again"
 		assert_contains "$OUT" "the cached setup differs"
