@@ -14,6 +14,14 @@ RC=
 REPO=
 SW_SETUP_CACHE=
 
+# Tests do not wait for GitHub as the loop does: a PR head that is not the
+# pushed commit yet, or checks that have not appeared, are given up on after
+# one second instead of 120 (AC-V10-02), read every second instead of every
+# ten. A test that sets them (ci_wait_test.sh) keeps its own values.
+SW_CI_APPEAR_SECONDS=${SW_CI_APPEAR_SECONDS-1}
+SW_CI_POLL_SECONDS=${SW_CI_POLL_SECONDS-1}
+export SW_CI_APPEAR_SECONDS SW_CI_POLL_SECONDS
+
 fail() {
 	printf '    assertion failed: %s\n' "$*"
 	if [ -n "$OUT" ] && [ -f "$OUT" ]; then
