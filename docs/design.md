@@ -2,7 +2,7 @@
 
 Nov 15, 2026 · @Ufuk Cem Delice
 
-softwary, mühendisin anlattığı bir ürünü onunla birlikte tanımlayan, tasarlayan, bağımsız bloklara bölüp test önce yürüten, kapılardan ve bağımsız incelemeden geçirip birleştiren ve bunu bütün SDLC boyunca sürdüren, araçtan ve stack'ten bağımsız, MIT lisanslı açık kaynak bir pakettir. Bu belge her oturumda okunan tek kalıcı tasarımdır; v1 tasarımının yerini alır (v1, git geçmişinde `eb2f8bf`'tedir). Kilometre taşlarının ayrıntısı kendi spec'lerinde, sırası `docs/roadmap.md`'dedir. Çelişki olursa bu belge geçerlidir.
+softwary, mühendisin anlattığı bir ürünü onunla birlikte tanımlayan, tasarlayan, bağımsız bloklara bölüp test önce yürüten, kapılardan ve bağımsız incelemeden geçirip birleştiren ve bunu bütün SDLC boyunca sürdüren, araçtan ve stack'ten bağımsız, Apache 2.0 lisanslı açık kaynak bir pakettir. Bu belge her oturumda okunan tek kalıcı tasarımdır; v1 tasarımının yerini alır (v1, git geçmişinde `eb2f8bf`'tedir). Kilometre taşlarının ayrıntısı kendi spec'lerinde, sırası `docs/roadmap.md`'dedir. Çelişki olursa bu belge geçerlidir.
 
 ## 1. Amaç
 
@@ -230,7 +230,7 @@ Skill üst bilgisi yalnızca `name` ve `description` taşır. Subagent'ı destek
 
 ## 13. Verilmiş kararlar
 
-- Paket adı `softwary`, repo herkese açık, lisans MIT (yıl 2026, sahip Ufuk Cem Delice); telemetri yoktur ve paket ağa yalnızca `git`, `gh` ve `formal install`'ın sabit adresli indirmesiyle çıkar (V9, `tests/network_test.sh`); sürümler anlamsal sürümlemeye uyar, kurulum bir etiketten klonla ya da sağlaması doğrulanan bir sürüm arşiviyle yapılır (`curl | sh` yok), etiketi atmak ve sürümü yayımlamak insanındır (V9). POSIX `sh`, `git`, `jq`; düz `anahtar = değer` yapılandırma. Üretilen dosyalar commit'lenir.
+- Paket adı `softwary`, repo herkese açık, lisans Apache 2.0 (`LICENSE` resmi metnin aynısı, sahip `NOTICE`'ta: yıl 2026, Ufuk Cem Delice; `0.1.0` MIT ile yayımlandı, V11); telemetri yoktur ve paket ağa yalnızca `git`, `gh` ve `formal install`'ın sabit adresli indirmesiyle çıkar (V9, `tests/network_test.sh`); sürümler anlamsal sürümlemeye uyar, kurulum bir etiketten klonla ya da sağlaması doğrulanan bir sürüm arşiviyle yapılır (`curl | sh` yok), etiketi atmak ve sürümü yayımlamak insanındır (V9). POSIX `sh`, `git`, `jq`; düz `anahtar = değer` yapılandırma. Üretilen dosyalar commit'lenir.
 - Kaynaklardan yalnızca fikir alınır, metin ya da kod alınmaz (zazencodes GPL-3.0).
 - Döngü worktree'den entegrasyon dalına (`main`) PR ile birleştirir; üretim dalı (`master`) ayrıdır ve ona alma insan onayıyla yapılır.
 - Onay güven sınırı içerik özetleridir (tamper-evident); daha güçlü sınır sonraya bırakıldı.

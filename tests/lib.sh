@@ -682,7 +682,7 @@ models_translate() {
 
 # release_fixture DIR VERSION: a git repository at DIR that holds the package
 # as a release is built from it: install.sh, src/, tools/release.sh, VERSION,
-# README.md, LICENSE and CHANGELOG.md (a section for VERSION) and tests/ and
+# README.md, LICENSE, NOTICE and CHANGELOG.md (a section for VERSION) and tests/ and
 # docs/ that the archive must not carry, on branch main, committed with a fixed
 # identity and date. dist/ is ignored.
 release_fixture() {
@@ -691,7 +691,8 @@ release_fixture() {
 	cp "$PKG_ROOT/tools/release.sh" "$1/tools/"
 	printf '%s\n' "$2" >"$1/VERSION"
 	printf '# softwary\n' >"$1/README.md"
-	printf 'MIT License\n' >"$1/LICENSE"
+	printf 'Apache License\n' >"$1/LICENSE"
+	printf 'softwary\n' >"$1/NOTICE"
 	printf '# Changelog\n\n## %s\n\n- A change.\n' "$2" >"$1/CHANGELOG.md"
 	printf 'test\n' >"$1/tests/a_test.sh"
 	printf 'doc\n' >"$1/docs/a.md"
