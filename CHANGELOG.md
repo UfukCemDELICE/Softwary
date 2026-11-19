@@ -5,7 +5,13 @@ All notable changes to softwary are listed here. The format follows
 [semantic versioning](https://semver.org). The date of a release is added when
 it is tagged.
 
-## Unreleased
+## 0.2.0 - 2026-11-19
+
+### Added
+
+- `max_ci_minutes`, a new optional key of `loop.conf`: how long `job ci` and
+  `merge` wait for pending checks (30 minutes when it is missing, so existing
+  files keep working).
 
 ### Changed
 
@@ -27,8 +33,6 @@ it is tagged.
   Once checks have been seen, a single failing `gh` call or an empty read is
   waited out like a pending check instead of escalating the job; a pull request
   head that cannot be read counts as a `gh` failure, not as another head.
-- `max_ci_minutes` is a new optional key of `loop.conf` (30 minutes when it is
-  missing, so existing files keep working).
 - The rules every session reads (`core.md`) list the same protected paths as
   `guard` and say what is protected under `architecture/formal/`.
 

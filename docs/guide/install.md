@@ -21,7 +21,7 @@ an existing `AGENTS.md` or `CLAUDE.md` outside its own marked block.
 ## Install from a tag
 
 ```sh
-git clone --branch v0.1.0 <softwary-repository-url> softwary
+git clone --branch v0.2.0 <softwary-repository-url> softwary
 sh softwary/install.sh /path/to/your/repo
 ```
 
@@ -35,9 +35,9 @@ archive has one root directory, `softwary-<version>/`.
 
 ```sh
 sha256sum -c SHA256SUMS                       # the download is the release
-tar -xzf softwary-0.1.0.tar.gz                # to get install.sh
-sh softwary-0.1.0/install.sh \
-  --archive softwary-0.1.0.tar.gz \
+tar -xzf softwary-0.2.0.tar.gz                # to get install.sh
+sh softwary-0.2.0/install.sh \
+  --archive softwary-0.2.0.tar.gz \
   --sha256 <the digest in SHA256SUMS> \
   /path/to/your/repo
 ```
@@ -79,7 +79,7 @@ An installation older than 0.1.0 does not know `upgrade <archive>`. Upgrade it
 with the installer of the new version instead:
 
 ```sh
-sh softwary-0.1.0/install.sh --archive softwary-0.1.0.tar.gz \
+sh softwary-0.2.0/install.sh --archive softwary-0.2.0.tar.gz \
   --sha256 <digest> /path/to/your/repo --upgrade
 ```
 
@@ -112,7 +112,7 @@ sh tools/release.sh 0.1.0
 
 It requires `VERSION` to be `0.1.0`, a `## 0.1.0` section with content in
 `CHANGELOG.md` and a clean working tree. It writes
-`dist/softwary-0.1.0.tar.gz` and `dist/SHA256SUMS` from the current commit; two
+`dist/softwary-0.2.0.tar.gz` and `dist/SHA256SUMS` from the current commit; two
 runs on the same commit give the same bytes. It makes no tag, does not push
 and uploads nothing. Tagging the commit, publishing the release and attaching
 the two files are yours to do.

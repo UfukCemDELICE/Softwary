@@ -256,7 +256,7 @@ test_ac_v3_10_install_and_upgrade_ship_eval() {
 	[ -f "$REPO/.softwary/eval/cases/$name/diff.patch" ] || fail "cases are not installed"
 	[ -f "$REPO/.softwary/eval/sample/.softwary-config/commands.conf" ] || fail "the sample is not installed"
 	[ -f "$REPO/.softwary/eval/sample/tests/run.sh" ] || fail "the sample's tests are not installed"
-	make_pkg "$T/pkg" 0.1.0
+	make_pkg "$T/pkg" "$PKG_VERSION"
 	rm -r "$T/pkg/src/eval/cases/$name"
 	printf '# changed\n' >>"$T/pkg/src/eval/sample/CONTEXT.md"
 	sw upgrade "$T/pkg"

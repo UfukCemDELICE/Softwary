@@ -20,13 +20,13 @@ installed_version() {
 # The package path may be relative to the caller's directory.
 test_ac_m3_08_replaces_managed_files_and_runs_sync() {
 	setup_repo
-	make_pkg "$T/pkg" 0.2.0
+	make_pkg "$T/pkg" "$NEXT_VERSION"
 	printf '8. A new rule.\n' >>"$T/pkg/src/rules/core.md"
 	RC=0
 	(cd "$REPO" && ./softwary upgrade ../pkg) >"$OUT" 2>&1 || RC=$?
 	assert_eq "$RC" 0 "exit code"
-	assert_eq "$(head -n 1 "$OUT")" "upgrade: 0.1.0 -> 0.2.0" "first line"
-	assert_eq "$(installed_version)" 0.2.0 "installed version"
+	assert_eq "$(head -n 1 "$OUT")" "upgrade: $PKG_VERSION -> $NEXT_VERSION" "first line"
+	assert_eq "$(installed_version)" "$NEXT_VERSION" "installed version"
 	cmp -s "$T/pkg/src/rules/core.md" "$REPO/.softwary/rules/core.md" || fail "core.md was not replaced"
 	assert_contains "$REPO/AGENTS.md" "8. A new rule."
 	sw sync --check
@@ -36,7 +36,7 @@ test_ac_m3_08_replaces_managed_files_and_runs_sync() {
 # AC-M3-08: files that the new version no longer has are removed; new ones are added.
 test_ac_m3_08_removes_files_gone_from_new_version() {
 	setup_repo
-	make_pkg "$T/pkg" 0.2.0
+	make_pkg "$T/pkg" "$NEXT_VERSION"
 	rm "$T/pkg/src/templates/artifacts/review.md"
 	printf 'extra\n' >"$T/pkg/src/rules/extra.md"
 	sw upgrade "$T/pkg"
@@ -56,7 +56,7 @@ test_ac_m3_08_leaves_project_files_alone() {
 	printf -- '---\nname: mine\ndescription: Project skill.\n---\nBody.\n' >"$REPO/.softwary/local/skills/mine/SKILL.md"
 	printf 'log\n' >"$REPO/.softwary/state/logs/verify-lint.log"
 	printf '# edited\n' >>"$REPO/.softwary/config/commands.conf"
-	make_pkg "$T/pkg" 0.2.0
+	make_pkg "$T/pkg" "$NEXT_VERSION"
 	printf 'changed\n' >>"$T/pkg/src/rules/core.md"
 	snapshot >"$T/before"
 	sw upgrade "$T/pkg"
@@ -117,18 +117,18 @@ test_ac_m3_08_not_a_package_exits_2() {
 test_ac_m3_08_sync_failure_is_reported() {
 	setup_repo
 	tools_set cursor UNSET
-	make_pkg "$T/pkg" 0.2.0
+	make_pkg "$T/pkg" "$NEXT_VERSION"
 	sw upgrade "$T/pkg"
 	assert_eq "$RC" 2 "exit code"
 	assert_match "$OUT" "UNSET"
-	assert_eq "$(installed_version)" 0.2.0 "the managed files were still replaced"
+	assert_eq "$(installed_version)" "$NEXT_VERSION" "the managed files were still replaced"
 }
 
 # AC-M3-08: upgrade points core.hooksPath at the managed hooks, like install.
 test_ac_m3_08_hooks_path_redirected() {
 	setup_repo
 	git -C "$REPO" config --unset core.hooksPath
-	make_pkg "$T/pkg" 0.2.0
+	make_pkg "$T/pkg" "$NEXT_VERSION"
 	sw upgrade "$T/pkg"
 	assert_eq "$RC" 0 "exit code"
 	assert_eq "$(git -C "$REPO" config --get core.hooksPath)" .softwary/hooks "core.hooksPath"

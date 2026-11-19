@@ -7,6 +7,11 @@
 # output of the last `sw` call and $RC its exit code.
 
 PKG_ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
+# The version of the package under test, and a later one (the next minor) for
+# tests that upgrade to a newer package; no test names a fixed version of the
+# package, so a release does not break them.
+PKG_VERSION=$(cat "$PKG_ROOT/VERSION" 2>/dev/null)
+NEXT_VERSION=$(printf '%s\n' "$PKG_VERSION" | awk -F. '{ print $1 "." $2 + 1 ".0" }')
 REQUIRED_KEYS="format_check lint typecheck test build security"
 T=
 OUT=
