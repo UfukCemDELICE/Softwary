@@ -429,8 +429,23 @@ open_run() {
 # `pr view --json state` prints $T/gh/state-<n> (else $T/gh/state) or OPEN;
 # `pr create` also keeps the body ($T/gh/body-<n>, from --body or --body-file) and
 # `pr list --base B --head H --state open --json ...` prints the open PRs of
-# that base and head as a JSON array of {number, url}; `pr checks` exits with the
-# code in $T/gh/checks (default 0); `pr merge` exits with the code in
+# that base and head as a JSON array of {number, url}; `pr checks` answers like
+# `gh pr checks <n> --json name,bucket --jq <expr>` (V10), a check being
+# <bucket>:<name> with the bucket pass, fail, pending, skipping or cancel: from
+# $T/gh/checks-seq when that file exists, else from the exit code in
+# $T/gh/checks (default 0; 0 is the one check pass:ci, anything else the one
+# check fail:ci), so a test that only wants green or red writes one number.
+# checks-seq has one line per call, the last line repeated once the lines are
+# used up; a line is `none` (writes "no checks reported on the 'x' branch" to
+# stderr, exits 1), `error <message>` (writes the message, exits 1) or a
+# space-separated list of checks (runs the --jq expression, if any, over the
+# JSON array [{name, bucket}] with jq -r, like gh does, and exits 0).
+# $T/gh/head-seq does the same for `pr view --json headRefOid`: a line is a SHA,
+# `tip` (the tip of the PR's branch in origin) or `error <message>` (writes the
+# message to stderr, exits 1), and the file wins over $T/gh/head.
+# When $T/gh/noise exists every call first writes "warning: <its text>" to
+# stderr, as a real gh can next to a good answer.
+# `pr merge` exits with the code in
 # $T/gh/merge when that file exists, else squash-merges the PR's branch into
 # its base in origin (refusing a --match-head-commit that is not the tip) and
 # marks the PR MERGED. Every merge call logs "start <n>" and "end <n>" to
@@ -442,7 +457,16 @@ fake_gh() {
 #!/bin/sh
 T=@T@
 printf '%s\n' "$*" >>"$T/gh.log"
+[ ! -f "$T/gh/noise" ] || echo "warning: $(cat "$T/gh/noise")" >&2
 [ "$1" = pr ] || exit 0
+# seq_line FILE: the next line of a sequence file; the last line once the
+# lines are used up.
+seq_line() {
+	c=$(($(cat "$1-n" 2>/dev/null || echo 0) + 1))
+	echo "$c" >"$1-n"
+	[ "$c" -le "$(grep -c '' "$1")" ] || c=$(grep -c '' "$1")
+	sed -n "${c}p" "$1"
+}
 sub=$2
 shift 2
 case $sub in
@@ -485,14 +509,37 @@ view)
 	n=$1
 	case "$*" in
 	*headRefOid*)
-		if [ -f "$T/gh/head" ]; then cat "$T/gh/head"
-		else git --git-dir="$T/origin.git" rev-parse "refs/heads/$(cat "$T/gh/branch-$n")"; fi
+		h=
+		[ ! -f "$T/gh/head-seq" ] || h=$(seq_line "$T/gh/head-seq")
+		case $h in error*) echo "${h#error }" >&2; exit 1 ;; esac
+		if [ -z "$h" ] && [ -f "$T/gh/head" ]; then cat "$T/gh/head"
+		elif [ -z "$h" ] || [ "$h" = tip ]; then git --git-dir="$T/origin.git" rev-parse "refs/heads/$(cat "$T/gh/branch-$n")"
+		else printf '%s\n' "$h"; fi
 		;;
 	*state*) cat "$T/gh/state-$n" 2>/dev/null || cat "$T/gh/state" 2>/dev/null || echo OPEN ;;
 	esac
 	;;
 checks)
-	exit "$(cat "$T/gh/checks" 2>/dev/null || echo 0)"
+	jq_expr=
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--jq) jq_expr=$2; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	if [ -f "$T/gh/checks-seq" ]; then
+		line=$(seq_line "$T/gh/checks-seq")
+	elif [ "$(cat "$T/gh/checks" 2>/dev/null || echo 0)" = 0 ]; then
+		line=pass:ci
+	else
+		line=fail:ci
+	fi
+	case $line in
+	none) echo "no checks reported on the 'x' branch" >&2; exit 1 ;;
+	error*) echo "${line#error }" >&2; exit 1 ;;
+	esac
+	json=$(printf '%s' "$line" | jq -Rs '[split(" ")[] | select(length > 0) | split(":") | {name: (.[1:] | join(":")), bucket: .[0]}]')
+	if [ -n "$jq_expr" ]; then printf '%s\n' "$json" | jq -r "$jq_expr"; else printf '%s\n' "$json"; fi
 	;;
 merge)
 	n=$1

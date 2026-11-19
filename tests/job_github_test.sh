@@ -90,7 +90,7 @@ test_ac_v2_09_ci_pass_fail_head_mismatch() {
 	assert_eq "$RC" 0 "exit code"
 	assert_eq "$(job_get state)" reviewing "state after green checks"
 	assert_eq "$(last_event | jq -r .event)" ci_pass "event"
-	assert_contains "$T/gh.log" "pr checks 1 --watch"
+	assert_contains "$T/gh.log" "pr checks 1 --json name,bucket"
 	job_in ci
 	echo 1 >"$T/gh/checks"
 	sw job ci $JOB

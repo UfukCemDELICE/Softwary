@@ -9,7 +9,9 @@
 
 SW_LOOP_REL=.softwary/config/loop.conf
 SW_LOOP_KEYS_ALL="max_rounds max_job_minutes max_run_minutes concurrency max_job_tokens max_run_tokens min_catch_percent"
+SW_LOOP_KEYS_OPTIONAL="max_ci_minutes"
 SW_LOOP_TOKEN_KEYS="max_job_tokens max_run_tokens"
+SW_CI_DEFAULT_MINUTES=30
 SW_MODELS_REL=.softwary/config/models.conf
 
 # sw_loop_load: parses loop.conf. Sets SW_LOOP_ERRORS.
@@ -24,8 +26,8 @@ sw_loop_load() {
 		_ll=$(sw_kv_line SW_LOOP "$_lk")
 		_lv=$(sw_kv_get SW_LOOP "$_lk")
 		_le=
-		if ! sw_in_list "$_lk" "$SW_LOOP_KEYS_ALL"; then
-			_le="unknown key '$_lk' (use $SW_LOOP_KEYS_ALL)"
+		if ! sw_in_list "$_lk" "$SW_LOOP_KEYS_ALL $SW_LOOP_KEYS_OPTIONAL"; then
+			_le="unknown key '$_lk' (use $SW_LOOP_KEYS_ALL $SW_LOOP_KEYS_OPTIONAL)"
 		elif sw_in_list "$_lk" "$SW_LOOP_TOKEN_KEYS"; then
 			case $_lv in
 			UNSET) _le="$_lk: is UNSET (set a positive integer or 'NONE: <reason>')" ;;
@@ -36,6 +38,8 @@ sw_loop_load() {
 			sw_percent "$_lv" || _le="$_lk: '$_lv' is not a whole number from 0 to 100"
 		elif [ "$_lk" = concurrency ]; then
 			case $_lv in 1 | 2 | 3) ;; *) _le="concurrency must be 1, 2 or 3" ;; esac
+		elif [ "$_lk" = max_ci_minutes ]; then
+			sw_positive_int "$_lv" || _le="$_lk: '$_lv' is not a positive integer"
 		elif [ "$_lv" = UNSET ]; then
 			_le="$_lk: is UNSET (set a positive integer)"
 		elif ! sw_positive_int "$_lv"; then
@@ -70,6 +74,27 @@ sw_percent() {
 # sw_loop_get KEY: the value of KEY (after sw_loop_load returned 0).
 sw_loop_get() {
 	sw_kv_get SW_LOOP "$1"
+}
+
+# sw_ci_minutes: the minutes `job ci` and merge wait for CI checks that are
+# still pending: max_ci_minutes of loop.conf (an optional key, V10), else
+# SW_CI_DEFAULT_MINUTES. A file that cannot be read or a value that is not a
+# positive integer gives the default; doctor reports those.
+sw_ci_minutes() {
+	sw_loop_load >/dev/null 2>&1 || :
+	_cm=$(sw_kv_get SW_LOOP max_ci_minutes) || _cm=
+	sw_positive_int "$_cm" || _cm=$SW_CI_DEFAULT_MINUTES
+	printf '%s\n' "$_cm"
+}
+
+# sw_ci_timeout_seconds: the same limit in seconds. SW_CI_TIMEOUT_SECONDS
+# replaces it; that variable is for tests only (like SW_LOCK_TIMEOUT).
+sw_ci_timeout_seconds() {
+	if [ -n "${SW_CI_TIMEOUT_SECONDS-}" ]; then
+		printf '%s\n' "$SW_CI_TIMEOUT_SECONDS"
+		return 0
+	fi
+	printf '%s\n' $(($(sw_ci_minutes) * 60))
 }
 
 # sw_loop_num KEY: the limit of KEY as a number; nothing when it is NONE.

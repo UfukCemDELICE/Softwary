@@ -219,7 +219,7 @@ test_ac_v2_12_sync_creates_new_sha() {
 	new=$(grep -o -e '--match-head-commit [0-9a-f]*' "$T/gh.log" | cut -d' ' -f2)
 	[ -n "$new" ] && [ "$new" != "$old" ] || fail "the merge was not bound to a new commit ($old, $new)"
 	assert_eq "$(git --git-dir="$T/origin.git" log -1 --format=%H refs/heads/softwary/$JOB)" "$new" "pushed branch"
-	assert_contains "$T/gh.log" "pr checks 1 --watch"
+	assert_contains "$T/gh.log" "pr checks 1 --json name,bucket"
 	[ -f "$REPO/news.txt" ] || fail "main does not have the news"
 	assert_eq "$(job_get state)" merged "state"
 }
